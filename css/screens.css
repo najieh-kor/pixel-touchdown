@@ -1262,7 +1262,11 @@ button.bk-match { min-height: 44px; }
 .sc-row { display: flex; align-items: center; gap: 6px; padding: 3px 0; border-bottom: 2px dashed var(--grey-2); font-size: 14px; }
 .sc-row .q { flex: none; min-width: 58px; font-family: var(--font-m); font-size: 10px; }
 @media (orientation: landscape) and (max-height: 480px) {
-  .m-box .box-tabs .btn { min-height: 34px; }
+  .m-box .box-tabs .btn { min-height: 44px; padding-top: 0; padding-bottom: 0; }
+  .box-host .box-grid { grid-template-columns: 1fr 1fr; gap: 6px; }
+  .box-host .box-lead { padding: 4px 8px; }
+  .box-host .tbl-line .badge { width: 28px; height: 28px; }
+  .m-box .mtitle { font-size: 16px; }
   .box-host .tbl-line td, .box-host .tbl-line th { padding-top: 2px; padding-bottom: 2px; }
   .box-host .box-lead li { font-size: 12px; margin: 0; }
   .box-host .box-lead h4 { margin: 0 0 2px; font-size: 14px; }
@@ -1300,7 +1304,8 @@ button.bk-match { min-height: 44px; }
 }
 /* ROUND6: big screens (1920×1080 class) render the menus as at 1366×768, scaled up — crisp pixel text, same layouts */
 @media (min-width: 1700px) and (min-height: 950px) {
-  #screen, #modal, #toast { zoom: 1.4; }
+  /* zoom scales the box too: size the zoomed layers to viewport / 1.4 so they end exactly at the screen edges */
+  #screen, #modal, #toast { zoom: 1.4; width: calc(var(--app-w, 100vw) / 1.4); height: calc(var(--app-h, 100vh) / 1.4); }
 }
 /* Stars tab: all 8 Stars on one page — 4 compact tiles × 2 rows */
 .star-pg .pg-list.pg-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -1313,3 +1318,367 @@ button.bk-match { min-height: 44px; }
 }
 @media (orientation: landscape) and (max-height: 480px) { .star-chip .star-ab-n { display: none; } .star-chip-m .tiny { overflow: visible; } }
 @media (min-height: 481px) { .star-chip .star-ab-n { white-space: nowrap; } }
+
+/* ---- Settings: basics first, "More options" below; the ONE screen allowed to scroll (client) ---- */
+.lay.settings-scroll .scroll { overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; touch-action: pan-y; }
+.setz .setz-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 18px; }
+.setz .set-row { min-height: 48px; padding: 4px 0; }
+.setz .set-row.col-row { display: flex; flex-direction: column; align-items: stretch; gap: 4px; }
+.setz .seg, .set-modal .seg { display: flex; gap: 4px; }
+.setz .seg .btn, .set-modal .seg .btn { flex: 1 1 0; min-height: 40px; padding: 0 6px; }
+.setz-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+@media (max-width: 700px) { .setz .setz-grid { grid-template-columns: minmax(0, 1fr); } }
+/* in-game Settings modal: 4 basic rows in 2 columns, fits 667×375 */
+.m-settings .mcard { width: min(720px, 100%); height: auto; }
+.set-modal { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 16px; }
+.set-modal .set-row { display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding: 0; min-height: 0; border: 0; }
+.set-modal .set-row b { font-size: 15px; }
+@media (orientation: landscape) and (max-height: 480px) {
+  .m-settings .mcard { padding: 8px 12px 6px; }
+  .m-settings .mtitle { font-size: 22px; margin-bottom: 6px; }
+  .set-modal .seg .btn { min-height: 40px; font-size: 16px; }
+  .m-settings .mbtns { margin-top: 6px; }
+  .m-settings .mbtns .btn { min-height: 42px; }
+}
+
+/* ---- UI_RULES: HQ = next game + To do + news line ---- */
+.hqz { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.hqz-main, .hqz-side { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.hqz .nx-card { margin: 0; }
+.hqz .nx { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; padding: 6px 0; }
+.hqz .nx-side { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
+.hqz .nx-line { font-family: var(--font-d); font-size: 20px; white-space: nowrap; }
+.hqz .nx-vs { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.hqz .vs { font-family: var(--font-d); font-size: 34px; color: var(--ink); }
+.hub-todo { margin: 0; }
+.todo { display: flex; flex-direction: column; gap: 6px; }
+.todo-i { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 4px 10px; border: 0; background: var(--paper); box-shadow: var(--frame-2), 0 4px 0 0 rgba(27, 31, 58, 0.35); font-weight: 700; text-align: left; color: var(--ink); }
+.todo-i .todo-ic .px-ic, .todo-i .todo-go .px-ic { width: 20px; height: 20px; }
+@media (hover: hover) { .todo-i:hover { background: var(--cream-2); } }
+.hq-ticker { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 4px 10px; border: 0; background: rgba(27, 31, 58, 0.82); color: #fff; font-size: 13px; text-align: left; box-shadow: var(--frame-2); }
+.hq-ticker .grow { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hq-ticker .px-ic { width: 18px; height: 18px; flex: none; }
+.lay.hub .foot .page { justify-content: flex-end; }
+.lay.hub .foot .btn-simend { flex: 0 0 auto; }
+@media (orientation: landscape) and (max-height: 480px) {
+  .hqz { gap: 10px; }
+  .hqz .nx .badge { width: 56px; height: 56px; }
+  .hqz .nx-line { font-size: 17px; }
+  .hqz .vs { font-size: 26px; }
+}
+/* ---- UI_RULES: pregame = matchup + one scouting line per side; Sim (left) + Play (right) ---- */
+.prez { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+.prez .pg-match { margin: 0; }
+.prez-scout { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4px 16px; padding: 8px 12px; }
+.prez-line { margin: 0; display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 15px; white-space: nowrap; }
+.prez-line .px-ic { width: 20px; height: 20px; flex: none; }
+.prez-line.good { color: var(--green-d); } .prez-line.bad { color: var(--red-d); }
+.lay.pregame .foot .page { justify-content: flex-end; }
+.lay.pregame .foot .pg-sim { flex: 0 0 auto; min-width: 140px; }
+.lay.pregame .foot .pg-play { flex: 0 1 420px; }
+@media (max-width: 960px) { .prez-line { font-size: 13px; } }
+
+/* ---- UI_RULES 10 / bounds.js: names wrap (2 lines) instead of "…"; nothing sticks out of its card ---- */
+.prow-name { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: break-word; line-height: 1.1; }
+.prow-name .star-tag { vertical-align: 1px; }
+.chip-hurt-s { padding: 0 4px; gap: 2px; font-size: 12px; }
+.chip-hurt-s .px-ic { width: 12px; height: 12px; }
+.star-mini { padding: 0 2px; margin: 0 2px; height: 16px; }
+.star-mini svg, .star-mini .px-ic { width: 12px; height: 12px; }
+.lay.lineup .dchip-n { display: flex; flex-wrap: wrap; align-items: center; gap: 0 3px; white-space: normal; overflow: visible; min-width: 0; line-height: 1.1; }
+.lay.lineup .dchip-nm { overflow-wrap: break-word; min-width: 0; }
+.lay.lineup .dchip-n .capt { width: 16px; height: 16px; font-size: 12px; margin: 0; }
+@media (orientation: landscape) and (max-height: 480px) { .lay.lineup .dchip .jersey { display: none; } }
+.lay.roster .ros-n { margin-left: 2px; }
+.lay.roster .ros-grid .fchip { padding-left: 4px; padding-right: 4px; overflow: hidden; }
+#screen[data-screen="team"] .pay-n, #screen[data-screen="standings"] .ellip, #screen[data-screen="stats"] .ellip, #screen[data-screen="teams"] .ellip {
+  white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: normal; word-break: keep-all; line-height: 1.1; }
+@media (orientation: landscape) and (max-height: 480px) { #screen[data-screen="newgame"] .tteam-c { display: none; } }
+#screen[data-screen="newgame"] .tteam-c { white-space: normal; text-overflow: clip; overflow: visible; }
+.hq-ticker .grow { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.2; }
+.mcard:has(> .mx) > .mtitle { padding: 0 52px; }
+.m-box .box-tabs { margin-right: 52px; }
+.tm-coach .sp-img, .tm-coach .portrait { flex: none; max-height: 26px; max-width: 26px; }
+.mcard:has(> .mx) > .mtitle { padding: 0; margin-left: 52px; margin-right: 52px; }
+.prow-sub { flex-wrap: wrap; row-gap: 2px; }
+.lay.roster .ros-n { min-width: 14px; height: 14px; font-size: 11px; padding: 0 1px; margin-left: 1px; }
+.lay.roster .ros-grid .fchip { padding-left: 2px; padding-right: 2px; letter-spacing: 0; }
+.ros-pg .prow-sub, .nc-prow .prow-sub { flex-wrap: wrap; overflow: visible; }
+#screen .ros-pg .prow-sub, #screen .nc-prow .prow-sub { flex-wrap: wrap; overflow: visible; }
+#screen[data-screen="playoffs"] .ellip, #screen[data-screen="schedule"] .ellip { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: normal; word-break: keep-all; line-height: 1.1; }
+#screen[data-screen="schedule"] .sch-opp { min-width: 0; }
+#screen[data-screen="standings"] .tm-main .stars svg, #screen[data-screen="standings"] .tm-main .stars .px-ic { width: 12px; height: 12px; }
+#screen[data-screen="standings"] .tm-main { min-width: 0; }
+#screen[data-screen="standings"] .tm-main .stars svg, #screen[data-screen="standings"] .tm-main .stars .px-ic { width: 10px; height: 10px; }
+#screen[data-screen="standings"] .tm-main > span:last-child { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; min-width: 0; }
+.prez-scout { grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr); align-items: center; }
+.prez-tags { display: flex; gap: 6px; }
+.prez-tags .chip { white-space: nowrap; }
+@media (max-width: 960px) { .prez-scout { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .prez-tags { grid-column: 1 / -1; } }
+/* pregame scouting: tags, then one line per side, stacked (never side by side, never wrapped) */
+#screen[data-screen="pregame"] .prez-scout { display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 10px; padding: 10px 14px; }
+#screen[data-screen="pregame"] .prez-tags { flex-wrap: wrap; }
+#screen[data-screen="pregame"] .prez-line { white-space: nowrap; font-size: 15px; }
+#screen[data-screen="pregame"] .pg-side .stars-num { font-size: 12px; color: rgba(255, 255, 255, 0.7); font-family: var(--font); }
+@media (orientation: landscape) and (max-height: 480px) { #screen[data-screen="pregame"] .prez-line { font-size: 14px; } }
+#screen[data-screen="standings"] .std-key { font-size: 12px; }
+#screen[data-screen="standings"] .nc-tile-r { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; min-width: 0; }
+#screen[data-screen="standings"] .tm-main .stars-num { display: none; }
+#screen[data-screen="standings"] .tm-main .stars { flex-wrap: wrap; max-width: 100%; }
+/* Trophy Room: 4 tabs, one tab row; toggles live in panel headers; pagers in panel footers */
+.lay.history .rec-card .card-h { gap: 8px; }
+.lay.history .rec-seg { display: inline-flex; gap: 2px; margin-left: auto; }
+.lay.history .rec-sb { min-height: 32px; padding: 0 10px; border: 0; background: var(--navy-2); color: #c9cdf0; font-family: var(--font-d); font-size: 16px; text-transform: uppercase; box-shadow: var(--frame-2); }
+.lay.history .rec-sb.on { background: var(--sun); color: var(--ink); }
+.lay.history .rec-c { display: flex; align-items: baseline; gap: 5px; min-width: 0; flex-wrap: wrap; }
+.lay.history .rec-n { white-space: nowrap; font-size: 13px; }
+.lay.history .rec-y { white-space: nowrap; }
+.lay.history .hist-2 > .card { margin: 0; }
+.ret-row { display: inline-flex; gap: 4px; margin-left: auto; }
+.jersey-b.mini { width: 26px; height: 26px; font-size: 13px; }
+.lay.history .rec-c { flex-wrap: nowrap; white-space: nowrap; }
+.lay.history .rec-r { min-height: 32px; padding-top: 3px; padding-bottom: 3px; }
+.lay.history .rec-h { padding-top: 2px; padding-bottom: 2px; }
+.lay.history .rec-k { font-size: 14px; }
+.lay.history .sea-r .ellip { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.1; }
+@media (orientation: landscape) and (max-height: 480px) {
+  .lay.history .sea-r .tcell .ellip { display: none; }
+  .lay.history .rec-n { font-size: 12px; }
+  .lay.history .rec-card .card-h h2 { font-size: 20px; }
+}
+#screen .lay.history .rec-c { flex-direction: row; align-items: baseline; gap: 5px; }
+#screen .lay.history .rec-h { min-height: 0; }
+/* Office > Coach (HUNT #2/#34) */
+.lvl-badge .small { font-size: 12px; }
+.sk-lock { flex: none; display: grid; place-items: center; width: 44px; height: 40px; opacity: 0.55; }
+.sk-lock .px-ic { width: 20px; height: 20px; }
+.sk.offer { box-shadow: var(--frame-2), 0 0 0 3px var(--sun); }
+.sk-next { margin-left: 6px; font-size: 12px; }
+/* HUNT #43: Settings keeps 2 columns on small phones */
+@media (max-width: 700px) { .setz .setz-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (orientation: landscape) and (max-height: 400px) { .setz .set-row { min-height: 0; padding: 2px 0; } .setz .seg .btn { min-height: 40px; } }
+/* HUNT #42: touch players see the touch controls only (more rows per page) */
+html.pt-touch .ht-pic-kbd, html.pt-coarse .ht-pic-kbd, html.pt-touch .htc-m, html.pt-touch .htc-k, html.pt-touch .htc-row .ht-pad { display: none; }
+html.pt-touch .htc-row { grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr) !important; }
+.ht-btns i { font-size: 10px; }
+html.pt-coarse .htc-m, html.pt-coarse .htc-k, html.pt-coarse .htc-row .ht-pad { display: none; }
+html.pt-coarse .htc-row { grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr) !important; }
+/* HUNT #12: all 18 coach animals at once (2 rows x 9), selected one ringed */
+.ngx-sp-l { display: block; margin: 4px 0 2px; }
+.ngx-sp-grid { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 4px; }
+.ngx-sp-grid .sp-b { min-height: 40px; min-width: 0; padding: 2px; display: grid; place-items: center; border: 0; background: var(--paper); box-shadow: var(--frame-2); }
+.ngx-sp-grid .sp-b.on { background: var(--sun); box-shadow: var(--frame-2), 0 0 0 3px var(--ink); }
+.ngx-sp-grid .sp-b .sp-img, .ngx-sp-grid .sp-b img { width: 28px; height: 28px; }
+/* HUNT #24: team tiles: the city never spills out of the tile */
+.tteam-txt, .tteam-row { min-width: 0; }
+.tteam-c { display: block; overflow: hidden; text-overflow: clip; white-space: normal; line-height: 1.1; }
+/* HUNT #4: Quick Game options fit 667x375 — weather 4 + 3, compact VS card */
+#screen[data-screen="quick"] .qg-wx-card .seg { display: grid !important; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+#screen[data-screen="quick"] .seg .btn, #screen[data-screen="quick"] .diff { min-height: 44px; }
+@media (orientation: landscape) and (max-height: 400px) {
+  #screen[data-screen="quick"] .qg-side .badge { width: 40px; height: 40px; }
+  #screen[data-screen="quick"] .card { padding-top: 4px; padding-bottom: 4px; margin-bottom: 4px; }
+  #screen[data-screen="quick"] .card-h { margin-bottom: 2px; }
+}
+/* HUNT #19: title buttons never ellipsize on small phones */
+@media (max-width: 760px) { .t-grid > .btn { font-size: 18px; gap: 4px; } .t-grid > .btn .btn-ic .px-ic { width: 18px; height: 18px; } .t-btns .btn .btn-t { overflow: visible; text-overflow: clip; } }
+.slot-line { white-space: nowrap; }
+/* HUNT #5/#29/#30: names never break mid-word; 2 team tiles per row on phones; muted seed chips; power header */
+@media (max-width: 960px) {
+  #screen[data-screen="standings"] .nc-tm4, #screen[data-screen="teams"] .nc-tm4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #screen[data-screen="standings"] .nc-tm-st, #screen[data-screen="teams"] .nc-tm-st, #screen .nc-tm-city { display: none; }
+}
+#screen[data-screen="schedule"] .sch-opp .ellip { white-space: nowrap; }
+.seed.seed-m { background: transparent; box-shadow: none; color: var(--ink-soft, #6b6f8e); font-size: 12px; min-width: 0; padding: 0 2px; }
+.nc-pw-h { font-size: 11px; font-family: var(--font-m); text-transform: uppercase; color: #fff; background: var(--navy); box-shadow: none !important; min-height: 0 !important; padding: 3px 8px !important; }
+.nc-pw-h .tcell { justify-content: flex-start; }
+/* HUNT #6/#28: calendar header + week results fit small phones */
+#screen[data-screen="schedule"] .sch-tn { flex: none; white-space: nowrap; }
+@media (max-width: 760px) { #screen[data-screen="schedule"] .sch-season { display: none; } }
+#screen[data-screen="results"] .wk-t { white-space: nowrap; }
+@media (max-width: 760px) { #screen[data-screen="results"] .res-line .badge-m { width: 32px; height: 32px; } #screen[data-screen="results"] .res-line .badge-m .badge-ab { display: none; } }
+/* HUNT #9: leaders — 3 cards side by side, names on one line */
+#screen[data-screen="stats"] .ldr-pg .pg-list.pg-grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+#screen[data-screen="stats"] .ldr-nm { white-space: nowrap; }
+
+/* HUNT #20/#44 (Final): one Box Score button + Continue; 12px+ sub line and MVP tag; cards fill down to the buttons;
+   team colours come from the game kits (--ca away / --ch home) so same-colour teams differ */
+.pgx-foot { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
+.pgx-foot .pgx-go { grid-column: auto; }
+.pgx-sub { font-size: 12px; }
+.pgx .star-tag, .pgx .star-tag b { font-size: 12px; }
+.pgx-stats h3 span { display: inline-flex; align-items: center; gap: 6px; color: #fff; }
+.pgx-stats h3 span::before { content: ''; width: 12px; height: 12px; background: var(--ca); box-shadow: 0 0 0 2px #fff; }
+.pgx-stats h3 span:last-child { flex-direction: row-reverse; }
+.pgx-stats h3 span:last-child::before { background: var(--ch); }
+.pgx > .confetti { z-index: 5; }
+@media (orientation: landscape) and (max-height: 520px) {
+  .pgx-mid { align-content: stretch; grid-auto-rows: minmax(0, 1fr); }
+  .pgx-card { display: flex; flex-direction: column; }
+  .pgx-card > .pgx-p, .pgx-card > .pgx-st { flex: 1 1 0; min-height: 0; }
+}
+/* HUNT #50: champion confetti stays behind the bracket text */
+.nc-bowl > .confetti { z-index: 0; }
+.nc-bowl > :not(.confetti) { position: relative; z-index: 1; }
+/* HUNT #27/#46 (pregame): Sim and Play share one height, Play is twice as wide; scout lines may wrap;
+   your team on the left with a gold "You" tag; the rating number reads on the coloured panel */
+.lay.pregame .foot .page { display: flex; gap: 10px; align-items: stretch; }
+.lay.pregame .foot .page > .pg-sim { flex: 1 1 0; min-width: 0; min-height: 64px; max-width: none; }
+.lay.pregame .foot .page > .pg-play { flex: 2 1 0; min-width: 0; min-height: 64px; max-width: none; }
+@media (orientation: landscape) and (max-height: 480px) {
+  .lay.pregame .foot .page > .pg-sim, .lay.pregame .foot .page > .pg-play { min-height: 50px; }
+}
+#screen[data-screen="pregame"] .prez-line { white-space: normal; line-height: 1.2; }
+#screen[data-screen="pregame"] .prez-scout { justify-content: center; }
+#screen[data-screen="pregame"] .pg-side .stars-num { color: var(--t-pri-ink); opacity: 0.9; font-weight: 700; }
+#screen[data-screen="pregame"] .pg-side.me .pg-ha { opacity: 1; color: var(--t-pri-ink); }
+#screen[data-screen="pregame"] .pg-side.me { box-shadow: inset 0 -6px 0 var(--sun); }
+/* HUNT #45/#26 (HQ): welcome = [Practice] [Got it]; New Season twist effect on one line; Box Score is a chip under the score;
+   SE height: record + stars on one line, 48px badges */
+.welcome-btns > .welcome-practice { flex: 1 1 0; }
+.welcome-btns > [data-testid="btn-welcome-ok"] { flex: 1.6 1 0; }
+.welcome-practice .btn-t { white-space: nowrap; }
+.ns-tw { display: flex; flex-direction: column; min-width: 0; }
+.ns-tw .ns-fx { font-weight: 400; line-height: 1.2; }
+.hqz .nx-vs .nx-box { min-height: 36px; padding: 2px 10px; font-size: 15px; }
+.hqz .nx-vs .nx-box .px-ic { width: 16px; height: 16px; }
+@media (orientation: landscape) and (max-height: 400px) {
+  .hqz .nx-side { flex-direction: column; gap: 2px; }
+  .hqz .nx-side .nx-ab { display: none; }
+  .hqz .nx-side .stars .px-ic, .hqz .nx-side .stars svg { width: 13px; height: 13px; }
+  .hqz .nx-side .badge-l { width: 48px; height: 48px; }
+  .hqz .nx-side .nx-line + .stars { margin-top: -2px; }
+  .hqz .nx-vs { gap: 3px; }
+  .hqz .nx-vs .score-big { font-size: 32px; }
+}
+@media (pointer: coarse) { .hqz .nx-vs .nx-box { min-height: 44px; } }
+.hqz .nx-meta { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
+@media (orientation: landscape) and (max-height: 400px) { .hqz .nx-meta { flex-direction: row; gap: 6px; } }
+/* HUNT #5: bracket names switch to the team abbreviation when a round column is narrow */
+.bk-n .bk-ab { display: none; }
+.nc-bk .bk-col, .nc-bowl .bowl { container-type: inline-size; }
+@container (max-width: 160px) {
+  .bk-n .bk-full { display: none; }
+  .bk-n .bk-ab { display: inline; }
+}
+.nc-empty { display: flex; align-items: center; justify-content: center; }
+/* HUNT #50: Seasons keeps Top Dog on phones; the Champion column is capped and shows the abbreviation when short */
+.sea-r .sea-ab { display: none; }
+#screen .lay.history .sea-r { grid-template-columns: 48px minmax(0, 1.3fr) 56px minmax(0, 1fr) minmax(0, 1fr); gap: 6px; }
+#screen .lay.history .card:has(.sea-pg) { container-type: inline-size; }
+@container (max-width: 560px) {
+  .lay.history .sea-r .tcell .ellip { display: none; }
+  .lay.history .sea-r .sea-ab { display: inline; }
+  #screen .lay.history .sea-r { grid-template-columns: 44px 76px 52px minmax(0, 1fr) minmax(0, 1fr); }
+}
+#screen .lay.history .sea-x { display: block; }
+@media (orientation: landscape) and (max-height: 480px) {
+  .lay.history .sea-r .sea-ab { display: inline; }
+}
+/* HUNT #8 (iPhone SE 667x375): League screens fit with no scroll — 2 divisions per page (W-L-T only), 34px rows,
+   28px badges; Playoff Picture shows 2 "in the hunt" tiles and the Bye chip on the tile corner */
+@media (orientation: landscape) and (max-height: 400px) {
+  #screen .nc-divs > .pg-list.pg-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 8px; }
+  #screen .nc-tbl .col-pf, #screen .nc-tbl .col-pa, #screen .nc-tbl .col-strk { display: none; }
+  #screen .nc-tbl td, #screen .lh-tbl.nc-tbl td { height: 34px; padding-top: 1px; padding-bottom: 1px; }
+  #screen .nc-tbl th { font-size: 14px; padding-top: 2px; padding-bottom: 2px; }
+  #screen .nc-tbl .tcell { max-width: none; }
+  #screen .nc-tbl .badge-s, #screen .nc-tile .badge-s { width: 28px; height: 28px; }
+  #screen .nc-div { margin-bottom: 6px; }
+  #screen .nc-pic { padding: 4px 6px; }
+  #screen .nc-pic-h { margin-bottom: 2px; }
+  #screen .nc-tile { position: relative; min-height: 36px; padding: 2px 4px; margin-bottom: 3px; }
+  #screen .nc-tile .seed-big { width: 24px; height: 24px; font-size: 14px; }
+  #screen .nc-tile .nc-bye { display: none; }   /* seed 1 = bye; no room for the chip on a 120px tile */
+  #screen .nc-line { margin: 2px 0; }
+  #screen .nc-line + .nc-tiles .nc-tile:nth-child(n+3) { display: none; }
+  #screen[data-screen="results"] .res-divc { display: none; }
+  #screen .nc-bk .bk-line, #screen .nc-bowl .bk-line { min-height: 24px; font-size: 13px; }
+}
+/* HUNT #28/#8: Week Results on short screens: narrower left column, Around the League in 2 columns */
+@media (orientation: landscape) and (max-height: 480px) {
+  #screen .lay.results .res-cols { grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.3fr); }
+  #screen .lay.results .res-pg > .pg-list.pg-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 6px; }
+  #screen .lay.results .res-lg .card-h h2 { font-size: 18px; }
+  #screen .lay.results .sc-card { min-height: 40px; padding-top: 2px; padding-bottom: 2px; }
+  #screen .lay.results .sc-card .badge-s { display: none; }
+  #screen .lay.results .sc-card { justify-content: center; }
+}
+@media (min-height: 560px) and (min-width: 1000px) {
+  #screen[data-screen="pregame"] .prez-line { font-size: 19px; }
+  #screen[data-screen="pregame"] .prez-line .px-ic { width: 24px; height: 24px; }
+  #screen[data-screen="pregame"] .prez-tags .chip { font-size: 17px; padding: 4px 10px; }
+  #screen[data-screen="pregame"] .prez-scout { gap: 16px; padding: 16px 22px; }
+}
+.box-host .tbl-vs td.n { text-align: center; width: 30%; }
+.box-host .tbl-vs th.n { text-align: center; }
+/* HUNT #26 (HQ on SE height): To do shows 2 items in a 15px single-line style so the news line still fits */
+@media (orientation: landscape) and (max-height: 400px) {
+  .hqz .todo-i:nth-child(n+3) { display: none; }
+  .hqz .todo-i { min-height: 40px; font-size: 15px; line-height: 1.1; padding: 2px 8px; }
+  .hqz .todo-ic .px-ic, .hqz .todo-go .px-ic { width: 20px; height: 20px; }
+  .hqz .hub-todo .card-h h2 { font-size: 20px; }
+}
+/* bounds: Playoff Picture tiles show the abbreviation when a tile is too narrow for the full name */
+.nc-tiles > .nc-tile { container-type: inline-size; }
+@container (max-width: 175px) {
+  .nc-n .nc-full { display: none; }
+  .nc-n .nc-ab { display: inline; }
+}
+/* bounds: Calendar rows need ~400px for "vs Barnstormers" + Rival + result (3 columns cut names at 1366) */
+#screen .sch-pg .pg-list.pg-grid { grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); }
+/* bounds @ 667x375 */
+@media (max-width: 700px) {
+  .lay.howto .tab { padding-left: 6px; padding-right: 6px; font-size: 15px; gap: 4px; }
+  .lay.howto .tab .px-ic { width: 18px; height: 18px; }
+}
+@media (orientation: landscape) and (max-height: 400px) {
+  #screen .lay.results .res-mine .badge-m { width: 40px; height: 40px; }
+  #screen .lay.results .res-mine .score-big { font-size: 26px; }
+  #screen .lay.history .rec-c { gap: 3px; }
+  #screen .lay.history .rec-c b { font-size: 14px; }
+  #screen .lay.history .rec-y { font-size: 12px; }
+}
+@container (max-width: 210px) {
+  .bk-n .bk-full { display: none; }
+  .bk-n .bk-ab { display: inline; }
+}
+@media (orientation: landscape) and (max-height: 400px) {
+  #screen .lay.history .rec-r, #screen .lay.history .rec-r.c2 { grid-template-columns: 96px repeat(3, minmax(0, 1fr)); }
+  #screen .lay.history .rec-c { flex-wrap: wrap; row-gap: 0; line-height: 1.1; }
+  #screen .lay.history .rec-c > b { order: 1; }
+  #screen .lay.history .rec-c > .rec-y { order: 2; }
+  #screen .lay.history .rec-c > .rec-n { order: 3; flex-basis: 100%; font-size: 12px; }
+  #screen .lay.history .rec-k { font-size: 13px; }
+}
+@media (orientation: landscape) and (max-height: 400px) {
+  #screen .lay.history .rec-card .card-h { margin-bottom: 2px; padding-top: 2px; padding-bottom: 2px; }
+  #screen .lay.history .rec-card .card-h h2 { font-size: 18px; }
+  #screen .lay.history .rec-sb { min-height: 36px; font-size: 14px; }
+  #screen .lay.history .rec-h { min-height: 22px; margin-bottom: 3px; }
+  #screen .lay.history .rec-r:not(.rec-h) { min-height: 34px; padding-top: 1px; padding-bottom: 1px; margin-bottom: 4px; }
+}
+@media (max-width: 700px) { .lay.howto .tab .px-ic { display: none; } }
+@media (orientation: landscape) and (max-height: 400px) {
+  #screen .lay.results .res-mine .res-line { gap: 4px; justify-content: space-between; }
+  #screen .lay.results .res-mine .badge-m { width: 32px; height: 32px; flex: none; }
+  #screen .lay.results .res-mine .badge-m .badge-ab { display: none; }
+  #screen .lay.results .res-mine .score-big { font-size: 22px; gap: 4px; white-space: nowrap; }
+  #screen .lay.results .res-mine .res-chip { width: 26px; height: 26px; font-size: 14px; }
+}
+@container (max-width: 380px) {
+  #screen .lay.history .sea-r { grid-template-columns: 40px 30px 46px minmax(0, 1fr) minmax(0, 1fr); gap: 4px; padding-left: 4px; padding-right: 4px; }
+  .lay.history .sea-r .sea-ab { display: none; }
+  .lay.history .sea-h > span:nth-child(2) { font-size: 0; }
+}
+@media (orientation: landscape) and (max-height: 400px) {
+  #screen .lay.history .hist-2 { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+  #screen .lay.history .sea-r .badge-s { width: 28px; height: 28px; }
+  #screen .lay.history .sea-r { font-size: 13px; }
+}
+/* overflow: news lines are never clamped; a long headline takes a third line */
+#screen .nw-t { display: block; -webkit-line-clamp: unset; overflow: visible; overflow-wrap: normal; word-break: normal; }
+/* Trophy Room header toggles never wrap; Badges count chip sits before the toggle */
+.lay.history .rec-sb { white-space: nowrap; }
+.lay.history .ach-card .card-h .ach-n { margin-left: auto; }
+.lay.history .ach-card .card-h .rec-seg { margin-left: 8px; }

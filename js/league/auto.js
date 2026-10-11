@@ -44,7 +44,10 @@
         let pid = LG().AIGM.chooseDraftPick(L, L.userTid);
         if (pid == null) { const board = LG().Draft.board(L, {}); pid = board.length ? board[0].p.id : null; }
         if (pid == null) return { ok: false, err: 'NO_PICK', msg: 'No rookies left.' };
-        return LG().Draft.pick(L, pid);
+        const r = LG().Draft.pick(L, pid);
+        // like the draft screen's Pick: run on to the user's next pick (or the end), so picks never cost Next presses
+        if (r && r.ok && !LG().Draft.status(L).done) LG().Draft.simToUser(L);
+        return r;
       }
       case 'FIRED':                                                 // QA1: the user must choose (new job / retire)
         return { ok: false, err: 'FIRED', msg: 'The Boss wants to talk. Take a new job first.' };
@@ -53,11 +56,20 @@
     }
   };
 
-  /** resolve every current blocker once @returns {number} resolved count */
+  /** resolve every blocker Auto can resolve (repeats while new ones appear; never FIRED) @returns {number} resolved count */
   Auto.resolveAll = function (L) {
-    const st = LG().Calendar.status(L);
-    st.blockers.forEach((b) => Auto.resolve(L, b));
-    return st.blockers.length;
+    // repeat: resolving one blocker can raise the next (e.g. a draft pick runs on to the user's next pick)
+    let n = 0;
+    for (let pass = 0; pass < 40; pass++) {
+      const bl = LG().Calendar.status(L).blockers.filter((b) => b.k !== 'FIRED');   // FIRED is the user's choice
+      if (!bl.length) break;
+      const where = () => [L.phase, L.week, L.sub, L.season, L.ev.pending.length].join('/');
+      const key = JSON.stringify(bl) + where();
+      bl.forEach((b) => Auto.resolve(L, b));
+      n += bl.length;
+      if (JSON.stringify(LG().Calendar.status(L).blockers.filter((b) => b.k !== 'FIRED')) + where() === key) break;   // no progress
+    }
+    return n;
   };
 
   /**

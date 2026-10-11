@@ -48,6 +48,9 @@
     if (e.tm !== G.P.off) {
       rt += T.AB_LASER_REACT * PT.Engine.Stars.offLaser(G);                  // Laser: the throw beats their eyes
       if (PT.Engine.Stars.active(G, e, 'lockdown')) rt *= 0.5;               // Lockdown: breaks on the ball twice as fast
+      // misdirection: trick plays (options, reverses, end-arounds, statue) freeze defenders a beat (style balance)
+      const pl = G.P.play;
+      if (pl && pl.type === 'TRICK') rt += T.TRICK_REACT;
     }
     return rt < T.REACT_MIN ? T.REACT_MIN : rt > T.REACT_MAX ? T.REACT_MAX : rt;
   };

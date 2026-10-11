@@ -64,6 +64,25 @@
   const L = () => (PT.App ? PT.App.L : null);
 
   /** @param {{root:{screen,hud,modal,toast}}} o */
+  /**
+   * iOS Safari / home-screen app: size the layers to the real visible viewport (--app-w/--app-h) and undo any document
+   * scroll the browser applied (a scrolled body showed a sky strip above the top bar in standalone landscape).
+   */
+  function fitViewport() {
+    const g = globalThis, de = g.document && g.document.documentElement;
+    if (!de) return;
+    const vv = g.visualViewport;
+    const w = Math.round(vv ? vv.width : g.innerWidth), h = Math.round(vv ? vv.height : g.innerHeight);
+    if (w > 0 && h > 0) { de.style.setProperty('--app-w', w + 'px'); de.style.setProperty('--app-h', h + 'px'); }
+    if (g.scrollY || g.scrollX) { try { g.scrollTo(0, 0); } catch (e) { /* ignore */ } }
+  }
+  UI.fitViewport = fitViewport;
+  if (globalThis.addEventListener) {
+    fitViewport();
+    ['resize', 'orientationchange', 'pageshow'].forEach((ev) => globalThis.addEventListener(ev, () => { fitViewport(); setTimeout(fitViewport, 250); }));
+    if (globalThis.visualViewport) globalThis.visualViewport.addEventListener('resize', fitViewport);
+  }
+
   UI.init = function (o) {
     roots = (o && o.root) || { screen: el('screen'), hud: el('hud'), modal: el('modal'), toast: el('toast') };
     UI._roots = roots;
@@ -195,8 +214,12 @@
     const h = D().html;
     if (chrome === 'bare') return h`<div class="view view-bare" tabindex="-1"></div>`;
     const lg = L();
-    const back = stack.length > 1 && scr.back !== false ? K().back() : '';
-    const navOn = SECTION_OF[top.name] || SECTION_OF[scr.nav] || scr.nav || top.name;
+    // HUNT #31: another team's roster / player card belongs to League (not your Team section)
+    const otherTeam = lg && top.params && top.params.tid != null && top.params.tid !== lg.userTid && (top.name === 'roster' || top.name === 'player');
+    // HUNT #47: no back arrow on a section root (the rail is the way between sections)
+    const sectionRoot = !otherTeam && Object.keys(SECTIONS).some((k) => SECTIONS[k].some((x) => x.to === top.name && (!x.tab || !top.params || !top.params.tab || x.tab === top.params.tab)));
+    const back = stack.length > 1 && scr.back !== false && !sectionRoot ? K().back() : '';
+    const navOn = otherTeam ? 'league' : (SECTION_OF[top.name] || SECTION_OF[scr.nav] || scr.nav || top.name);
     const head = h`<header class="topbar">
       <div class="tb-l">${back}${!back && lg && !lg.tmp ? K().badge(lg.teams[lg.userTid], 's') : ''}</div>
       <h1 class="tb-title ellip">${titleOf(scr, top.params)}</h1>
@@ -204,7 +227,7 @@
     </header>`;
     const full = chrome === 'full' && lg && !lg.tmp;
     const nav = full ? h`<nav class="navbar" aria-label="Main">${NAV.map((n) => h`<button type="button" class="nav-i ${n.id === navOn ? 'on' : ''}" data-action="nav" data-id="${n.id}" data-testid="nav-${n.id}" ${n.id === navOn ? D().raw('aria-current="page"') : ''}><span class="nav-ic" aria-hidden="true">${K().ic(n.icon)}</span><span class="nav-t">${n.label}</span>${badgeFor(n.id, lg) ? D().raw('<span class="dot"></span>') : ''}</button>`)}</nav>` : '';
-    const sub = full ? subnav(top, lg) : '';
+    const sub = full && !otherTeam ? subnav(top, lg) : '';
     return h`<div class="frame ${full ? 'has-nav' : 'no-nav'} ${sub ? 'has-sub' : ''}">${head}${sub}${nav}<main class="view enter" tabindex="-1"></main></div>`;
   }
   /** which sub-tab is lit for a stack entry (null = this screen is not one of the section's tabs) */
@@ -225,10 +248,12 @@
     const h = D().html;
     return h`<nav class="subnav" aria-label="Section"><div class="subnav-in">${list.map((x) => h`<button type="button" class="sub-i ${x.id === on ? 'on' : ''}" data-action="sub" data-id="${x.id}" data-sec="${sec}" data-testid="sub-${x.id}" ${x.id === on ? D().raw('aria-current="page"') : ''}>${K().ic(x.icon)}<span>${x.label}</span>${subBadge(x.id, lg) ? D().raw('<span class="dot"></span>') : ''}</button>`)}</div></nav>`;
   }
-  function subBadge(id, lg) { return id === 'roster' || id === 'depth' || id === 'shop' ? badgeFor(id, lg) : false; }
+  function subBadge() { return false; }   // UI_RULES 5: dots only on the rail, one per icon, real problems only
   function headStats(lg) {
     const t = lg.teams[lg.userTid];
-    return D().html`${K().coins(t.fin.coins)}${K().hype(t.fin.hype)}`;
+    let space = 0;
+    try { space = PT.League.Cap.space(lg, lg.userTid); } catch (e) { space = 0; }
+    return D().html`${K().coins(t.fin.coins)}${K().cash(space)}`;   // UI_RULES 3: currency only here — Coins + Team Cash
   }
   function updateHead() {
     const box = roots.screen, lg = L();
@@ -244,8 +269,8 @@
     try {
       const t = lg.teams[lg.userTid];
       if (id === 'team') return badgeFor('roster', lg) || badgeFor('depth', lg);
-      if (id === 'office') return badgeFor('shop', lg);
-      if (id === 'roster') return PT.League.Q.roster(lg, lg.userTid).some((p) => p.inj && !p.ir);
+      if (id === 'office') return false;
+      if (id === 'roster') return PT.League.Q.roster(lg, lg.userTid).some((p) => p.inj && !p.ir && p.tid === t.id && K().startSlot(t, p.id));
       if (id === 'shop') return PT.C.FACILITIES.some((f) => t.fac[f] < 5 && PT.C.FACILITY_COST[f][t.fac[f]] <= t.fin.coins);
       if (id === 'depth') { const v = PT.League.Roster.validate(lg, lg.userTid); return !v.ok; }
     } catch (e) { return false; }

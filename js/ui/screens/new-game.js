@@ -12,12 +12,7 @@
 
   const FIRST = ['Biscuit', 'Pickles', 'Waffles', 'Nugget', 'Pebble', 'Sprout', 'Mochi', 'Bean', 'Clover', 'Tater', 'Noodle', 'Peanut',
     'Muffin', 'Ziggy', 'Bubbles', 'Rocco', 'Pepper', 'Toffee', 'Juniper', 'Bongo', 'Doodle', 'Fizz', 'Gus', 'Hazel', 'Kiwi', 'Lulu', 'Maple'];
-  const DIFF = [
-    { emo: 'sprout', name: 'Beginner', line: 'Learn the game.', more: 'Big aim help · more Coins · no Boss' },
-    { emo: 'football', name: 'Normal', line: 'A fair fight.', more: 'The standard game' },
-    { emo: 'shield', name: 'Expert', line: 'Sharp AI.', more: 'Less help · tougher Boss' },
-    { emo: 'crown', name: 'Legend', line: 'For top coaches.', more: 'Smartest AI · fewer Coins' }
-  ];
+  // HUNT #23: the difficulty table is shared with Quick Game (K().DIFF / K().diffCards)
   const COACH_SP = ['dog', 'cat', 'rabbit', 'bear', 'fox', 'penguin', 'owl', 'frog', 'pig', 'duck', 'lion', 'panda', 'monkey', 'chicken', 'hamster', 'elephant', 'turtle', 'goat'];
   const st = { slot: 1, step: 'team', tid: null, diff: 1, coach: '', sp: 'dog', filter: 'all' };
 
@@ -64,12 +59,12 @@
           <label for="ng-coach">Coach</label>
           <input id="ng-coach" class="inp" type="text" maxlength="24" autocomplete="off" spellcheck="false" data-testid="input-coach" value="${st.coach}">
         </div>
-        <div class="sp-pick ngx-sp" role="radiogroup" aria-label="Coach animal">${K().pg('ng-sp', COACH_SP.map((s) => html`<button type="button" class="sp-b ${st.sp === s ? 'on' : ''}" role="radio" aria-checked="${st.sp === s}" data-action="sp" data-sp="${s}" data-testid="coach-sp-${s}" title="${K().spName(s)}">${K().sp(s)}</button>`), { grid: true })}</div>
+        <span class="tiny muted ngx-sp-l">Coach animal</span>
+        <div class="sp-pick ngx-sp-grid" role="radiogroup" aria-label="Coach animal">${COACH_SP.map((s) => html`<button type="button" class="sp-b ${st.sp === s ? 'on' : ''}" role="radio" aria-checked="${st.sp === s}" data-action="sp" data-sp="${s}" data-testid="coach-sp-${s}" title="${K().spName(s)}">${K().sp(s)}</button>`)}</div>
       </section>
       <section class="card">
         ${K().h2('Difficulty')}
-        <div class="diffs" role="radiogroup" aria-label="Difficulty">${DIFF.map((d, i) => html`<button type="button" class="diff ${st.diff === i ? 'on' : ''}" role="radio" aria-checked="${st.diff === i}" data-action="diff" data-d="${i}" data-testid="diff-${i}" title="${d.more}">
-          <span class="diff-emo">${K().ic(d.emo)}</span><span class="diff-n">${d.name}</span><span class="diff-l">${d.line}</span></button>`)}</div>
+        ${K().diffCards(st.diff, 'diff-')}
         <div class="set-row ng-fantasy"><div class="grow"><b>Star Draft</b><div class="tiny muted">Draft your 8 Stars. The rest fills in.</div></div>
           <button type="button" class="toggle ${st.fantasy ? 'on' : ''}" role="switch" aria-checked="${st.fantasy ? 'true' : 'false'}" aria-label="Star Draft" data-action="fantasy" data-testid="tog-fantasy"></button></div>
       </section>
@@ -130,7 +125,7 @@
       },
       team: (el) => { st.tid = +el.getAttribute('data-tid'); st.step = 'coach'; UI.replace('newgame', { slot: st.slot, fresh: false }); },
       random: () => { const ts = teams(); st.tid = ts[Math.floor(Math.random() * ts.length)].id; st.step = 'coach'; UI.replace('newgame', { slot: st.slot, fresh: false }); },
-      filter: (el) => { st.filter = el.getAttribute('data-f'); UI.refresh(); },
+      filter: (el) => { st.filter = el.getAttribute('data-f'); if (UI.pgPage) UI.pgPage('ng-teams', 0); UI.refresh(); },
       'change-team': () => { readCoach(); st.step = 'team'; UI.replace('newgame', { slot: st.slot, fresh: false }); },
       sp: (el) => { readCoach(); st.sp = el.getAttribute('data-sp'); UI.refresh(); },
       diff: (el) => { readCoach(); st.diff = +el.getAttribute('data-d'); UI.refresh(); },

@@ -88,7 +88,7 @@
       sitCache: { tos: [0, 0] }, res: { k: '', team: 0, y: 0, oob: false, good: false }, apAct: blankAction(), lastAct: blankAction(),
       ustats: { jukes: 0, spins: 0, brokenTackles: 0, starPlays: 0, starWhiffs: 0, longTD: 0, sacks: 0, ints: 0, bigPlays: 0 },
       tk: { att: 0, brk: 0, whf: 0, esc: 0, sack: 0, dive: 0, diveMiss: 0 },   // tackle stats (calibrate)
-      spiritFast: [false, false], hot: false, lastOob: false, starters: [{}, {}], ballSpotY: 0, api: null
+      spiritFast: [false, false], hot: false, lastOob: false, starters: [{}, {}], ballSpotY: 0, api: null, drill: null
     };
     const unl = cfg.unlocked || (userIdx >= 0 ? G.teams[userIdx].unlocked : null);
     if (unl && unl.length) { G.unlock = {}; unl.forEach((id) => { G.unlock[id] = true; }); }
@@ -136,7 +136,7 @@
         kind: kind, off: off, def: 1 - off, dir: RU.dirOf(G, off), los0: G.los, down0: G.down, togo0: G.togo, fdY0: G.fdY,
         play: null, call: null, flip: 1, edge: 0, t: 0, st: 0, stage: '',
         qb: -1, thrown: false, windT: 0, windSafe: true, thTx: 0, thTy: 0, thLob: false, thEasy: false, relT: 0, breakT: 0, tgt: -1, compl: false,
-        catcher: -1, picked: false, pickBy: -1, turnY: null, batted: false, batPick: -1, lob: false, sig: 0, passDist: 0, undercut: 0, roughT: 0,
+        catcher: -1, picked: false, pickBy: -1, defHad: false, turnY: null, batted: false, batPick: -1, lob: false, sig: 0, passDist: 0, undercut: 0, roughT: 0,
         run: false, runT: 0, crossed: false, handDone: false, handT: 0, faked: false, fakeT: 0, meshDone: false, giveNow: false,
         tossBack: false, qbBack: false, qbMode: '', readStart: 0, waitHandEnt: -1, sneakY: 0, sneakDive: false,
         rusher: -1, sack: false, sackBy: -1, tkBy: -1, pdBy: -1, fumBy: -1, ffBy: -1, frBy: -1, carrierEnd: -1, offEndY: null,
@@ -175,6 +175,7 @@
         const oppTo = G.tos[1 - G.poss];
         if (lead > 0 && G.q >= 4 && left <= 40 * (5 - G.down) - 34 * oppTo && left > 0) { G.selO = PT.Data.Playbook.byId('kneel'); }
         else if (G.q === 2 && left <= RU.warnT(G) / 2 && s.toGoal > 65 && lead >= 0) G.selO = PT.Data.Playbook.byId('kneel');
+        else if (G.down < 4 && RU.lateFG(G)) return startFG('fg', null);   // end-of-half FG on an early down
         else if (G.down === 4) {
           const d = RU.ai4th(G);
           if (d === 'punt') return startPunt();
@@ -246,8 +247,12 @@
       const aud = P.aud, keepAb = P.ab, keepHot = P.hotStar, keepFlip = P.flip, starIdx = G.star.idx;
       if (hot) { P.hotStar = true; P.aud[side] = true; E.Snapshot.setRoutes(G, offTeam === userIdx); }
       else {
+        const no = G.playNo, goReq = !!P.goReq;
         lineup(side === 'D' ? keepFlip : 0);
         const N = G.P;
+        // an audible re-lines up the SAME snap: keep the play number (Session / suggestions / tests key on it) and a
+        // HIKE/GO the user already pressed
+        G.playNo = no; N.goReq = goReq;
         N.aud = aud; N.aud[side] = true; N.hotStar = keepHot && side === 'D';
         // an armed Surge survives the audible (members re-read from the new lineup)
         if (keepAb) for (let t = 0; t < 2; t++) {
@@ -278,6 +283,10 @@
         if (v > bv) { bv = v; best = d * 7 + k; }
       }
       if (best < 0) best = d * 7 + 4;
+      if (G.drill && G.drill.star != null) {                                // practice: a fixed Star defender (per call)
+        const ds = G.drill.star, k = typeof ds === 'number' ? ds : ds[call.id] != null ? ds[call.id] : ds['*'];
+        if (k >= 0 && k <= 6) best = d * 7 + (k | 0);
+      }
       for (let k = 0; k < 7; k++) { const e = G.ents[d * 7 + k]; if (e.id !== best && e.hi === 2) e.hi = 0; }
       const s = G.star;
       s.idx = best; s.ring = 'wait'; s.t = 0;
@@ -711,12 +720,14 @@
     function stepPresnap(a, dt) {
       const P = G.P;
       const lt = (G.fast || G.idle) ? T.FAST.LINEUP_T : T.LINEUP_T;
-      if (G.pt < lt) { F.jogStep(G, G.pt / lt); return; }
+      // the HUD shows GO while the defense is still jogging in: a GO tapped then is kept, not dropped (practice QA)
+      // (also HIKE for the user's offense: an AI audible's re-lineup used to swallow it — stars.js "audibleO,turbo")
+      if (G.poss === userIdx && a.ability && E.Stars.canUse(G, userIdx)) E.Stars.activate(G, userIdx, false, true);   // STAR works during the jog too
+      if (G.pt < lt) { if (a.snap && userIdx >= 0) P.goReq = true; F.jogStep(G, G.pt / lt); return; }
       if (!P.jogDone) { F.jogStep(G, 1); P.jogDone = true; G.waitSnap = userIdx >= 0; G.pt = lt; }
       const uo = G.poss === userIdx, ud = userIdx >= 0 && !uo;
       if (ud && a.starPick != null) setStar(a.starPick);
-      if (uo && a.ability && E.Stars.canUse(G, userIdx)) E.Stars.activate(G, userIdx, false, true);
-      if (P.aiAud && G.pt >= P.aiAud.at) { const au = P.aiAud; P.aiAud = null; doAudible(au.side, au.id, true); return; }
+      if (P.aiAud && G.pt >= P.aiAud.at && !a.snap && !P.goReq) { const au = P.aiAud; P.aiAud = null; doAudible(au.side, au.id, true); return; }
       if (P.motionT > 0) {
         const m = P.play.motion, k = C.OFF_SLOTS.indexOf(m.slot), e = G.ents[G.poss * 7 + k];
         P.motionT -= dt;
@@ -732,8 +743,8 @@
       // client: the user's offense NEVER snaps without HIKE (no play-clock / Hurry auto-snap; Hurry only shortens the runoff),
       // and the user's defense never auto-GOes unless Auto Defense is on. (Idle demo mode drives the user side via the
       // Autopilot, which presses HIKE itself.)
-      else if (uo) go = !!a.snap;
-      else go = a.snap || (G.autoDef && w >= T.AUTO_DEF_GO);
+      else if (uo) go = !!a.snap || !!P.goReq;
+      else go = a.snap || !!P.goReq || (G.autoDef && w >= T.AUTO_DEF_GO);
       if (!go) return;
       if (P.play.motion && !P.motionDone) { P.motionT = P.play.motion.t; G.waitSnap = false; return; }
       doSnap();
@@ -938,16 +949,17 @@
       fourth: function (choice) {
         if (G.phase !== 'CALL' || G.poss !== userIdx || G.kickWait || G.selO) return false;
         if (choice === 'go') { G.fourthDone = true; return true; }
-        if (choice === 'punt') { G.fourthDone = true; startPunt(); return true; }
+        if (choice === 'punt') { if (G.down !== 4) return false; G.fourthDone = true; startPunt(); return true; }
         if (choice === 'fg') {
+          // client: a field goal on ANY down once past midfield (and in range)
           const s = RU.situation(G, {});
-          if (!s.fgOk) return false;
+          if (!s.fgOk || (G.down !== 4 && s.toGoal >= 50)) return false;
           G.fourthDone = true; prepKick('fg'); return true;
         }
         return false;
       },
       /** Resolve the pending user FG/XP with the auto-kick formula. */
-      autoKick: function () { if (G.kickWait) { startFG(G.kickWait, null); return true; } return false; },
+      autoKick: function () { if (G.kickWait && !(G.drill && G.drill.manualKick)) { startFG(G.kickWait, null); return true; } return false; },
       /** Request an onside kick (user kicking team, during kickoff setup). */
       onside: function () { if (G.phase === 'KICK' && G.P.kind === 'kickoff' && G.P.stage === 'setup' && G.canOnside) { G.onsideReq = true; return true; } return false; },
       timeout: function (tid) {
@@ -977,6 +989,7 @@
           else { const st = a.star; a = E.Autopilot.action(game, G.apAct); a.star = a.star || st; }
         }
         G.tick++;
+        if (G.drill) G.drill.t += dt;
         for (let i = 0; i < 14; i++) { const e = G.ents[i]; e.px = e.x; e.py = e.y; e.pz = e.z; }
         G.ball.px = G.ball.x; G.ball.py = G.ball.y; G.ball.pz = G.ball.z; G.ball.tp = false;
         G.pt += dt;
@@ -991,7 +1004,12 @@
             // the downed carrier keeps the ball while he slides to a stop (no detached ball between plays)
             const db = G.ball;
             if (db.st === 'dead' && db.car >= 0 && G.ents[db.car].ball) { const c = G.ents[db.car]; db.x = c.x - Math.sin(c.fa) * 0.25; db.y = c.y + Math.cos(c.fa) * 0.25; }
-            if (G.pt >= G.deadT) RU.afterDead(G);
+            if (G.pt >= G.deadT) { if (G.drill) drillHold(); else RU.afterDead(G); }
+            break;
+          }
+          case 'HOLD': {                  // practice drill: the play is over, everyone eases to a stop and waits
+            for (let i = 0; i < 14; i++) { const e = G.ents[i]; e.dvx = e.dvy = 0; }
+            E.Physics.integrate(G, dt);
             break;
           }
           case 'PAT': stepPAT(a, dt); break;
@@ -1021,7 +1039,7 @@
       destroy: function () { em.clear(); G.over = true; },
       /** Resolve the current play instantly (user on defense; any play works). */
       skipPlay: function () {
-        if (G.phase !== 'LIVE' && G.phase !== 'KICK') return false;
+        if ((G.phase !== 'LIVE' && G.phase !== 'KICK') || G.drill) return false;    // drills: the user plays every snap
         const start = G.playNo;
         let guard = 0;
         while ((G.phase === 'LIVE' || G.phase === 'KICK') && G.playNo === start && guard++ < 60 * 70) game.step(C.DT, null);
@@ -1029,7 +1047,7 @@
       },
       /** Resolve the rest of the AI drive (user on defense) with Auto Defense calls. */
       simDrive: function () {
-        if (userIdx < 0 || G.poss === userIdx) return false;
+        if (userIdx < 0 || G.poss === userIdx || G.drill) return false;
         const wasAuto = G.autoDef;
         G.autoDef = true;
         let guard = 0;
@@ -1043,8 +1061,75 @@
         G.autoDef = wasAuto;
         return true;
       },
+      /**
+       * Practice drill (docs/handoff/PRACTICE.md). Puts the ball on a fixed spot, resets the clock, score, timeouts and
+       * Star meters, and turns on drill mode: no penalties, no injuries, no clock runoff, no points on the scoreboard,
+       * and after the whistle (+ the normal dead-ball pause) the engine HOLDS (phase 'HOLD', needs() → null) instead
+       * of moving on — no PAT, kickoff, change of possession or AI drive — until the next setupDrill / endDrill.
+       * Players are placed at once (no jog). Call it between steps / while the Session is paused.
+       * @param {{side:'O'|'D', y:number, down?:number, togo?:number, play?:string, defCall?:string, star?:number}} o
+       *   side: the user's side. y: yards from the OFFENSE's own goal line. down/togo: default 1st & 10.
+       *   play: offense play id — user offense: called now (the user only has to HIKE; omit it to let the play-call /
+       *   4th-down tray ask), user defense: the AI's play. defCall: defense call id — user offense: the AI's call; user
+       *   defense: called now (omit it to let the tray ask). star: DEF_SLOTS index of the user's Star defender (0..6), or a
+       *   map {callId: index, '*': default} so the Star fits the call the user picks. manualKick (default true): autoKick()
+       *   is refused, the user aims the kick. skipPlay() / simDrive() are refused in drill mode.
+       * @returns {boolean}
+       */
+      setupDrill: function (o) {
+        if (userIdx < 0 || !o || G.over) return false;
+        const PB = PT.Data.Playbook, DD = PT.Data.Defense;
+        const off = o.side === 'D' ? 1 - userIdx : userIdx;
+        G.drill = { t: 0, hold: false, manualKick: o.manualKick !== false, star: o.star != null && (typeof o.star === 'object' || (o.star >= 0 && o.star <= 6)) ? o.star : null, side: o.side === 'D' ? 'D' : 'O' };
+        G.q = 1; G.clk = G.qLen; G.pend = 0; G.untimed = false; G.untimedNext = false; G.score[0] = G.score[1] = 0;
+        G.tos[0] = G.tos[1] = T.TOS; G.hurry[0] = G.hurry[1] = false; G.aiHurry[0] = G.aiHurry[1] = false; G.flipNext = false;
+        G.kickWait = null; G.kickReq = false; G.tryTwo = false; G.patChosen = false; G.fourthDone = false; G.next = 'call';
+        G.canOnside = false; G.onsideReq = false; G.waitSnap = false;
+        G.meter[0].off = G.meter[0].def = G.meter[1].off = G.meter[1].def = 0;
+        for (let i = 0; i < 14; i++) { const e = G.ents[i]; e.hi = 0; e.whiff = false; e.superT = 0; e.jukeT = e.spinT = 0; e.slowT = 0; e.tkCd = 0; }
+        RU.setPoss(G, off, RU.ownYard(G, off, o.y != null ? o.y : 25));
+        if (o.down >= 1 && o.down <= 4) G.down = o.down | 0;
+        if (o.togo > 0) {
+          const goal = RU.goalY(G, off);
+          G.fdY = (G.los + o.togo * G.dir - goal) * G.dir >= 0 ? goal : G.los + o.togo * G.dir;
+          G.togo = Math.max(1, Math.round(Math.abs(G.fdY - G.los)));
+        }
+        toCall();                                   // AI offense: picks its own play here; overridden below
+        if (off !== userIdx) {
+          if (o.play && PB.byId(o.play)) G.selO = PB.byId(o.play);
+          G.selD = o.defCall && DD.byId(o.defCall) ? DD.byId(o.defCall) : null;
+          if (G.selD || G.autoDef) { if (!G.selD) G.selD = E.PlayCall.aiDefense(G, true); lineup(1); }
+        } else if (o.play && PB.byId(o.play)) {
+          G.fourthDone = true;
+          G.selO = PB.byId(o.play);
+          G.selD = o.defCall && DD.byId(o.defCall) ? DD.byId(o.defCall) : E.PlayCall.aiDefense(G, false);
+          lineup(1);
+        }
+        if (G.phase === 'PRESNAP') { F.jogStep(G, 1); G.pt = T.LINEUP_T; }
+        for (let i = 0; i < 14; i++) { const e = G.ents[i]; e.px = e.x; e.py = e.y; e.pz = e.z; e.vx = e.vy = 0; }
+        const b = G.ball; b.px = b.x; b.py = b.y; b.pz = b.z; b.tp = true;
+        E.Snapshot.write(G);
+        return true;
+      },
+      /** Leave drill mode; a held game goes on with a normal play call. */
+      endDrill: function () {
+        if (!G.drill) return false;
+        const held = G.phase === 'HOLD';
+        G.drill = null;
+        if (held && !G.over) { toCall(); E.Snapshot.write(G); }
+        return true;
+      },
+      /** Drill status: null outside drill mode, else {hold: the play is over and the engine waits, t: game seconds since setup}. */
+      drill: function () { return G.drill ? { hold: G.phase === 'HOLD', t: G.drill.t, side: G.drill.side } : null; },
       _toCall: toCall, _kickoff: kickoff, _break: brk, _final: final
     };
+
+    /** drill mode: the dead-ball pause is over → wait for the next setupDrill (never a PAT, kickoff or AI drive) */
+    function drillHold() {
+      G.phase = 'HOLD'; G.pt = 0; G.drill.hold = true; G.pend = 0; G.waitSnap = false;
+      G.setCtl(-1); resetStar();
+      G.snap.aim.on = false; G.snap.kick.on = false;
+    }
     G.api = game;
 
     /** Production safety net (ARCHITECTURE 7.2): a NaN body resets the play to a dead ball at the LOS and play goes on. */

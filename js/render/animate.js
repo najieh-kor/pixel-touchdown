@@ -14,6 +14,7 @@
   const R = PT.ns('Render');
   const A = R.Animate = R.Animate || {};
   const PI = Math.PI, TAU = Math.PI * 2;
+  const DT = (PT.C && PT.C.DT) || 1 / 60;
   const sin = Math.sin, cos = Math.cos, abs = Math.abs, min = Math.min, max = Math.max;
 
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
@@ -32,10 +33,18 @@
    * @param {Object} info { h, dance, sz }
    * @param {number} dt  real seconds (already scaled by game time scale if wanted)
    */
+  const KEYS = ['y', 'sx', 'sy', 'sz', 'rx', 'ry', 'rz', 'bx', 'by', 'bz', 'brx', 'bry', 'brz', 'hrx', 'hry', 'hrz',
+    'alx', 'aly', 'alz', 'arx', 'ary', 'arz', 'llx', 'llz', 'lrx', 'lrz', 'ly', 'trx', 'try_', 'trz'];
+  const BLEND = 0.14;
+
   A.pose = function (P, e, st, info, dt) {
-    R.Voxel.resetPose(P);
     const an = e.an || 'idle';
-    if (an !== st.an) { st.an = an; st.t = 0; }
+    if (an !== st.an) {
+      // remember the last pose so the new state blends in (no snapping between run / catch / carry / tackle)
+      if (st.an) { st.from = st.from || {}; for (let i = 0; i < KEYS.length; i++) st.from[KEYS[i]] = P[KEYS[i]]; st.bt = BLEND; }
+      st.an = an; st.t = 0;
+    }
+    R.Voxel.resetPose(P);
     st.t += dt;
     const t = e.at != null && e.at >= 0 ? e.at : st.t;
     const h = info.h || 16;
@@ -48,9 +57,18 @@
     st.lastZ = z;
     if (st.land > 0) st.land = max(0, st.land - dt);
 
+    // actual ground speed from the snapshot displacement (px,py → x,y over one tick); teleports ignored.
+    // Drives the gait whenever a player moves, whatever the engine's an state says (nothing ever slides).
+    let vm = 0;
+    if (e.px != null && e.x != null) {
+      const d = Math.hypot(e.x - e.px, e.y - e.py);
+      if (d < 1.5) vm = d / DT;
+    }
+    st.vs = st.vs == null ? vm : st.vs + (vm - st.vs) * Math.min(1, dt * 12);       // smoothed measured speed
+    const spd = Math.max(e.spd || 0, st.vs);
     switch (an) {
-      case 'run': case 'sprint': case 'carry': case 'rush':
-        run(P, e, st, dt, an); break;
+      case 'run': case 'sprint': case 'carry': case 'rush': case 'return': case 'route': case 'pursue': case 'scramble':
+        run(P, e, st, dt, an, spd); break;
       case 'stance': stance(P, e, st); break;
       case 'block': block(P, e, st, t); break;
       case 'throw': throwAnim(P, e, st, t); break;
@@ -64,7 +82,24 @@
       case 'celebrate': celebrate(P, e, st, t, info.dance || 'hop'); break;
       case 'sad': sad(P, st, t); break;
       case 'kick': kick(P, e, st, t); break;
+      case 'held': case 'kneel': case 'spike': case 'dead': stance(P, e, st); break;
+      case 'pancake': block(P, e, st, t); P.brx += 0.15; break;
       default: idle(P, st);
+    }
+    // gait overlay: moving in a non-locomotion state (catch, throw, block, stance, idle, handoff …) → legs and
+    // bounce cycle under the state's upper-body pose, blended in/out over ~0.15 s
+    const loco = an === 'run' || an === 'sprint' || an === 'carry' || an === 'rush' || an === 'return' || an === 'route' ||
+      an === 'pursue' || an === 'scramble' || an === 'juke' || an === 'spin';
+    const full = an === 'tackle' || an === 'tackled' || an === 'down' || an === 'dive' || an === 'kick' || an === 'celebrate';
+    const want = !loco && !full && spd > 0.5 ? 1 : 0;
+    st.mv = st.mv == null ? want : st.mv + (want - st.mv) * Math.min(1, dt * 7);
+    if (st.mv > 0.01) gaitOverlay(P, st, dt, spd, st.mv, an === 'idle' || an === 'stance' || an === 'held');
+    if (st.bt > 0 && st.from) {
+      const k = 1 - st.bt / BLEND;
+      const kk = k * k * (3 - 2 * k);
+      // spins/flips go through full turns: don't blend the rotation that wraps
+      for (let i = 0; i < KEYS.length; i++) { const f = KEYS[i]; if (f === 'ry' || f === 'rx') continue; P[f] = st.from[f] + (P[f] - st.from[f]) * kk; }
+      st.bt -= dt;
     }
     if (st.land > 0) {
       const k = st.land / 0.16;
@@ -76,8 +111,8 @@
   };
 
   function carryArm(P) {
-    // tuck the ball: right arm bent forward and in
-    P.arx = 0.95; P.arz = -0.35; P.ary = 0.25;
+    // tuck the ball under the right arm (against the side/hip) while the legs keep running
+    P.arx = 0.45; P.arz = 0.18; P.ary = 0.1;
   }
 
   function idle(P, st) {
@@ -106,14 +141,26 @@
     P.try_ = sin(t * 4) * 0.2;
   }
 
-  function run(P, e, st, dt, an) {
-    const spd = e.spd != null ? e.spd : 5;
+  /** legs + springy bounce for a moving player whose state has its own upper-body pose */
+  function gaitOverlay(P, st, dt, spd, k, swingArms) {
+    const freq = clamp(1.3 + spd * 0.2, 1.4, 3.4);
+    st.phase += dt * freq * TAU;
+    const s = sin(st.phase);
+    const amp = clamp(0.35 + spd * 0.07, 0.4, 0.95) * k;
+    P.llx = P.llx * (1 - k) + s * amp; P.lrx = P.lrx * (1 - k) - s * amp;
+    P.y += abs(s) * 0.85 * clamp(spd / 4, 0.3, 1.2) * k;
+    if (swingArms) { P.alx += -s * amp * 0.9; P.arx += s * amp * 0.9; P.brx += 0.12 * k; }
+    P.try_ += s * 0.5 * k;
+  }
+
+  function run(P, e, st, dt, an, spdIn) {
+    const spd = spdIn != null ? spdIn : (e.spd != null ? e.spd : 5);
     const sprint = an === 'sprint' || spd > 7.5;
     const freq = clamp(1.3 + spd * 0.2, 1.4, 3.4);                     // strides per second
     st.phase += dt * freq * TAU;
     const ph = st.phase;
     const s = sin(ph), c2 = cos(ph * 2);
-    const amp = clamp(0.35 + spd * 0.07, 0.4, sprint ? 1.05 : 0.85);
+    const amp = clamp(0.35 + spd * 0.07, 0.4, sprint ? 1.05 : 0.85) * clamp(spd / 1.2, 0.15, 1);   // standing in a run state → near-still legs
     // two springy hops per stride
     const hop = abs(s);
     P.y = hop * (sprint ? 1.3 : 0.95) * clamp(spd / 4, 0.3, 1.2);
@@ -212,7 +259,7 @@
   function juke(P, e, st, t, dt) {
     const side = st.seed > 0.5 ? 1 : -1;
     const k = sin(min(1, t / 0.32) * PI);
-    run(P, e, st, dt, 'run');
+    run(P, e, st, dt, 'run', Math.max(e.spd || 0, st.vs || 0));
     P.rz = 0.42 * k * side;
     P.brz = 0.3 * k * side;
     P.alz = 0.9 * k; P.arz = -0.9 * k;
@@ -221,7 +268,7 @@
   }
 
   function spin(P, e, st, t, dt) {
-    run(P, e, st, dt, 'run');
+    run(P, e, st, dt, 'run', Math.max(e.spd || 0, st.vs || 0));
     const k = clamp(t / 0.45, 0, 1);
     P.ry = ease(k) * TAU;
     P.alz = 1.1 * sin(k * PI); P.arz = -P.alz;

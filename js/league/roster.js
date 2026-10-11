@@ -540,6 +540,13 @@
   };
 
   // ---------------- validation ----------------
+  /** 'LB (Chaser)' / 'LBs (Chasers)': the position code everyone else uses, with the kid word (HUNT-league #4) */
+  const AN = { RB: 1, OL: 1, LB: 1, S: 1 };                   // "an R-B", "an O-L", "an L-B", "an S"
+  function posLabel(pos, many) {
+    if (pos === 'QB') return many ? 'QBs' : 'QB';
+    const w = POS_WORD[pos];
+    return pos + (many ? 's' : '') + ' (' + (many ? (w === 'Safety' ? 'Safeties' : w + 's') : w) + ')';
+  }
   const POS_WORD = { QB: 'QB', RB: 'Runner', WR: 'Catcher', TE: 'Big Catcher', OL: 'Blocker', DL: 'Smasher', LB: 'Chaser',
     CB: 'Cover', S: 'Safety', K: 'Kicker' };
 
@@ -572,7 +579,7 @@
       if (have[pos] < need) {
         const n = need - have[pos];
         errors.push({ code: 'TOO_FEW_' + pos, pos: pos, n: n,
-          msg: n === 1 ? 'Need a' + (/^[AEIOU]/.test(POS_WORD[pos]) ? 'n ' : ' ') + POS_WORD[pos] + '.' : 'Need ' + n + ' more ' + POS_WORD[pos] + 's.' });
+          msg: n === 1 ? 'Need ' + (AN[pos] ? 'an ' : 'a ') + posLabel(pos, false) + '.' : 'Need ' + n + ' more ' + posLabel(pos, true) + '.' });
       }
     });
     if (!errors.length && hp.length < C.ROSTER.MIN_PLAY) {

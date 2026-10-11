@@ -28,6 +28,7 @@
   }
 
   const Modal = UI.Modal = UI.Modal || {};
+  const isCancel = (b) => (b.kind === 'cancel' || b.value === false || b.value === null ? 1 : 0);
 
   Modal.open = function (o) {
     o = o || {};
@@ -37,7 +38,11 @@
       const btns = o.buttons || [{ label: 'OK', value: true, kind: 'go' }];
       let okGiven = false;
       const okIdx = Math.max(0, btns.findIndex((b) => b.kind === 'go' || b.kind === 'pri'));
-      const bHtml = btns.map((b, i) => {
+      // UI_RULES 9: secondary/cancel on the left, primary on the right (render order only; data-i keeps the index)
+      const order = btns.map((b, i) => i);
+      if (btns.length === 2) order.sort((a, b) => (isCancel(btns[b]) - isCancel(btns[a])));
+      const bHtml = order.map((i) => {
+        const b = btns[i];
         let tid = b.testid;
         if (!tid && i === okIdx && !okGiven) { tid = 'modal-ok'; okGiven = true; }
         else if (!tid && (b.kind === 'cancel' || b.value === false || b.value === null)) tid = 'modal-cancel';
@@ -105,7 +110,7 @@
   Modal.confirm = function (text, opts) {
     opts = opts || {};
     return Modal.open({ title: opts.title || text, body: opts.title ? text : opts.body, icon: opts.icon || 'question',
-      buttons: [{ label: opts.yes || 'Yes', value: true, kind: opts.danger ? 'bad' : 'go' }, { label: opts.no || 'No', value: false, kind: 'cancel' }] });
+      buttons: [{ label: opts.yes || 'Yes', value: true, kind: opts.danger ? 'bad' : 'go' }, { label: opts.no || 'Cancel', value: false, kind: 'cancel' }] });
   };
   /** choose(title, [{label, value, icon, sub}], opts) → Promise<value|null> */
   Modal.choose = function (title, options, opts) {
@@ -141,21 +146,32 @@
   const Toast = UI.Toast = UI.Toast || {};
   const ICON = { good: 'check', bad: 'warn', info: 'chat', coin: 'coin', xp: 'star', ach: 'trophy', hurt: 'cross' };
   const MAX_VIS = 1, MAX_Q = 3;
-  const vis = [], queue = [];
-  function norm(t) { return String(t).replace(/[0-9]+/g, '#'); }
+  const vis = [], queue = [], held = [];
+  // HUNT #53: no toasts over the Fired ("Big News") screen; they wait and show after you leave it
+  const HOLD_ON = { fired: 1 };
+  function holding() {
+    let cur = null;
+    try { cur = UI.current && UI.current(); } catch (e) { cur = null; }
+    if (cur && HOLD_ON[cur.name]) return true;
+    const s = globalThis.document && globalThis.document.getElementById('screen');
+    return !!(s && HOLD_ON[s.getAttribute('data-screen')]);
+  }
   function hideT(item) {
+    if (!item || item.out) return;                   // HUNT #3: a second hide used to pull an extra item off the queue
+    item.out = true;
     clearTimeout(item.timer);
     item.el.classList.add('out');
     setTimeout(() => { item.el.remove(); }, 260);
     const i = vis.indexOf(item);
     if (i >= 0) vis.splice(i, 1);
-    if (queue.length) setTimeout(() => showNow(queue.shift()), 120);
+    if (queue.length) setTimeout(() => { if (vis.length >= MAX_VIS) return; const n = queue.shift(); if (n) showNow(n); }, 120);
   }
   function arm(item) { clearTimeout(item.timer); item.timer = setTimeout(() => hideT(item), item.ms); }
   function paint(item) {
-    item.el.innerHTML = String(D().html`<span class="toast-ic">${UI.comp.ic(ICON[item.kind] || ICON.info)}</span><span class="toast-t">${UI.comp.txt(item.text)}</span>${item.n > 1 ? D().html`<span class="toast-n">×${item.n}</span>` : ''}`);
+    item.el.innerHTML = String(D().html`<span class="toast-ic">${UI.comp.ic(ICON[item.kind] || ICON.info)}</span><span class="toast-t">${UI.comp.txt(item.text)}</span>${item.n > 1 && item.kind !== 'ach' ? D().html`<span class="toast-n">×${item.n}</span>` : ''}`);
   }
   function showNow(item) {
+    if (!item) return;
     const h = tHost();
     if (!h) return;
     const d = globalThis.document.createElement('div');
@@ -172,7 +188,12 @@
     if (!text || !tHost()) return;
     kind = kind || 'info';
     text = String(text);
-    const key = kind + '|' + norm(text);
+    const key = kind + '|' + text;                   // HUNT #16: exact text (no '×3' for levels 2, 3, 4)
+    // HUNT #15: badge toasts collapse into one ("3 new badges")
+    if (kind === 'ach') {
+      const a = vis.find((x) => x.kind === 'ach' && !x.out) || queue.find((x) => x.kind === 'ach');
+      if (a) { a.n++; a.text = a.n + ' new badges'; a.key = 'ach|*'; if (a.el) { paint(a); arm(a); } return; }
+    }
     const same = vis.find((x) => x.key === key) || queue.find((x) => x.key === key);
     if (same) {
       same.n++; same.text = text;
@@ -180,6 +201,12 @@
       return;
     }
     const item = { key: key, text: text, kind: kind, ms: ms || 2200, n: 1, el: null, timer: 0 };
+    if (holding()) {
+      const h = held.find((x) => x.key === key);
+      if (h) h.n++; else held.push(item);
+      while (held.length > MAX_Q) held.shift();
+      return;
+    }
     if (vis.length < MAX_VIS) { showNow(item); return; }
     queue.push(item);
     while (queue.length > MAX_Q) queue.shift();       // drop the oldest waiting ones
@@ -187,5 +214,16 @@
     const old = vis[0];
     if (old) { clearTimeout(old.timer); old.timer = setTimeout(() => hideT(old), 900); }
   };
-  Toast.clear = function () { queue.length = 0; vis.slice().forEach(hideT); };
+  Toast.clear = function () { queue.length = 0; held.length = 0; vis.slice().forEach(hideT); };
+  Toast.held = () => held.length;
+  /** clear on every screen change so old toasts never sit over the new screen's tabs (HUNT #15) */
+  if (PT.Events && PT.Events.on) PT.Events.on('ui:navigate', (e) => {
+    queue.length = 0;
+    const name = e && e.name;
+    if (HOLD_ON[name]) { vis.slice().forEach(hideT); return; }      // entering Fired: clear what is showing
+    if (!held.length) return;
+    // left the Fired screen: release what waited (after the new screen has painted)
+    const out = held.splice(0, held.length);
+    setTimeout(() => out.forEach((x) => { if (holding()) { held.push(x); return; } if (vis.length < MAX_VIS) showNow(x); else { queue.push(x); while (queue.length > MAX_Q) queue.shift(); } }), 300);
+  });
 })(globalThis.PT = globalThis.PT || {});

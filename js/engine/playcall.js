@@ -159,12 +159,7 @@
   }
 
   /** AI offense play for the current situation. */
-  PC.aiOffense = function (G) {
-    const o = G.poss, s = sitFor(G);
-    const hp = G.histP[o];
-    const id = PC.choose(s, 'O', G.teams[o], G.rng, { lastId: hp.length ? hp[hp.length - 1] : null });
-    return PB().byId(id);
-  };
+  PC.aiOffense = function (G) { return PC.aiPick(G, G.rng); };
 
   /** AI defense call (user's opponent uses difficulty pCounter; Auto Defense 0.40). */
   PC.aiDefense = function (G, forUser) {
@@ -213,6 +208,59 @@
     }
     return top;
   }
+
+  /**
+   * Offensive play score (shared by the user's cards and the AI offense, so AI teams feel different by style):
+   * style identity (the style's signature plays get SUG_STYLE ≈ 70% of picks) + type mix + situation override + situation
+   * fit + the defense this game (counter-matrix vs the calls they've shown; their style before 3 calls) + hot hand
+   * (plays that worked this game) − plays that failed − strong repetition penalty over the last SUG_REP snaps.
+   */
+  PC.offScore = function (G, o, p, s, okey, ov, mix, style) {
+    const T = G.T, D = DF();
+    let sc = (mix[p.type] || 0) * 0.3;
+    if (p.st && p.st.indexOf(style) >= 0) sc += T.SUG_STYLE;
+    if (ov) sc += (ov[p.type] || 0) * 0.6;
+    sc += fitO(p, s, okey);
+    if (p.tags && p.tags.indexOf('goal') >= 0) { const tg = s.toGoal != null ? s.toGoal : 99; sc += tg <= 5 || s.two ? 12 : tg > 20 ? -10 : 0; }
+    // the defense this game: calls shown (last 8) or, early, their style's signature calls
+    const dh = G.dhist[1 - o];
+    let mv = 0, mn = 0;
+    if (dh.length >= 3) { for (let j = Math.max(0, dh.length - 8); j < dh.length; j++) { mv += PC.matrix(dh[j], p.type, s.togo); mn++; } }
+    else { const sig = D.STYLE_SIG[G.teams[1 - o].tend.def] || []; for (const c of sig) { mv += PC.matrix(c, p.type, s.togo); mn++; } }
+    if (mn) sc -= T.SUG_DEF * mv / mn;
+    // hot hand / cold hand this game
+    const pr = G.pres && G.pres[o][p.id];
+    if (pr && pr.n) sc += Math.max(-T.SUG_HOT, Math.min(T.SUG_HOT, (pr.y / pr.n - 5) * 0.8)) - Math.min(2, pr.bad) * T.SUG_COLD;
+    // repetition: called in the last SUG_REP snaps
+    const hp = G.histP[o];
+    let used = 0; for (let j = Math.max(0, hp.length - T.SUG_REP); j < hp.length; j++) if (hp[j] === p.id) used++;
+    sc -= T.SUG_CALLED * used;
+    if (p.hail && !s.hail) sc -= 200;
+    if (p.sneak && s.togo > 2) sc -= 200;
+    if (s.hail && p.hail) sc += 100;
+    return sc;
+  };
+
+  /** AI offense play (same logic as the user's suggestions, one weighted draw). */
+  PC.aiPick = function (G, rng) {
+    const o = G.poss, B = PB(), s = sitFor(G), T = G.T;
+    const style = G.teams[o].tend.off, mix = B.STYLE_MIX[style] || B.STYLE_MIX.west;
+    const okey = PC.overrideKey(s), ov = okey ? B.OVERRIDES[okey] : null;
+    if (s.hail) return B.byId('hail_mary');
+    if (okey === 'short' && s.togo <= 1 && rng.chance(0.2)) return B.byId('snout_sneak');
+    const sc = [];
+    let top = -1e9;
+    for (const p of B.list) {
+      if (p.clock || p.k === 'special') continue;
+      const v = PC.offScore(G, o, p, s, okey, ov, mix, style);
+      if (v < -100) continue;
+      sc.push([p, v]); if (v > top) top = v;
+    }
+    let tot = 0; for (const x of sc) { x[1] = Math.exp((x[1] - top) / T.SUG_TEMP); tot += x[1]; }
+    let r = rng.next() * tot;
+    for (const x of sc) { r -= x[1]; if (r <= 0) return x[0]; }
+    return sc.length ? sc[0][0] : B.byId('quick_slants');
+  };
 
   /** Is defensive call c unlocked for the user? (coach level; with only an offensive unlock list, its top level) */
   PC.unlockedD = function (G, c) {
@@ -282,19 +330,11 @@
     for (let i = 0; i < B.list.length; i++) {
       const p = B.list[i];
       if (p.clock || !PC.unlocked(G, p)) continue;
-      let sc = (mix[p.type] || 0) * 0.8;
-      if (ov) sc += (ov[p.type] || 0) * 0.6;
-      sc += fitO(p, s, okey);
-      // client pass 4 (variety): strong penalties for plays suggested or called in the last ~6 snaps
-      let used = 0; for (let j = Math.max(0, hp.length - T.SUG_HIST); j < hp.length; j++) if (hp[j] === p.id) used++;
-      sc -= T.SUG_CALLED * used;
+      let sc = PC.offScore(G, o, p, s, okey, ov, mix, style);
       let shown = 0; for (let j = 0; j < st.hist.length; j++) if (st.hist[j].indexOf(p.id) >= 0) shown++;
       sc -= T.SUG_SHOWN * shown;
       if (!st.seen[p.id]) sc += T.SUG_FRESH;                                       // not suggested yet this game
       if (lvMax > 1 && (p.lv || 1) === lvMax && rng.chance(0.5)) sc += T.SUG_FRESH;   // a new unlock
-      if (p.hail && !s.hail) sc -= 200;
-      if (p.sneak && s.togo > 2) sc -= 200;
-      if (s.hail && p.hail) sc += 100;
       scored.push({ p: p, sc: sc, w: 0 });
     }
     // weighted random among the fitting plays (softmax on the score)
@@ -352,11 +392,21 @@
     const rest = B.list.filter((p) => !p.clock && PC.unlocked(G, p) && !sug.some((x) => x.p === p));
     rest.sort((a, b) => TYPES.indexOf(a.type) - TYPES.indexOf(b.type));
     rest.forEach((p) => out.push(card({ p: p }, false, false)));
-    // specials
+    // specials: PUNT on 4th down; FIELD GOAL on 4th down or on ANY down past midfield (client) — disabled "Too far!" when out of range
     if (G.down === 4 && !G.tryTwo) {
       out.push({ id: 'punt', name: 'Punt', k: 'special', type: 'SPECIAL', icon: 'boot', desc: 'Kick it away.', tag: 'Special', sug: false, best: false, hint: null, tip: false });
-      out.push({ id: 'fg', name: 'Field Goal', k: 'special', type: 'SPECIAL', icon: 'posts', desc: s.fgOk ? 'Chance: ' + s.fgPct + '%' : 'Too far!',
-        tag: 'Special', sug: false, best: false, hint: null, tip: false, ok: s.fgOk, pct: s.fgPct });
+    }
+    if (!G.tryTwo && (G.down === 4 || s.toGoal < 50)) {
+      const late = PT.Engine.Rules.lateFG(G, true);
+      const fg = { id: 'fg', name: 'Field Goal', k: 'special', type: 'SPECIAL', icon: 'posts', desc: s.fgOk ? 'Chance: ' + s.fgPct + '%' : 'Too far!',
+        tag: 'Special', sug: late, best: late, hint: null, tip: false, ok: s.fgOk, pct: s.fgPct };
+      if (late) {
+        // end of the half in range: the FG leads the 3 suggested cards (the third play card drops to the book)
+        for (const c of out) c.best = false;
+        const nSugC = out.filter((c) => c.sug).length;
+        if (nSugC >= 3) { const last = out.filter((c) => c.sug).pop(); last.sug = false; }
+        out.unshift(fg);
+      } else out.push(fg);
     }
     if (!G.tryTwo) {
       const halfEnd = G.q === 2 || G.q >= 4;

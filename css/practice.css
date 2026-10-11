@@ -1,0 +1,75 @@
+/* Pixel Touchdown: css/practice.css
+ * Owner: PRACTICE (docs/handoff/PRACTICE.md). The Practice Field coach card (js/ui/screens/practice.js):
+ *   .pr-coach.pr-intro  centred card over the frozen field (step intro AND the result after each attempt)
+ *   .pr-coach.pr-pill   one-line pill at the top-left during play (hidden while the ball is in the air)
+ *   html.pt-pr-card     a card is up: the field is dimmed and the HUD's game controls are hidden (nothing to press)
+ */
+#screen[data-screen="practice"] { pointer-events: none; }
+.pr-host { position: fixed; inset: 0; pointer-events: none; transition: background-color 0.15s; }
+html.pt-pr-card .pr-host { background: rgba(14, 16, 34, 0.45); }
+.pr-coach {
+  position: fixed; z-index: 2; pointer-events: auto;
+  left: calc(10px + var(--sal)); right: calc(10px + var(--sar)); top: calc(112px + var(--sat));
+  max-width: 460px; margin: 0 auto; padding: 8px 10px;
+  background: var(--cream); color: var(--ink); border: 0;
+  box-shadow: var(--bevel), var(--frame), 0 calc(2 * var(--px)) 0 0 rgba(27, 31, 58, 0.5);
+}
+.pr-coach:empty { display: none; }
+.pr-top { display: flex; align-items: center; gap: 8px; }
+.pr-emo { flex: none; display: inline-flex; width: 22px; height: 22px; }
+.pr-emo svg { width: 100%; height: 100%; }
+.pr-title { font-family: var(--font-d); font-size: 20px; letter-spacing: 0.04em; text-transform: uppercase; flex: 1 1 auto; min-width: 0; }
+.pr-dots { display: flex; gap: 4px; flex: none; }
+.pr-dot { width: 10px; height: 10px; box-shadow: var(--frame-2); margin: 2px; background: var(--paper); }
+.pr-dot.on { background: var(--sun); }
+.pr-dot.ok { background: var(--green); }
+.pr-dot.skip { background: var(--paper); opacity: 0.55; }
+.pr-text { margin: 6px 0 8px; font-weight: 600; line-height: 1.3; }
+.pr-sub { display: block; margin-top: 2px; font-weight: 500; font-size: var(--fs-1); opacity: 0.75; }
+.pr-flash .pr-text { color: var(--green-d); font-size: 1.1em; }
+.pr-btns { display: flex; gap: 8px; }
+.pr-btns .btn { flex: 1 1 0; min-width: 0; }
+.pr-btns .btn-go { flex: 2 1 0; }
+.pr-brief { margin: 8px 0 4px; font-family: var(--font-d); font-size: 22px; line-height: 1.1; }
+.pr-res.pr-good { color: var(--green-d); }
+.pr-res.pr-bad { color: var(--red-d, #b8322a); }
+.pr-how { margin: 0 0 10px; padding-left: 20px; font-size: var(--fs-1); line-height: 1.35; }
+.pr-how li { margin: 2px 0; }
+/* the centred card: step intro + attempt result */
+.pr-coach.pr-intro { left: 50%; right: auto; top: 50%; width: min(460px, calc(100vw - 32px)); max-width: none; margin: 0; transform: translate(-50%, -50%); padding: 12px 14px; }
+.pr-coach.pr-intro.pr-ok { box-shadow: var(--bevel), var(--frame), 0 0 0 calc(2 * var(--px)) var(--green), 0 calc(2 * var(--px)) 0 0 rgba(27, 31, 58, 0.5); }
+/* during play: a one-line pill at the very top-left, beside the scoreboard — never over the field */
+.pr-coach.pr-pill { display: flex; align-items: center; gap: 6px; top: calc(6px + var(--sat)); left: calc(8px + var(--sal)); right: auto;
+  width: auto; max-width: calc(50vw - 250px); min-width: 150px; margin: 0; padding: 3px 4px 3px 8px; transform: none; }
+.pr-coach.pr-pill .pr-try { flex: none; font-family: var(--font-m); font-size: 12px; color: var(--ink-soft, #555); white-space: nowrap; }
+.pr-coach.pr-pill .pr-try::before { content: 'TRY '; }
+.pr-coach.pr-pill .pr-text { margin: 0; flex: 1 1 auto; min-width: 0; font-size: 14px; line-height: 1.15; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pr-coach.pr-pill .btn { flex: none; min-height: 44px; min-width: 44px; padding: 0 10px; font-size: 16px; }
+.pr-coach.pr-hide { visibility: hidden; }
+.pr-coach.pr-pill .pr-text:empty { display: none; }
+.pr-coach.pr-pill:has(.pr-text:empty) { padding-left: 3px; }
+/* phones (HUNT-practice #1): the pill sits centred under the scoreboard on one line, never squeezed beside it */
+@media (max-width: 900px) {
+  .pr-coach.pr-pill { top: calc(64px + var(--sat)); left: 50%; right: auto; transform: translateX(-50%);
+    width: max-content; max-width: calc(100vw - 32px); min-width: 0; padding: 2px 3px 2px 10px; }
+  .pr-coach.pr-pill .btn { min-height: 40px; }
+}
+/* short landscape phones: keep the centred card inside 390 px */
+@media (max-height: 430px) {
+  .pr-coach.pr-intro { padding: 8px 12px; max-height: calc(100vh - 16px); overflow: auto; }
+  .pr-brief { font-size: 19px; margin: 4px 0 2px; }
+  .pr-how { margin-bottom: 6px; }
+}
+/* a card is up: the game is frozen, so its controls are hidden (they would do nothing) */
+html.pt-pr-card #hud .hud-ctl, html.pt-pr-card #hud .hud-ctl2, html.pt-pr-card #hud .hud-star, html.pt-pr-card #hud .hud-kick,
+html.pt-pr-card #hud .hud-hint, html.pt-pr-card #hud .hud-aimt, html.pt-pr-card #hud .hud-pause-btn, html.pt-pr-card #hud .hud-ban,
+html.pt-pr-card #touch > * { visibility: hidden; }
+html.pt-pr-card #touch { pointer-events: none; }
+/* the whole practice (HUNT-practice #2, #3): no full-game extras (they would skip or auto-play a drill, or do nothing) and
+   no second set of instructions (HUD hint line, play-call coach tips) — the coach card / pill is the one voice */
+html.pt-practice [data-testid="btn-skip-drive"], html.pt-practice [data-testid="btn-sim-drive"], html.pt-practice [data-testid="btn-timeout"],
+html.pt-practice [data-testid="btn-audible"], html.pt-practice [data-testid="btn-auto-kick"], html.pt-practice [data-testid="btn-ability"],
+html.pt-practice [data-testid="btn-skip"], html.pt-practice #hud .hud-hint, html.pt-practice .pk-tip { display: none !important; }
+/* the HUD pause menu lives under #screen: while it is open, step the practice card + dim aside so it stays usable */
+html:has(#hud .hud-paused) .pr-coach { visibility: hidden; }
+html:has(#hud .hud-paused) .pr-host { background: none; }

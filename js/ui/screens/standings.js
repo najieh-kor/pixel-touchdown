@@ -34,15 +34,14 @@
   // ROUND6 "0 scrolling": every tab is one paged list (pager.js) in a fit layout; the pager sits at the right.
   function divCard(L, u, c, d) {
     return html`<section class="card nc-div"><table class="tbl lh-tbl std-tbl nc-tbl"><thead><tr><th class="nc-th" title="${confName(c)}">${K().ic(CONF_EMO[c])}${divName(c, d)}</th><th class="n">W</th><th class="n">L</th><th class="n">T</th><th class="n col-pf">PF</th><th class="n col-pa">PA</th><th class="n col-strk">Strk</th></tr></thead><tbody>
-        ${division(L, c, d).map((r) => tr(L, r, u, html`<td>${teamCell(L, r.tid, html`${r.seed ? html`<span class="seed" title="Playoff seed">${r.seed}</span>` : ''}${r.clinch ? html`<span class="clinch" title="${CLINCH[r.clinch] || ''}">${r.clinch}</span>` : ''}`)}</td>
+        ${division(L, c, d).map((r) => tr(L, r, u, html`<td>${teamCell(L, r.tid, html`${r.seed ? html`<span class="seed seed-m" title="Playoff seed ${r.seed}">#${r.seed}</span>` : ''}${r.clinch ? html`<span class="clinch" title="${CLINCH[r.clinch] || ''}">${r.clinch}</span>` : ''}`)}</td>
           <td class="n num"><b>${r.w}</b></td><td class="n num">${r.l}</td><td class="n num">${r.t}</td><td class="n num col-pf">${r.pf}</td><td class="n num col-pa">${r.pa}</td><td class="n num col-strk">${r.strk || '–'}</td>`))}
         </tbody></table></section>`;
   }
   function divTab(L, u) {
     const cards = [];
     for (let c = 0; c < 2; c++) for (let d = 0; d < 4; d++) cards.push(divCard(L, u, c, d));
-    return html`<p class="std-key nc-key small">Gold number = playoff seed · x in · y won division · z top seed</p>
-      <div class="fill">${K().pg('std', cards, { grid: true, cls: 'nc-side nc-cards nc-divs' })}</div>`;
+    return html`<div class="fill">${K().pg('std', cards, { grid: true, cls: 'nc-side nc-cards nc-divs' })}</div>`;
   }
 
   function pictureTab(L, u) {
@@ -86,7 +85,9 @@
     const rows = list.map((x) => html`<button type="button" class="nc-pw ${x.tid === u ? 'me' : ''}" data-action="team-view" data-tid="${x.tid}" data-testid="pw-row-${x.tid}">
       <span class="rank ${x.rank <= 3 ? 'top' : ''}">${x.rank}</span>${mv(x)}${teamCell(L, x.tid)}<span class="num nc-pw-rec">${D().rec(x.w, x.l, x.t)}</span>
       <span class="num nc-pw-d ${x.diff > 0 ? 'pw-pos' : x.diff < 0 ? 'pw-neg' : ''}" title="Point difference">${x.diff > 0 ? '+' : ''}${x.diff}</span><span class="nc-pw-f">${form(x.form)}</span><span class="nc-pw-s">${K().stars(x.ovr, { team: true })}</span></button>`);
-    return html`<p class="std-key nc-key small">Record, points, team Stars and the last 4 games. Arrows: move since last week (${wk}).</p>
+    void wk;
+    const headRow = html`<div class="nc-pw nc-pw-h" aria-hidden="true"><span class="rank">#</span><span class="pw-mv">Move</span><span class="tcell">Team</span><span class="num nc-pw-rec">W-L</span><span class="num nc-pw-d">+/-</span><span class="nc-pw-f">Form</span><span class="nc-pw-s">Stars</span></div>`;
+    return html`${headRow}
       <div class="fill">${K().pg('pw', rows, { grid: true, cls: 'nc-side nc-pws' })}</div>`;
   }
 
@@ -118,8 +119,7 @@
     const u = L.userTid;
     const tab = TABS.some((t) => t.id === params.tab) ? params.tab : 'div';
     const content = tab === 'picture' ? pictureTab(L, u) : tab === 'power' ? powerTab(L, u) : tab === 'teams' ? teamsGrid(L, u) : divTab(L, u);
-    const head = html`<div class="row between wrap std-top">${K().tabs(TABS, tab, 'tab')}
-      ${K().btn({ label: 'Bracket', icon: 'carrot', action: 'bracket', kind: 'gold', size: 's', testid: 'btn-std-bracket' })}</div>`;
+    const head = html`<div class="row between wrap std-top">${K().tabs(TABS, tab, 'tab')}</div>`;   // HUNT #32: no Bracket button (Playoffs sub-tab)
     D().set(el, K().layout(html`${head}${content}`, null, 'fit standings nc'));
   }
 

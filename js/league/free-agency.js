@@ -143,7 +143,7 @@
     if (o.gift) PT.League.Economy.addCoins(L, tid, -o.gift, 'gift');
     if (tid === L.userTid || p.ovr >= 75) {
       const N = PT.League.News;
-      N.add(L, 'sign', N.tpl('sign', { P: N.pname(p), T: L.teams[tid].name, N: Math.round(o.sal / 100) / 10 }), tid);
+      N.add(L, 'sign', N.tpl('sign', { P: p.fn.charAt(0) + '. ' + p.ln, T: 'The ' + L.teams[tid].name, N: Math.round(o.sal / 100) / 10 }), tid);
     }
     if (PT.Events) PT.Events.emit('league:signed', { pid: pid, tid: tid });
     if (tid === L.userTid) PT.League.Achievements.check(L, 'roster');

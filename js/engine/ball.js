@@ -27,7 +27,9 @@
 
   /** Give the ball to ent i. */
   BL.give = function (G, i) {
-    const b = G.ball;
+    const b = G.ball, P0 = G.P;
+    // a change of possession during the play (INT, fumble scoop): the offense getting it back later is a NEW series
+    if (P0 && (P0.kind === 'scrim' || P0.kind === 'two') && G.ents[i].tm !== P0.off) P0.defHad = true;
     for (let k = 0; k < 14; k++) G.ents[k].ball = false;
     b.st = 'held'; b.car = i; b.kind = ''; b.team = G.ents[i].tm;
     G.ents[i].ball = true;
@@ -322,7 +324,10 @@
     const o = b.team, d = 1 - o, lx = b.x, ly = b.y;
     const edge = P.edge || 0;
     const wx = (G.cfg.weather || {}).k;
-    if (!inBounds(lx, ly)) return BL.incomplete(G, 'out', -1);
+    // ROUND6 rules fix: in/out is judged by the CATCHER's feet, not the ball's landing point. A receiver standing in
+    // bounds who reaches over the sideline makes the catch (before: ruled "Out of bounds" incomplete); a player standing
+    // out of bounds can't make one.
+    const ballOut = !inBounds(lx, ly);
     if (P.batted) {
       if (P.batPick >= 0 && G.ents[P.batPick].downT <= 0) return BL.caught(G, P.batPick, true, true);
       return BL.incomplete(G, 'defended', -1);
@@ -343,6 +348,7 @@
       if (e.diveT > 0) reach += 0.6;
       const isOff = e.tm === o;
       if (isOff) { if (!BL.eligible(G, e) && !(e.role === PT.Engine.Entity.R.CARRIER)) continue; }
+      if (!inBounds(e.x, e.y)) continue;                                  // feet out of bounds: no catch
       let ok = dd <= reach;
       if (!isOff && !ok && (P.undercut & (1 << (i - d * 7)))) ok = true;
       if (!isOff && star.idx === i && star.superJump && dd <= reach + 1.5) ok = true;
@@ -350,7 +356,7 @@
       cand.idx[cand.n++] = i;
       if (isOff) offN++; else defN++;
     }
-    if (cand.n === 0) return BL.incomplete(G, 'overthrown', -1);
+    if (cand.n === 0) return BL.incomplete(G, ballOut ? 'out' : 'overthrown', -1);
     const dist = (i) => Math.hypot(G.ents[i].x - lx, G.ents[i].y - ly);
     if (hail && offN + defN > 1) {
       let best = -1, bs = -1e9;
@@ -496,10 +502,12 @@
     if (second >= 0 && sd - bd < 0.5 && rng.chance(0.5)) best = second;
     const e = G.ents[best];
     let team = e.tm, y = b.y;
-    if (Math.abs(b.x - MID) > 26.65) { team = b.team; }      // out of bounds: last team in possession keeps it
-    P.frBy = best;
-    P.carrierEnd = best;
-    G.em.emit('recover', { pid: e.pid, tid: G.tids[team], x: b.x, y: b.y });
+    const oob = Math.abs(b.x - MID) > 26.65 || b.y < 0 || b.y > 120;
+    if (oob) { team = b.team; }      // out of bounds: last team in possession keeps it (nobody "recovered" it)
+    P.frBy = oob ? -1 : best;
+    P.carrierEnd = oob ? -1 : best;
+    if (!oob && team !== P.off && (P.kind === 'scrim' || P.kind === 'two')) P.defHad = true;
+    G.em.emit('recover', { pid: oob ? -1 : e.pid, tid: G.tids[team], x: b.x, y: b.y, oob: oob });
     // fumble return (design P1): the other team scoops it on the run and the play goes on
     const RU0 = PT.Engine.Rules;
     if (team !== b.team && team === e.tm && G.phase === 'LIVE' && e.downT <= 0 && bd < 1.5 && !P.fumRet && rng.chance(G.T.FUM_RET) &&

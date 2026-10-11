@@ -21,14 +21,16 @@
     try { return PT.League.Q.leaders(L, k, n); } catch (e) { return []; }
   }
   function leaderCard(L, c, u) {
-    const list = leaders(L, c.k, 5);
+    // HUNT #9: 3 leaders per card on short screens (5 on tall ones), never clipped rows
+    const n = (globalThis.innerHeight || 800) < 600 ? 3 : 5;
+    const list = leaders(L, c.k, n);
     const rows = list.map((x, i) => {
       const p = PT.League.Q.player(L, x.pid);
       if (!p) return '';
       const t = p.tid >= 0 ? L.teams[p.tid] : null;
       return html`<button type="button" class="ldr-row ${t && t.id === u ? 'me' : ''} ${i === 0 ? 'first' : ''}" data-action="player" data-pid="${p.id}" data-testid="leader-${c.k}-${p.id}">
         <span class="ldr-rank num">${i + 1}</span>${K().portrait(p, 32, t ? t.col.pri : undefined)}
-        <span class="grow ldr-n"><b class="ellip">${K().short(p)}</b><span class="small muted ellip">${p.pos} · ${t ? t.abbr : 'Free'}</span></span>
+        <span class="grow ldr-n"><b class="ldr-nm">${K().short(p)}</b><span class="small muted ellip">${p.pos} · ${t ? t.abbr : 'Free'}</span></span>
         <b class="ldr-v num">${D().int(x.v)}</b></button>`;
     });
     return K().card(html`${K().h2(c.label, null, c.icon)}${list.length ? html`<div class="ldr-list">${rows}</div>` : html`<p class="muted small">No stats yet.</p>`}`, 'ldr-card');
@@ -44,7 +46,7 @@
     const rows = list.map((r, i) => html`<button type="button" class="ts-r ${r.tid === u ? 'me' : ''}" data-action="team-view" data-tid="${r.tid}" data-testid="ts-row-${r.tid}">
       <span class="tcell"><span class="ts-rk num">${i + 1}</span>${K().badge(L.teams[r.tid], 's')}<span class="ellip">${L.teams[r.tid].name}</span></span>
       <b class="n num">${r.ppg.toFixed(1)}</b><span class="n num ts-x">${r.pf}</span><span class="n num ts-x">${r.pa}</span><span class="n num ${r.pf - r.pa > 0 ? 'good' : r.pf - r.pa < 0 ? 'bad' : ''}">${D().signed(r.pf - r.pa)}</span></button>`);
-    return html`<div class="ts-heads">${head}${head}${head}</div>${K().pg('ts', rows, { grid: true, cls: 'pg-top ts-pg' })}`;
+    return html`<div class="ts-heads">${head}${head}${head}</div>${K().pg('ts', rows, { grid: true, cls: 'ts-pg' })}`;
   }
 
   /** ROUND6: the newest items as one flat paged list (week tag on each row) */
@@ -52,27 +54,31 @@
   function newsFeed(L, top) {
     const all = (L.news || []).slice(0, NEWS_MAX);
     if (!all.length) return K().card(K().empty('news', 'No news yet.'));
-    const wkName = (wk) => (wk > PT.C.REG_WEEKS ? PT.C.PLAYOFF_NAMES[wk - PT.C.REG_WEEKS] || 'Playoffs' : wk ? 'Wk ' + wk : 'Offseason');
+    const wkName = (wk) => (wk > PT.C.REG_WEEKS ? PT.C.PLAYOFF_NAMES[wk - PT.C.REG_WEEKS] || 'Playoffs' : wk ? 'Wk ' + wk : 'Preseason');
     const rows = all.map((n) => html`<div class="nw-row ${n.tid === L.userTid ? 'me' : ''}"><span class="news-ic">${K().ic(NEWS_IC[n.k] || 'news')}</span>
-      <span class="nw-t">${n.txt}</span><span class="nw-wk small">${wkName(n.wk)}<br>${n.s}</span>${n.tid != null && L.teams[n.tid] ? K().badge(L.teams[n.tid], 's') : ''}</div>`);
-    return K().pg('news', rows, { grid: true, cls: (top ? 'pg-top ' : '') + 'nw-pg' });
+      <span class="nw-t">${n.txt}</span><span class="nw-wk small">${wkName(n.wk)}</span>${n.tid != null && L.teams[n.tid] ? K().badge(L.teams[n.tid], 's') : ''}</div>`);
+    return K().pg('news', rows, { grid: true, cls: 'nw-pg' });
   }
 
+  // HUNT #32: News is its own League sub-tab, so the inner tabs are just Players / Teams
   const TABS = [
-    { id: 'leaders', label: 'Leaders', testid: 'tab-stats-leaders' },
-    { id: 'team', label: 'Team Stats', testid: 'tab-stats-team' },
-    { id: 'news', label: 'News', testid: 'tab-stats-news' }
+    { id: 'leaders', label: 'Players', testid: 'tab-stats-leaders' },
+    { id: 'team', label: 'Teams', testid: 'tab-stats-team' }
   ];
 
   function mount(el, params) {
     const L = PT.App.L;
     if (!L) { UI.replace('title'); return; }
     const u = L.userTid;
+    if (params.tab === 'news') { UI.replace('news'); return; }
     const tab = TABS.some((t) => t.id === params.tab) ? params.tab : 'leaders';
     let content;
     if (tab === 'team') content = teamTab(L, u);
-    else if (tab === 'news') content = newsFeed(L, true);
-    else content = K().pg('ldr', CATS.map((c) => leaderCard(L, c, u)), { grid: true, cls: 'pg-top ldr-pg' });   // ROUND6: a page of categories
+    else {
+      // HUNT #49: before week 1 one empty state instead of 9 empty cards
+      const any = CATS.some((c) => leaders(L, c.k, 1).length);
+      content = any ? K().pg('ldr', CATS.map((c) => leaderCard(L, c, u)), { grid: true, cls: 'ldr-pg' }) : K().card(K().empty('chart', 'Leaders show up after week 1.'), 'fill');
+    }
     D().set(el, K().layout(html`${K().tabs(TABS, tab, 'tab')}${content}`, null, 'fit stats stats-' + tab));
   }
 

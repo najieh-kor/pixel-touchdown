@@ -93,11 +93,11 @@
       <div class="legacy-top">
         <span class="coach-ava">${K().sp(c.sp)}</span>
         <div class="grow"><div class="small">Legacy</div><div class="legacy-t">${ti.t}</div></div>
-        ${K().btn({ label: 'Lv ' + (c.lvl || 1), icon: 'star', action: 'coach', kind: 'gold', size: 's', testid: 'btn-coach', title: 'Coach Level and Skills' })}
+        <span class="chip chip-gold" data-testid="btn-coach" title="Coach Level">Lv ${c.lvl || 1}</span>
       </div>
       <div class="small"><b class="num">${D().int(lg.score)}</b> points${ti.next ? html` · ${D().int(ti.next[0] - lg.score)} to ${ti.next[1]}` : ''}</div>
       ${ti.next ? K().meter(lg.score - ti.min, ti.next[0] - ti.min, 'm-gold', 'Legacy') : ''}
-      <div class="legacy-stats small"><span>${K().ic('football')} <b class="num">${lg.wins}</b> wins</span><span>${K().ic('ticket')} <b class="num">${lg.poW}</b> playoff wins</span><span>${K().ic('carrot')} <b class="num">${lg.bowls}</b> titles</span><span>${K().ic('trophy')} <b class="num">${lg.ach}</b> badges</span></div>
+      <div class="legacy-stats small"><span>${K().ic('football')} <b class="num">${lg.wins}</b> ${lg.wins === 1 ? 'win' : 'wins'}</span><span>${K().ic('ticket')} <b class="num">${lg.poW}</b> playoff ${lg.poW === 1 ? 'win' : 'wins'}</span><span>${K().ic('carrot')} <b class="num">${lg.bowls}</b> ${lg.bowls === 1 ? 'title' : 'titles'}</span><span>${K().ic('trophy')} <b class="num">${lg.ach}</b> ${lg.ach === 1 ? 'badge' : 'badges'}</span></div>
       <div class="dyn">
         <div class="dyn-i" title="Playoff seasons in a row"><b class="num">${lg.poStreak}</b><span class="tiny">Playoff run</span></div>
         <div class="dyn-i" title="Winning seasons in a row"><b class="num">${lg.winStreak}</b><span class="tiny">Win run</span></div>
@@ -106,8 +106,17 @@
     </section>`;
   }
 
-  function trophiesTab(L, lg) {
+  /** small segmented control in a panel header (Records League/Your Team, Trophies Shelf/Badges) */
+  function segCtl(cur, opts, action, prefix) {
+    return html`<span class="rec-seg">${opts.map((x) => html`<button type="button" class="rec-sb ${cur === x[0] ? 'on' : ''}" data-action="${action}" data-id="${x[0]}" data-testid="${prefix}${x[0]}">${x[1]}</button>`)}</span>`;
+  }
+  function trophiesTab(L, lg, view) {
     const u = L.userTid;
+    const seg = segCtl(view === 'badges' ? 'badges' : 'shelf', [['shelf', 'Shelf'], ['badges', 'Badges']], 'tview', 'tro-view-');
+    if (view === 'badges') {
+      const all = achList(L), got = all.filter((a) => a.got).length;
+      return K().card(html`${K().h2('Badges', html`<span class="chip chip-gold ach-n num">${got} / ${all.length || 32}</span>${seg}`, 'medal')}${achTab(L, true)}`, 'fill ach-card');
+    }
     const shelf = [];
     lg.recs.slice().reverse().forEach((r) => {
       const s = (L.hist.seasons || []).find((x) => x.s === r.s);
@@ -125,26 +134,35 @@
     const items = shelf.concat(plaques.slice(0, 24).map((x) => html`<div class="trophy plaque"><span class="tr-ic">${K().ic('medal')}</span><span class="tr-tx"><b>${AWN[x.a.a] || AW[x.a.a] || x.a.a}</b><span class="small">${x.n} · ${x.a.s}</span></span></div>`));
     return html`<div class="tr-cols">
       ${legacyCard(L, lg)}
-      ${K().card(html`${K().h2('Trophy Shelf')}${K().pg('shelf', items, { grid: true, cls: 'pg-top shelf-pg', empty: html`<div class="trophy ghost">${vox('carrot')}<span class="tr-tx"><b>Pixel Bowl</b><span class="small">Not won yet</span></span></div>` })}`, 'fill shelf-card')}
+      ${K().card(html`${K().h2('Trophy Shelf', html`${retiredRow(L)}${seg}`)}${K().pg('shelf', items, { grid: true, cls: 'shelf-pg', empty: html`<div class="trophy ghost">${vox('carrot')}<span class="tr-tx"><b>Pixel Bowl</b><span class="small">Not won yet</span></span></div>` })}`, 'fill shelf-card')}
     </div>`;
   }
 
+  /** retired numbers as a compact row of jerseys (shown in the Trophy Shelf header) */
+  function retiredRow(L) {
+    const nums = ((L.retNums && L.retNums[L.userTid]) || []).slice().sort((a, b) => a - b);
+    if (!nums.length) return '';
+    return html`<span class="ret-row" title="Retired numbers" data-testid="ret-nums">${nums.slice(0, 6).map((n) => html`<span class="jersey-b mini"><span class="num">${n}</span></span>`)}</span>`;
+  }
   function seasonsTab(L) {
     const ss = (L.hist.seasons || []).slice().sort((a, b) => b.s - a.s);
-    if (!ss.length) return K().card(K().empty('scroll', 'No finished seasons yet.'));
+    if (!ss.length) return K().empty('scroll', 'No finished seasons yet.');
     const u = L.userTid;
     const rows = ss.map((s) => { const c = s.champ != null ? L.teams[s.champ] : null; const us = s.user || {}; return html`<div class="sea-r ${s.champ === u ? 'me' : ''}"><b class="num">${s.s}</b>
-        <span class="tcell">${c ? html`${K().badge(c, 's')}<span class="ellip">${c.name}</span>` : '—'}</span>
-        <span class="num n">${us.w != null ? D().rec(us.w, us.l, us.t) : '—'}</span><span class="ellip">${us.res ? RES_WORD[us.res] || us.res : html`<span class="muted">No playoffs</span>`}</span>
+        <span class="tcell">${c ? html`${K().badge(c, 's')}<span class="ellip">${c.name}</span><b class="sea-ab">${c.abbr}</b>` : '—'}</span>
+        <span class="num n">${us.w != null ? D().rec(us.w, us.l, us.t) : '—'}</span><span class="ellip">${us.res ? RES_WORD[us.res] || us.res : html`<span class="muted">Missed</span>`}</span>
         <span class="ellip sea-x">${s.mvp != null ? pname(L, s.mvp) : '—'}</span></div>`; });
     return html`<div class="sea-r sea-h"><span>Year</span><span>Champion</span><span class="n">You</span><span>Result</span><span class="sea-x">Top Dog</span></div>
-      ${K().pg('sea', rows, { cls: 'pg-top sea-pg' })}`;
+      ${K().pg('sea', rows, { cls: 'sea-pg' })}`;
   }
 
   // Records: one matrix (stat × Game / Season / Career), League or Your Team, paged by rows
   function recCell(L, r) {
     if (!r) return html`<span class="rec-c muted">—</span>`;
-    return html`<span class="rec-c"><b class="num">${D().int(r.v)}</b><span class="small ellip">${r.n || pname(L, r.pid, r.tid != null && L.teams[r.tid] ? L.teams[r.tid].name : '—')}${r.s ? ' · ' + r.s : ''}</span></span>`;
+    const full = r.n || pname(L, r.pid, r.tid != null && L.teams[r.tid] ? L.teams[r.tid].name : '—');
+    const parts = String(full).split(' ');
+    const nm = parts.length > 1 && full.length > 12 ? parts[0][0] + '. ' + parts.slice(1).join(' ') : full;   // "P. Icewaddle"
+    return html`<span class="rec-c"><b class="num">${D().int(r.v)}</b><span class="rec-n" title="${full}">${nm}</span>${r.s ? html`<span class="tiny muted rec-y">'${String(r.s).slice(-2)}</span>` : ''}</span>`;
   }
   function recordsTab(L, params) {
     const R = (L.hist && L.hist.rec) || {};
@@ -162,13 +180,14 @@
     keys.sort((a, b) => (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99));
     const seg = html`<span class="rec-seg">${[['league', 'League'], ['team', 'Your Team']].map((x) => html`<button type="button" class="rec-sb ${(team ? 'team' : 'league') === x[0] ? 'on' : ''}" data-action="rscope" data-id="${x[0]}" data-testid="rec-scope-${x[0]}">${x[1]}</button>`)}</span>`;
     const rows = keys.map((k) => html`<div class="rec-r c${cols.length}"><span class="rec-k">${STAT[k] || k}</span>${cols.map((c) => recCell(L, (src[c] || {})[k]))}</div>`);
-    return html`<div class="rec-r rec-h c${cols.length}">${seg}${cols.map((c) => html`<span>${NAMES[c]}</span>`)}</div>
-      ${K().pg('rec-' + (team ? 'team' : 'league'), rows, { cls: 'pg-top rec-pg', empty: html`<p class="muted small rec-none">No records yet.</p>` })}`;
+    return K().card(html`${K().h2('Records', seg, 'chart')}
+      <div class="rec-r rec-h c${cols.length}"><span></span>${cols.map((c) => html`<span>${NAMES[c]}</span>`)}</div>
+      ${K().pg('rec-' + (team ? 'team' : 'league'), rows, { cls: 'rec-pg', empty: html`<p class="muted small rec-none">No records yet.</p>` })}`, 'fill rec-card');
   }
 
   function hofTab(L) {
     const list = (L.hist.legends || []).filter((x) => x.hof).sort((a, b) => ((b.yrs || [0, 0])[1] - (a.yrs || [0, 0])[1]));
-    if (!list.length) return K().card(K().empty('pillar', 'No Hall of Famers yet.'));
+    if (!list.length) return K().empty('pillar', 'No Hall of Famers yet.');
     return K().pg('hof', list.map((x) => {
       const tid = (x.tids || [])[(x.tids || []).length - 1];
       const col = tid != null && L.teams[tid] ? L.teams[tid].col.pri : 0xc9a227;
@@ -176,7 +195,7 @@
         ${K().portrait({ id: x.id, sp: x.sp, tid: -3, look: x.look || { v: 0 } }, 56, col)}
         <b class="ellip">${x.fn} ${x.ln}</b><span class="small">${K().posChip(x.pos)} ${(x.yrs || []).join('–')}</span>
         <span class="tiny muted ellip">${K().statLine(x.car, x.pos)}</span></button>`;
-    }), { grid: true, cls: 'pg-top hof-pg' });
+    }), { grid: true, cls: 'hof-pg' });
   }
 
   function achList(L) {
@@ -184,52 +203,53 @@
     try { if (A && A.list) return A.list(L); } catch (e) { /* data */ }
     return ((PT.Data.Achievements && PT.Data.Achievements.list) || []).map((a) => ({ id: a.id, name: a.name, desc: a.desc, coins: a.coins, got: (L.ach || {})[a.id] || null }));
   }
-  function achTab(L) {
+  function achTab(L, noHead) {
     const defs = (PT.Data.Achievements && PT.Data.Achievements.list) || [];
     const list = achList(L);
     const got = list.filter((a) => a.got).length;
     // unlocked first, then the locked ones in book order
     const sorted = list.filter((a) => a.got).concat(list.filter((a) => !a.got));
-    return html`<div class="ach-head">${K().ic('trophy')}<b class="num">${got} / ${list.length || 32}</b><span>unlocked</span><span class="grow">${K().meter(got, list.length || 32, 'm-gold', 'Achievements')}</span></div>
+    return html`${noHead ? '' : html`<div class="ach-head">${K().ic('trophy')}<b class="num">${got} / ${list.length || 32}</b><span>unlocked</span><span class="grow">${K().meter(got, list.length || 32, 'm-gold', 'Achievements')}</span></div>`}
       ${K().pg('ach', sorted.map((a) => {
         const def = defs.find((d) => d.id === a.id) || {};
         const coins = a.coins != null ? a.coins : def.coins;
         return html`<div class="ach ${a.got ? 'got' : 'locked'}" data-testid="ach-${a.id}"><span class="ach-emo">${K().ic(a.got ? ((a.icon && UI.Icons.has(a.icon) ? a.icon : UI.Icons.fromEmoji(a.icon || a.emo || '')) || 'trophy') : 'lock')}</span>
           <span class="ach-tx"><b class="ellip">${a.name}</b><span class="small ach-d">${a.desc || def.desc || ''}</span></span>
           <span class="ach-f">${coins ? html`<span class="stat stat-coin">${K().icon('coin')}<b class="num">${coins}</b></span>` : ''}${a.got ? html`<span class="ach-y small">${a.got}</span>` : ''}</span></div>`;
-      }), { grid: true, cls: 'pg-top ach-pg' })}`;
+      }), { grid: true, cls: 'ach-pg' })}`;
   }
 
-  function numbersTab(L) {
-    const t = L.teams[L.userTid];
-    const nums = ((L.retNums && L.retNums[L.userTid]) || []).slice().sort((a, b) => a - b);
-    if (!nums.length) return K().card(K().empty('jersey', 'No retired numbers yet.'));
-    return K().card(html`${K().h2('Retired Numbers')}<div class="fill" style="${K().teamVars(t)}">${K().pg('nums', nums.map((n) => html`<div class="jersey-b"><span class="num">${n}</span></div>`), { grid: true, cls: 'pg-top jerseys-pg' })}</div>`, 'fill');
-  }
 
+
+  // Trophy Room: 3 sub-tabs in one row. Panel toggles live in the panel headers (Trophies: Shelf / Badges,
+  // Records: League / Your Team); pagers sit in the panel footers. Old ids: seasons/hof → history, numbers/ach → trophies.
   const TABS = [
     { id: 'trophies', label: 'Trophies', testid: 'tab-hist-trophies' },
-    { id: 'seasons', label: 'Seasons', testid: 'tab-hist-seasons' },
-    { id: 'records', label: 'Records', testid: 'tab-hist-records' },
-    { id: 'hof', label: 'Hall of Fame', testid: 'tab-hist-hof' },
-    { id: 'ach', label: 'Achievements', testid: 'tab-hist-ach' },
-    { id: 'numbers', label: 'Numbers', testid: 'tab-hist-numbers' }
+    { id: 'history', label: 'History', testid: 'tab-hist-history' },
+    { id: 'records', label: 'Records', testid: 'tab-hist-records' }
   ];
+  const TAB_ALIAS = { seasons: 'history', hof: 'history', numbers: 'trophies', ach: 'trophies' };
+  function historyTab(L) {
+    return html`<div class="cols2 hist-2">
+      ${K().card(html`${K().h2('Seasons', null, 'calendar')}${seasonsTab(L)}`, 'fill')}
+      ${K().card(html`${K().h2('Hall of Fame', null, 'pillar')}${hofTab(L)}`, 'fill')}
+    </div>`;
+  }
 
   function mount(el, params) {
     const L = PT.App.L;
     if (!L) { UI.replace('title'); return; }
-    const tab = TABS.some((t) => t.id === params.tab) ? params.tab : 'trophies';
+    const want = TAB_ALIAS[params.tab] || params.tab;
+    const tab = TABS.some((t) => t.id === want) ? want : 'trophies';
+    if (params.tab === 'ach') params.tv = 'badges';
+    const view = tab === 'trophies' && params.tv === 'badges' ? 'badges' : '';
     let content;
     switch (tab) {
-      case 'seasons': content = seasonsTab(L); break;
+      case 'history': content = historyTab(L); break;
       case 'records': content = recordsTab(L, params); break;
-      case 'hof': content = hofTab(L); break;
-      case 'ach': content = achTab(L); break;
-      case 'numbers': content = numbersTab(L); break;
-      default: content = trophiesTab(L, legacy(L));
+      default: content = trophiesTab(L, legacy(L), view);
     }
-    D().set(el, K().layout(html`${K().tabs(TABS, tab, 'tab')}${content}`, null, 'fit history hist-' + tab));
+    D().set(el, K().layout(html`${K().tabs(TABS, tab, 'tab')}${content}`, null, 'fit history hist-' + tab + (view ? ' hist-ach' : '')));
   }
 
   UI.screens.history = {
@@ -240,6 +260,7 @@
       tab: (el, ev, params) => { params.tab = el.getAttribute('data-id'); UI.refresh(); },
       coach: () => UI.go('coach'),
       rscope: (el, ev, params) => { params.rsc = el.getAttribute('data-id'); UI.refresh(); },
+      tview: (el, ev, params) => { params.tab = 'trophies'; params.tv = el.getAttribute('data-id'); UI.refresh(); },
       legend: (el) => {
         const L = PT.App.L, id = +el.getAttribute('data-id');
         const x = (L.hist.legends || []).find((y) => y.id === id);
@@ -305,18 +326,27 @@
     const offer = offers(L);
     const canLearn = !!learnFn();
     const into = Math.max(0, s.xp - s.prev), need = Math.max(1, s.next - s.prev);
-    // ROUND6: one slim level card + the 18 skills as a paged grid (no scrolling)
-    const skills = SKILLS.map((k) => {
-      const rank = (s.sk && s.sk[k[0]]) || 0;
-      const offered = offer ? offer.includes(k[0]) : true;
-      const can = s.pts > 0 && rank < 2 && offered;
-      return html`<div class="sk ${rank ? 'own' : ''} ${offer && offer.includes(k[0]) ? 'offer' : ''}">
-        <span class="sk-emo">${K().ic(k[2])}</span>
-        <span class="sk-tx"><span class="sk-top"><b class="ellip">${k[1]}</b><span class="pips">${[1, 2].map((i) => html`<i class="${rank >= i ? 'on' : ''}"></i>`)}</span></span>
-        <span class="small sk-d">${rank >= 1 ? html`<b>Rank 2:</b> ${k[4]}` : k[3]}</span></span>
-        ${rank >= 2 ? html`<span class="chip chip-green">Maxed</span>` : K().btn({ label: rank ? 'Rank Up' : 'Learn', icon: 'sparkle', action: 'learn', data: { id: k[0] }, kind: can ? 'go' : 'sec', size: 's', testid: 'skill-' + k[0], disabled: !can || !canLearn })}
+    // HUNT #2: offers() returns {id,name,rank,txt}; text comes from the league's skill table (the local one only adds icons)
+    const ids = offer ? offer.map((o) => (o && o.id) || o) : null;
+    const LS = (PT.League.Coach && PT.League.Coach.SKILLS) || [];
+    const rows = SKILLS.map((k) => {
+      const def = LS.find((x) => x.id === k[0]) || {};
+      return { id: k[0], name: def.name || k[1], icon: k[2], r1: def.r1 || k[3], r2: def.r2 || k[4], rank: (s.sk && s.sk[k[0]]) || 0, offered: ids ? ids.includes(k[0]) : false };
+    });
+    // with a point to spend, the 3 offered skills come first; then the ones you own
+    rows.sort((a, b) => (s.pts > 0 ? (b.offered - a.offered) : 0) || ((b.rank > 0) - (a.rank > 0)));
+    const skills = rows.map((k) => {
+      const can = s.pts > 0 && k.rank < 2 && k.offered;
+      return html`<div class="sk ${k.rank ? 'own' : ''} ${k.offered && s.pts > 0 ? 'offer' : ''}">
+        <span class="sk-emo">${K().ic(k.icon)}</span>
+        <span class="sk-tx"><span class="sk-top"><b>${k.name}</b><span class="pips">${[1, 2].map((i) => html`<i class="${k.rank >= i ? 'on' : ''}"></i>`)}</span></span>
+        <span class="small sk-d">${k.rank >= 1 ? html`<b>Rank 2:</b> ${k.r2}` : k.r1}</span></span>
+        ${k.rank >= 2 ? html`<span class="chip chip-green">Maxed</span>`
+          : can ? K().btn({ label: k.rank ? 'Rank Up' : 'Learn', icon: 'sparkle', action: 'learn', data: { id: k.id }, kind: 'go', size: 's', testid: 'skill-' + k.id, disabled: !canLearn })
+            : html`<span class="sk-lock" title="${s.pts > 0 ? 'Not offered this time' : 'Earn a skill point'}" data-testid="skill-${k.id}">${K().ic('lock')}</span>`}
       </div>`;
     });
+    const nextPt = (() => { const L0 = s.lvl; for (let v = L0 + 1; v < L0 + 30; v++) if ((v <= 9 && v >= 3 && v % 2 === 1) || v >= 11) return v; return L0 + 1; })();
     const body = html`
       <section class="card coach-card">
         <div class="legacy-top">
@@ -324,7 +354,7 @@
           <span class="coach-ava">${K().sp(c.sp)}</span>
           <div class="grow coach-mid"><div class="row between wrap"><span class="legacy-t">${c.n || 'Coach'}</span>${s.pts ? html`<span class="chip chip-gold">${K().ic('sparkle')} ${s.pts} skill point${s.pts === 1 ? '' : 's'}</span>` : ''}</div>
             ${K().meter(into, need, 'm-gold', 'Coach XP')}
-            <div class="small coach-xp"><b class="num">${D().int(into)}</b> / ${D().int(need)} XP to Level ${s.lvl + 1} · ${D().int(s.xp)} XP total${s.pts ? '' : html`<span class="coach-tip"> · New skill at Lv 3, 5, 7, 9, then every level from 11</span>`}</div></div>
+            <div class="small coach-xp"><b class="num">${D().int(into)}</b> / ${D().int(need)} XP to Level ${s.lvl + 1}${s.pts ? html` · <b>Pick 1 of the 3 lit skills</b>` : html` <span class="chip chip-ink sk-next">Next skill: Lv ${nextPt}</span>`}</div></div>
         </div>
       </section>
       ${K().pg('skills', skills, { grid: true, cls: 'sk-pg' })}`;

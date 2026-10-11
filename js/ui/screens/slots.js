@@ -38,7 +38,7 @@
       </section>`;
     }
     const def = teamDef(x.tid);
-    const fake = def ? { name: def.name, city: def.city, abbr: def.abbr, sp: def.sp, col: def.col } : null;
+    const fake = def ? Object.assign({ id: x.tid }, def) : null;   // HUNT #18: the real team (its own mascot badge)
     const ph = x.phase === 'REGULAR' ? 'Week ' + x.week : (PHASE_WORD[x.phase] || x.phase);
     return html`<section class="card slot-card">
       <button type="button" class="slot-main" data-action="pick" data-slot="${s}" data-testid="slot-${s}">
@@ -46,15 +46,13 @@
         ${fake ? K().badge(fake, 'l') : ''}
         <span class="grow slot-info">
           <b class="big ellip">${def ? def.name : (x.team || 'Team')}</b>
-          <span class="small ellip">${x.coach && x.coach.n ? x.coach.n : x.coach || ''}</span>
-          <span class="small"><b>${x.season}</b> · ${ph} · <span class="num">${D().rec(x.w || 0, x.l || 0, x.t || 0)}</span></span>
+          <span class="small slot-line"><b class="num">${x.season}</b> · ${ph} · <span class="num">${D().rec(x.w || 0, x.l || 0, x.t || 0)}</span></span>
           <span class="tiny muted">${when((main || auto).at)}</span>
         </span>
         <span class="slot-go">${K().ic(mode === 'new' ? 'sparkle' : 'play')}</span>
       </button>
       <div class="btn-row slot-tools">
-        ${K().btn({ label: 'Continue', icon: 'play', action: 'load', data: { slot: s }, kind: 'go', size: 's', testid: 'slot-' + s + '-load' })}
-        ${auto ? K().btn({ label: 'Backup', icon: 'save', action: 'backup', data: { slot: s }, kind: 'sec', size: 's', testid: 'slot-' + s + '-backup', title: 'Load the autosave' }) : ''}
+        ${auto && mode === 'load' ? K().btn({ label: 'Load Autosave', icon: 'save', action: 'backup', data: { slot: s }, kind: 'sec', size: 's', testid: 'slot-' + s + '-backup' }) : ''}
         ${K().btn({ label: 'Export', icon: 'scroll', action: 'export', data: { slot: s }, kind: 'ghost', size: 's', testid: 'slot-' + s + '-export' })}
         ${K().btn({ label: 'Delete', icon: 'x', action: 'delete', data: { slot: s }, kind: 'ghost', size: 's', testid: 'slot-' + s + '-delete' })}
       </div>
@@ -68,7 +66,6 @@
     for (let s = 1; s <= n; s++) cards.push(slotCard(s, m.slots[s], params.mode));
     const avail = PT.Save && PT.Save.available ? PT.Save.available() : true;
     D().set(el, K().layout(html`
-      <h2 class="sec-title on-grass">${params.mode === 'load' ? 'Pick a save' : 'Choose a slot'}</h2>
       ${avail ? '' : html`<p class="card card-cream small">${K().ic('warn')} Saving is off in this browser. Use Export to keep your game.</p>`}
       <div class="slots">${cards}</div>`, null, 'fit nsa slotsx'));
   }
@@ -84,7 +81,9 @@
         const s = +el.getAttribute('data-slot');
         if (params.mode === 'load') { if (hasSave(s)) UI.loadSlot(s, PT.Save.newest && PT.Save.newest(s) === 'auto'); else UI.Toast.show('Nothing saved here.', 'info'); return; }
         if (!hasSave(s)) { UI.go('newgame', { slot: s }); return; }
-        UI.Modal.confirm('Replace this save?', { body: 'Slot ' + s + ' will be overwritten.', icon: 'warn', yes: 'Replace', danger: true })
+        const x = meta().slots[s] || {}, mm = x.main || x.auto || {}, d = teamDef(mm.tid);
+        const what = (d ? d.name : (mm.team || 'This save')) + (mm.season ? ' · ' + mm.season : '') + (mm.phase === 'REGULAR' && mm.week ? ' · Week ' + mm.week : '');
+        UI.Modal.confirm('Replace this save?', { body: what + ' will be deleted.', icon: 'warn', yes: 'Replace', danger: true })
           .then((ok) => { if (ok) UI.go('newgame', { slot: s }); });
       },
       load: (el) => UI.loadSlot(+el.getAttribute('data-slot'), false),

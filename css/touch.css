@@ -136,7 +136,7 @@ html.pt-coarse #touch[data-mode="return"] .pt-joy { opacity: 0.32; }
   90%  { transform: rotate(-90deg); }
   100% { transform: rotate(0deg); }
 }
-.pt-rot-t { margin: 0; max-width: 18em; font: 900 22px/1.25 var(--font, system-ui, sans-serif); text-shadow: 0 3px 0 rgba(0,0,0,0.4); }
+.pt-rot-t { margin: 0; max-width: 12em; text-wrap: balance; font: 900 22px/1.25 var(--font, system-ui, sans-serif); text-shadow: 0 3px 0 rgba(0,0,0,0.4); }
 @media (prefers-reduced-motion: reduce) { .pt-rot-phone { animation: none; transform: rotate(-90deg); } }
 /* desktop window narrower than tall: letterbox the 3D view to 16:9 (no overlay) */
 html.pt-letterbox #gl {

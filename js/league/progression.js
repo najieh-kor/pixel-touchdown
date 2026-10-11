@@ -299,7 +299,7 @@
       out.retired.push(p.id);
       const yrs = Object.keys(p.cs.reduce((o, c) => { o[c.s] = 1; return o; }, {})).length + (p.st && p.st.gp ? 1 : 0);
       if (tid === L.userTid || p.ovr >= 80 || (p.hp || 0) >= 15) {
-        N.add(L, 'retire', N.tpl('retire', { P: N.pname(p), N: Math.max(1, yrs), first: p.fn }), tid >= 0 ? tid : undefined);
+        N.add(L, 'retire', N.tpl('retire', { P: N.pname(p), N: Math.max(1, yrs) === 1 ? '1 season' : Math.max(1, yrs) + ' seasons', first: p.fn }), tid >= 0 ? tid : undefined);
       }
       const hp = p.hp || 0;
       if (hp >= K().HOF_POINTS) {

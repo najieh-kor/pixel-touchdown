@@ -2,8 +2,9 @@
  * Owner: WP5. Responsibility: player card (modal screen): ratings, contract, stats, actions.
  * params.pid. Shows voxel portrait (PT.Render.portrait), Stars + number, Growth letter, 10 skill bars (main skills
  * highlighted), Perks/Quirks, Wants, Mood, Pay/Years, Cut Cost, season & career stats, awards.
- * Actions (your team): Make Captain (btn-captain), Cut (btn-release), Hurt List (btn-ir), Play Hurt (btn-play-hurt),
- * Keep (btn-keep), Swap (btn-swap). Other teams: Ask for a Swap; Free agents: Make Offer.
+ * TEAM-UX: ID panel + tabs Overview (key skills, Surge, traits) · Skills · Stats · Contract; one action row:
+ * Cut (btn-release, left) … Swap (btn-swap), Captain (btn-captain), Hurt List (btn-ir), Play Hurt (btn-play-hurt),
+ * Keep (btn-keep) / Extend (btn-extend), Make/Remove Star (btn-toggle-star, right). Other teams: Ask for Swap; FA: Make Offer.
  */
 (function (PT) {
   'use strict';
@@ -44,14 +45,6 @@
     changed('hurt'); return { ok: true };
   };
 
-  /** QA1: the same numbers Roster.release books (offseason counts next season's books; an expiring deal is free). */
-  function cutCost(L, p) {
-    if (!p.con) return { per: 0, years: 0 };
-    const R = PT.League.Roster;
-    if (R && R.cutCost) { const c = R.cutCost(L, p.id); return { per: c.years ? c.perYear : 0, years: c.years }; }
-    const yrs = K().yrsLeft(p, L);
-    return { per: yrs ? Math.round(p.con.sal * ((PT.C.CAP && PT.C.CAP.CUT_PCT) || 0.5)) : 0, years: yrs };
-  }
   function growthShown(L, p) {
     if (p.tid === L.userTid) return p.gl;
     const t = L.teams[L.userTid];
@@ -116,75 +109,85 @@
 
     const si = K().starInfo ? K().starInfo(L, p) : null;
     const dr = p.dr ? html`Drafted ${p.dr.s} · Round ${p.dr.rd}, Pick ${p.dr.pk}${L.teams[p.dr.t] ? ' by ' + L.teams[p.dr.t].name : ''}` : (prospect ? html`${(p.pr && p.pr.sch) || ''} · Rank #${(p.pr && p.pr.rank) || '?'}` : 'Undrafted');
-    const acts = [];
+    // TEAM-UX: one action row — Cut on the far left (danger), the main move (Make Star) on the far right
+    const left = [], right = [];
+    const slot0 = mine && t ? K().startSlot(t, p.id) || (t.dc && t.dc.K && t.dc.K[0] === p.id ? 'K' : '') : '';
+    const kit = UI.parts || {};
     if (mine) {
-      if (!capt) acts.push(K().btn({ label: 'Make Captain', icon: 'crown', action: 'captain', kind: 'sec', testid: 'btn-captain' }));
-      if (p.pos !== 'K' && PT.League.Roster && PT.League.Roster.toggleStar) acts.push(K().btn({ label: si ? 'Remove Star' : 'Make Star', icon: 'star', action: 'star', kind: 'sec', testid: 'btn-toggle-star' }));
-      if (p.inj && p.inj.w >= PT.C.ROSTER.IR_MIN_WEEKS && !p.ir) acts.push(K().btn({ label: 'Hurt List', icon: 'cross', action: 'ir', data: { on: 1 }, kind: 'sec', testid: 'btn-ir' }));
-      if (p.ir) acts.push(K().btn({ label: 'Back from Hurt List', icon: 'dumbbell', action: 'ir', data: { on: 0 }, kind: 'sec', testid: 'btn-ir' }));
+      left.push(K().btn({ label: 'Cut', icon: 'scissors', action: 'release', kind: 'bad', size: 's', testid: 'btn-release' }));
+      right.push(K().btn({ label: 'Swap', icon: 'swap', action: 'swap', kind: 'sec', size: 's', testid: 'btn-swap' }));
+      if (!capt) right.push(K().btn({ label: 'Captain', icon: 'crown', action: 'captain', kind: 'sec', size: 's', testid: 'btn-captain' }));
+      if (p.inj && p.inj.w >= PT.C.ROSTER.IR_MIN_WEEKS && !p.ir) right.push(K().btn({ label: 'Hurt List', icon: 'cross', action: 'ir', data: { on: 1 }, kind: 'sec', size: 's', testid: 'btn-ir' }));
+      if (p.ir) right.push(K().btn({ label: 'Off Hurt List', icon: 'dumbbell', action: 'ir', data: { on: 0 }, kind: 'sec', size: 's', testid: 'btn-ir' }));
       // QA1: league severity is 1 Sprain · 2 Hurt · 3 Bad Hurt · 4 Season Over; only Sprain/Hurt may play hurt
-      if (p.inj && p.inj.sev >= 1 && p.inj.sev <= 2 && !p.ir) acts.push(K().btn({ label: p.ph || p.inj.ph ? 'Rest him' : 'Play Hurt', icon: 'cross', action: 'play-hurt', kind: 'sec', testid: 'btn-play-hurt', title: 'He wants to help!' }));
-      if (p.con && p.con.exp <= L.season && L.phase === 'RESIGN') acts.push(K().btn({ label: 'Keep', icon: 'contract', action: 'keep', kind: 'go', testid: 'btn-keep' }));
-      acts.push(K().btn({ label: 'Swap', icon: 'swap', action: 'swap', kind: 'sec', testid: 'btn-swap' }));
-      acts.push(K().btn({ label: 'Cut', icon: 'scissors', action: 'release', kind: 'bad', testid: 'btn-release' }));
+      if (p.inj && p.inj.sev >= 1 && p.inj.sev <= 2 && !p.ir) right.push(K().btn({ label: p.ph || p.inj.ph ? 'Rest him' : 'Play Hurt', icon: 'cross', action: 'play-hurt', kind: 'sec', size: 's', testid: 'btn-play-hurt', title: 'He wants to help!' }));
+      const ca = kit.contractAct ? kit.contractAct(p) : null;
+      if (ca === 'keep') right.push(K().btn({ label: 'Keep', icon: 'contract', action: 'keep', kind: 'go', size: 's', testid: 'btn-keep' }));
+      if (ca === 'extend') right.push(K().btn({ label: 'Extend', icon: 'contract', action: 'extend', kind: 'go', size: 's', testid: 'btn-extend' }));
+      // HUNT #36: no Make Star for kickers / long-term hurt; at 8/8 it is a disabled grey button ("8/8 full")
+      const sInfo = PT.League.Roster && PT.League.Roster.starInfo ? PT.League.Roster.starInfo(L, L.userTid) : null;
+      const longHurt = p.ir || (p.inj && p.inj.w >= PT.C.ROSTER.IR_MIN_WEEKS);
+      if (si) right.push(K().btn({ label: 'Remove Star', icon: 'star', action: 'star', kind: 'sec', size: 's', testid: 'btn-toggle-star' }));
+      else if (p.pos !== 'K' && !longHurt && sInfo) {
+        const full = sInfo.n >= sInfo.max;
+        right.push(K().btn({ label: 'Make Star', sub: full ? sInfo.max + '/' + sInfo.max + ' full' : '', icon: 'star', action: 'star', kind: full ? 'sec' : 'gold', size: 's', testid: 'btn-toggle-star', disabled: full, title: full ? 'Remove a Star first' : '' }));
+      }
     } else if (p.tid === PT.C.TID.FA) {
-      acts.push(K().btn({ label: 'Make Offer', icon: 'pencil', action: 'offer', kind: 'go', testid: 'btn-offer' }));
+      right.push(K().btn({ label: 'Make Offer', icon: 'pencil', action: 'offer', kind: 'go', size: 's', testid: 'btn-offer' }));
     } else if (p.tid >= 0) {
-      acts.push(K().btn({ label: 'Ask for Swap', icon: 'swap', action: 'swap', kind: 'sec', testid: 'btn-swap' }));
+      right.push(K().btn({ label: 'Ask for Swap', icon: 'swap', action: 'swap', kind: 'sec', size: 's', testid: 'btn-swap' }));
     }
 
-    // ROUND6 0-scroll: fixed ID panel on the left + tabbed panel (Overview · Skills · Pay · Stats) on the right
-    const hero = html`<section class="card pc-hero pc-side" style="${t ? K().teamVars(t) : ''}">
-      <div class="pc-top">
-        <div class="pc-por">${K().portrait(p, 96, col)}${p.num != null && !prospect ? html`<span class="pc-num num">#${p.num}</span>` : ''}</div>
-        <div class="pc-id grow">
-          <h2 class="pc-name">${K().pname(p)} ${capt ? html`<span class="capt" title="Captain">C</span>` : ''}${si ? K().starTag('Star Player') : ''}</h2>
-          <div class="pc-sub">${K().posChip(p.pos)} <b>${K().posLabel(p.pos)}</b></div>
-        </div>
-      </div>
-      <div class="pc-rate">${ovrHtml}<span class="pc-gl"><span class="tiny muted">Growth</span>${K().growth(fog && shown ? '?' : gl, { big: true })}</span></div>
-      <div class="pc-sub small">${K().sp(p.sp)} ${sp ? sp.name : K().spName(p.sp)} · ${sizeWord(p.sp)} · Age ${p.age}</div>
-      <div class="pc-sub small ellip">${t ? html`${K().badge(t, 's')} ` : ''}${where}</div>
+    // TEAM-UX: ID panel (left) + one tabbed panel (Overview · Skills · Stats · Contract) — no long columns
+    const hero = html`<section class="card pc2-hero" style="${t ? K().teamVars(t) : ''}">
+      <div class="pc2-por">${K().portrait(p, 88, col)}${p.num != null && !prospect ? html`<span class="pc2-num num">#${p.num}</span>` : ''}</div>
+      <h2 class="pc2-name">${K().pname(p)}</h2>
+      <div class="pc2-tags">${K().posChip(p.pos)}<b class="pc2-pos">${K().posLabel(p.pos)}</b>${capt ? html`<span class="capt" title="Captain">C</span>` : ''}${si ? K().starTag('Star Player') : ''}</div>
+      <div class="pc2-rate">${ovrHtml}</div>
+      <div class="pc2-meta"><span class="pc2-gl" title="Growth">Growth ${K().growth(fog && shown ? '?' : gl)}</span><span>Age <b class="num">${p.age}</b></span></div>
+      <div class="pc2-meta">${K().sp(p.sp)}<span>${sp ? sp.name : K().spName(p.sp)} · ${sizeWord(p.sp)}</span></div>
+      <div class="pc2-meta">${t ? K().badge(t, 's') : ''}<span>${where}</span></div>
+      ${mine ? html`<div class="pc2-meta pc2-role">${K().ic(slot0 ? 'clipboard' : 'zzz')}<span>${slot0 ? 'Starts: ' + (K().SLOT_LABEL[slot0] || slot0) : 'Bench'}</span></div>` : ''}
     </section>`;
 
-    const tabs = [['overview', 'Overview'], ['skills', 'Skills']].concat(p.con ? [['pay', 'Pay']] : []).concat([['stats', 'Stats']]);
+    const tabs = [['overview', 'Overview'], ['skills', 'Skills'], ['stats', 'Stats']].concat(p.con ? [['pay', 'Contract']] : []);
     let tab = pst.tab;
     if (!tabs.some((x) => x[0] === tab)) tab = 'overview';
     const nav = p.tid >= 0 ? html`<span class="pc-nav">${K().btn({ icon: 'back', action: 'p-prev', kind: 'sec', size: 's', title: 'Previous player', testid: 'btn-prev-player' })}${K().btn({ icon: 'play', action: 'p-next', kind: 'sec', size: 's', title: 'Next player', testid: 'btn-next-player' })}</span>` : '';
-    const tabBar = html`<div class="pc-tabs"><div class="tabs pc-tabs-in" role="tablist">${tabs.map((x) => html`<button type="button" role="tab" class="tab ${x[0] === tab ? 'on' : ''}" aria-selected="${x[0] === tab}" data-action="pc-tab" data-id="${x[0]}" data-testid="pc-tab-${x[0]}">${x[1]}</button>`)}</div>${nav}</div>`;
+    const tabBar = html`<div class="pc2-tabs"><div class="pc2-tabs-in" role="tablist">${tabs.map((x) => html`<button type="button" role="tab" class="pc2-tab ${x[0] === tab ? 'on' : ''}" aria-selected="${x[0] === tab}" data-action="pc-tab" data-id="${x[0]}" data-testid="pc-tab-${x[0]}">${x[1]}</button>`)}</div>${nav}</div>`;
 
     let pane = '';
     if (tab === 'overview') {
       const chips = html`${mine || p.tid === PT.C.TID.FA ? html`${K().mood(p.mor, true)}` : ''}
-        ${(!fog) && p.want ? K().want(p.want) : ''}
+        ${(!fog) && p.want && K().WANT[p.want] ? html`<span class="chip chip-want">${K().ic(K().WANT[p.want][0])} Wants: ${K().WANT[p.want][1]}</span>` : ''}
         ${p.inj ? K().hurt(p) : ''}
         ${p.ir ? html`<span class="chip chip-hurt">On Hurt List</span>` : ''}
-        ${p.inj && p.inj.ph ? html`<span class="chip chip-gold">Playing hurt</span>` : ''}`;
-      const starAb = si ? html`<div class="star-row pc-star" data-testid="pc-star"><span class="star-row-empty">${K().ic(si.icon)}</span><span class="star-row-m grow"><b>Star Player: ${si.name}</b><span class="small">${si.txt} +5 in his key skills every snap.</span></span></div>` : '';
-      const traits = !fog && (p.tr || []).length ? html`<div class="pc-traits">${p.tr.slice(0, 4).map((id) => {
+        ${p.inj && p.inj.ph ? html`<span class="chip chip-gold">Playing hurt</span>` : ''}
+        ${(p.alt || []).length ? html`<span class="chip">Also ${p.alt.join(', ')}</span>` : ''}`;
+      const starAb = si ? html`<div class="pc2-surge" data-testid="pc-star"><span class="pc2-surge-ic">${K().ic(si.icon)}</span><span class="pc2-surge-m"><b>Surge: ${si.name}</b><span>${si.txt}</span></span></div>` : '';
+      const traits = !fog && (p.tr || []).length ? html`<div class="pc2-traits">${p.tr.slice(0, 4).map((id) => {
         const T = PT.Data.Traits && PT.Data.Traits.byId ? PT.Data.Traits.byId(id) : null;
-        return html`<div class="trait-i">${K().trait(id)}<span class="tiny muted">${(T && T.desc) || ''}</span></div>`;
-      })}</div>` : html`<p class="small muted">${fog ? 'Scout him to learn more.' : 'No Perks or Quirks.'}</p>`;
-      // tall screens also show the key skills here (hidden on phones: the Skills tab has them all)
-      const key = fog ? '' : html`<div class="pc-key"><h3>Key Skills</h3><div class="rbars">${main.map((k) => K().ratingBar(k, p.r[k], true))}</div></div>`;
-      pane = html`<div class="pc-chips">${chips}${(p.alt || []).length ? html`<span class="chip">Also ${p.alt.join(', ')}</span>` : ''}</div>${starAb}${traits}${key}`;
+        return html`<span class="pc2-trait" title="${(T && T.desc) || ''}">${K().trait(id)}</span>`;
+      })}</div>` : '';
+      const key = fog ? html`<p class="small muted">Scout him to learn more.</p>` : html`<div class="rbars pc2-bars">${main.map((k) => K().ratingBar(k, p.r[k], true))}</div>`;
+      pane = html`<div class="pc2-chips">${chips}</div>${starAb}${key}${traits}`;
     } else if (tab === 'skills') {
-      pane = html`<div class="pc-legend tiny muted">${K().ic('star')} = matters for ${K().posLabel(p.pos)}</div>
-        ${fog ? html`<p class="small muted">Scout him to see his skills. Speed: <b>${p.r.spd}</b></p>` :
-          html`<div class="rbars two">${PT.C.RATINGS.slice().sort((a, b) => (main.includes(b) ? 1 : 0) - (main.includes(a) ? 1 : 0)).map((k) => K().ratingBar(k, p.r[k], main.includes(k)))}</div>`}`;
+      pane = fog ? html`<p class="small muted">Scout him to see his skills. Speed: <b>${p.r.spd}</b></p>` :
+        html`<div class="rbars two pc2-all">${PT.C.RATINGS.slice().sort((a, b) => (main.includes(b) ? 1 : 0) - (main.includes(a) ? 1 : 0)).map((k) => K().ratingBar(k, p.r[k], main.includes(k)))}</div>
+        <p class="tiny muted pc2-legend">${K().ic('star')} = key skill for ${K().posLabel(p.pos)}</p>`;
     } else if (tab === 'pay') {
-      const cc = cutCost(L, p), yrs = K().yrsLeft(p, L);
+      const yrs = K().yrsLeft(p, L);
       pane = html`<div class="pc-pay"><div><span class="tiny muted">Pay</span><b class="big num">${D().money(p.con.sal)}</b><span class="small">a year</span></div>
         <div><span class="tiny muted">Years</span><b class="big num">${yrs}</b><span class="small">left</span></div>
         ${p.con.rk ? html`<div>${K().chip('Rookie deal', 'blue')}</div>` : ''}</div>
-        ${mine ? html`<p class="small">${cc.per ? html`Cut Cost: <b>${D().money(cc.per)}</b> a year for ${D().plural(cc.years, 'year')}.` : 'No Cut Cost.'}</p>` : ''}
+        ${mine && kit.cutText ? html`<p class="small">${kit.cutText(p)}.</p>` : ''}
         <p class="small muted pc-dr">${dr}</p>`;
     } else {
       pane = statsPane(L, p);
     }
-    const body = html`<div class="pc-cols">${hero}<div class="pc-main">${tabBar}${K().card(pane, 'pc-pane pc-pane-' + tab)}</div></div>`;
-    const foot = acts.length ? html`<div class="btn-row pc-acts">${acts}</div>` : '';
-    D().set(el, K().layout(body, foot, 'fit nsb pc'));
+    const body = html`<div class="pc2">${hero}<div class="pc2-main">${tabBar}${K().card(pane, 'fill pc2-pane pc2-pane-' + tab)}</div></div>`;
+    const foot = left.length || right.length ? html`<div class="pc2-acts">${left}<span class="grow"></span>${right}</div>` : '';
+    D().set(el, K().layout(body, foot, 'fit tx pc2-lay'));
   }
 
   function neighbors(L, pid) {
@@ -196,7 +199,13 @@
   }
 
   UI.screens.player = {
-    title: (p) => { const L = PT.App.L, x = L && PT.League.Q.player(L, p.pid); return x ? K().short(x) : 'Player'; },
+    // HUNT #47: the card shows the name; the top bar says what he is and where
+    title: (p) => {
+      const L = PT.App.L, x = L && PT.League.Q.player(L, p.pid);
+      if (!x) return 'Player';
+      const t = x.tid >= 0 ? L.teams[x.tid] : null;
+      return K().posLabel(x.pos) + (t ? ' · ' + t.name : x.tid === PT.C.TID.FA ? ' · Free agent' : '');
+    },
     nav: 'roster',
     mount: mount,
     actions: {
@@ -204,6 +213,7 @@
       star: (el, ev, params) => {
         const L = PT.App.L, r = PT.League.Roster.toggleStar(L, L.userTid, params.pid);
         if (r && r.ok === false) { UI.Toast.show(r.msg || 'Not now.', 'bad'); return; }
+        UI.Toast.show(r && r.on ? 'Now a Star' : 'Not a Star now', r && r.on ? 'good' : 'info');
         if (PT.Events) PT.Events.emit('league:changed', { what: 'star' });
         UI.refresh();
       },
@@ -227,21 +237,8 @@
         UI.go('swaps', p.tid === L.userTid ? { give: p.id } : { tid: p.tid, get: p.id });
       },
       offer: (el, ev, params) => UI.reset('market', { pid: params.pid }),
-      release: (el, ev, params) => {
-        const L = PT.App.L, p = PT.League.Q.player(L, params.pid);
-        const cc = cutCost(L, p);
-        UI.Modal.open({ title: 'Cut ' + K().short(p) + '?', icon: 'scissors',
-          body: html`<p>He leaves your team and goes to the Market.</p>${cc.per ? html`<p><b>Cut Cost:</b> ${D().money(cc.per)} of Team Cash ${cc.years > 1 ? html`a year for ${cc.years} years` : 'this year'}.</p>` : ''}`,
-          buttons: [{ label: 'Cut', value: true, kind: 'bad', testid: 'btn-release-confirm' }, { label: 'Keep him', value: false, kind: 'cancel' }] })
-          .then((ok) => {
-            if (!ok) return;
-            const r = PT.League.Roster.release(L, p.id);
-            if (r && r.ok === false) { UI.Toast.show(r.msg || 'Could not cut him.', 'bad'); return; }
-            UI.Toast.show('Bye, ' + p.fn + '!', 'info');
-            if (PT.Events) PT.Events.emit('league:changed', { what: 'roster' });
-            UI.back();
-          });
-      },
+      release: (el, ev, params) => UI.parts.release(params.pid, () => UI.back()),
+      extend: (el, ev, params) => UI.parts.extend(params.pid),
       'p-prev': (el, ev, params) => { const n = neighbors(PT.App.L, params.pid); if (n) UI.replace('player', { pid: n.prev }); },
       'p-next': (el, ev, params) => { const n = neighbors(PT.App.L, params.pid); if (n) UI.replace('player', { pid: n.next }); }
     },

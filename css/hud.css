@@ -494,3 +494,38 @@
   .pk-more .pk-head .pk-chips { flex-wrap: nowrap; }
 }
 .pk-tabs { flex-wrap: wrap; overflow: hidden; }
+
+/* ---- HUNT-hud fixes ---- */
+/* #1 every playbook card has the same fixed height; the "Coach Lv" lock row sits over the diagram */
+.pk-mini { height: 92px; overflow: hidden; }
+.pk-mini .pk-dia { height: 56px; }
+.pk-mini.pk-locked .pk-lock { position: absolute; left: 10px; top: 10px; z-index: 1; }
+@media (orientation: landscape) and (max-height: 520px) { .pk-mini { height: 76px; } .pk-mini .pk-dia { height: 42px; } }
+.pk-more .pk-head .pk-chips { flex-wrap: nowrap; }
+.pk-tabsrow .pk-tabs { flex-wrap: nowrap; }
+@media (max-width: 700px) { .pk-tab { padding: 0 8px; font-size: 14px; gap: 4px; } .pk-tab-n { font-size: 11px; } }
+/* #2 aim-target pill + QB hint sit below the scorebug, above it in z-order */
+.hud-aimt { z-index: 6; }
+@media (orientation: landscape) and (max-height: 480px) {
+  .hud-aimt { top: calc(68px + var(--sat)); }
+  .hud-hint.hud-hint-top { top: calc(68px + var(--sat)); }
+}
+/* #3 SURGE / Audible / Skip Drive column starts 8px below the scorebug; count chip inside the ring; no down chip behind sheets */
+@media (orientation: landscape) and (max-height: 520px) { .hud-ctl2 { top: calc(70px + var(--sat)); } }
+.hud-ab .hud-ab-n { top: auto; left: auto; right: 2px; bottom: 2px; z-index: 2; font-size: 13px; min-width: 22px; }
+.hud-tray-open .hud-dd, .hud-root:has(.pk-small) .hud-dd { display: none; }
+/* #4 pause menu: Resume + Sim This Game full width, Settings + Quit side by side */
+.hud-pm-btns { display: grid !important; grid-template-columns: 1fr 1fr; gap: 4px 10px; }
+.hud-pm-btns .btn { min-width: 0; }
+.hud-pm-btns .hud-pm-wide { grid-column: 1 / -1; }
+/* #7 weather icon lives in the "Ball on" chip; audible tags + label match the main tray */
+.hud-dd-bo { display: inline-flex; align-items: center; gap: 6px; }
+.hud-dd-bo .hud-dd-wx .hud-px, .hud-dd-bo .hud-dd-wx .px-ic { width: 16px; height: 16px; font-size: 16px; color: var(--ink); filter: none; }
+.hud-aud-t { text-transform: uppercase; }
+.pk-aud-tag { margin-top: 2px; }
+/* HUNT follow-up: count chip top-right inside the ring (label stays readable); audible cards keep their name + tag */
+.hud-ab .hud-ab-n { top: 2px; bottom: auto; right: 2px; }
+.pk-aud .pk-mini { height: auto; }
+.pk-aud .pk-mini .pk-dia { height: 48px; }
+@media (orientation: landscape) and (max-height: 400px) { .pk-aud .pk-mini .pk-dia { height: 38px; } }
+.hud-tray-open .hud-aimt, .hud-root:has(.hud-half) .hud-aimt, .hud-paused .hud-aimt { display: none !important; }

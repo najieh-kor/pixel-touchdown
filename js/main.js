@@ -37,7 +37,8 @@
     try { if (PT.Session && PT.Session.active()) PT.Session.pause({ menu: false }); } catch (x) { /* ignore */ }
     const M = PT.UI && PT.UI.Modal;
     if (!M || !M.open) { fatalOpen = false; return; }
-    M.open({ title: 'Oops! Something fumbled.', body: '<p>' + esc(e.message) + '</p>', buttons: [
+    // HUNT #3: a plain string body is escaped by Modal (it showed '<p>…</p>'); pass the friendly line as plain text
+    M.open({ title: 'Something went wrong', body: 'The game hit an error. Your last save is safe.', buttons: [
       { label: 'Back to menu', value: 'menu', kind: 'primary', testid: 'btn-error-menu' },
       { label: 'Copy error', value: 'copy', testid: 'btn-error-copy' }] }).then((v) => {
       fatalOpen = false;

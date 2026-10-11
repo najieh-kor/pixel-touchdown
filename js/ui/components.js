@@ -123,6 +123,8 @@
     return p.inj.w <= 0 ? 'Ouch' : 'Back in ' + D().plural(p.inj.w, 'week');
   };
   K.hurt = (p) => (p && p.inj ? html`<span class="chip chip-hurt" title="${p.inj.t || 'Hurt'}">${K.ic('cross')} ${K.injuryText(p)}</span>` : '');
+  /** compact hurt chip for list rows: icon + weeks ("3w", "Out" for the season) — the full text is the tooltip */
+  K.hurtShort = (p) => (p && p.inj ? html`<span class="chip chip-hurt chip-hurt-s" title="${K.injuryText(p)}">${K.ic('cross')}${p.inj.w >= 90 || p.inj.sev >= 5 ? 'Out' : p.inj.w > 0 ? p.inj.w + 'w' : ''}</span>` : '');
 
   K.posChip = function (pos) {
     const side = PT.C.OFF_POS.includes(pos) ? 'off' : pos === 'K' ? 'spc' : 'def';
@@ -254,8 +256,8 @@
     return html`<button type="button" class="prow ${opts.sel ? 'sel' : ''} ${p.inj ? 'is-hurt' : ''} ${opts.cls || ''}" data-action="${opts.action || 'player'}" data-pid="${p.id}" ${testid ? raw('data-testid="' + D().esc(testid) + '"') : ''}>
       ${K.portrait(p, opts.compact ? 40 : 48, t ? t.col.pri : undefined)}
       <span class="prow-main">
-        <span class="prow-name ellip">${p.num != null ? raw('<span class="jersey num">#' + p.num + '</span>') : ''}${K.pname(p)}${capt ? raw(' <span class="capt" title="Captain">C</span>') : ''}${opts.noStar || !K.isStar(L, p) ? '' : K.starTag()}</span>
-        <span class="prow-sub">${K.posChip(p.pos)} ${K.stars(ovr)} ${opts.sub || ''} ${p.inj ? K.hurt(p) : ''}</span>
+        <span class="prow-name">${p.num != null ? raw('<span class="jersey num">#' + p.num + '</span>') : ''}${K.pname(p)}${capt ? raw(' <span class="capt" title="Captain">C</span>') : ''}${opts.noStar || !K.isStar(L, p) ? '' : K.starTag()}</span>
+        <span class="prow-sub">${K.posChip(p.pos)} ${K.stars(ovr)} ${opts.sub || ''} ${p.inj ? K.hurtShort(p) : ''}</span>
       </span>
       <span class="prow-right">${opts.right || ''}</span>
     </button>`;
@@ -341,6 +343,7 @@
       if (rec) out.push(html`<li>${K.ic('glove')} ${nm(rec.pid)}: ${rec.l.rc || 0} catches, ${rec.l.rcy} yds${rec.l.rctd ? ', ' + rec.l.rctd + ' TD' : ''}</li>`);
       if (tk) out.push(html`<li>${K.ic('bolt')} ${nm(tk.pid)}: ${tk.l.tk} tackles${tk.l.dsk ? ', ' + D().plural(tk.l.dsk, 'sack') : ''}</li>`);
       const t = L.teams[tid];
+      if (opts.leadMax && out.length > opts.leadMax) out.length = opts.leadMax;   // HUNT #10: short screens
       return html`<div class="box-lead card-in"><h4>${K.badge(t, 's')} ${t.name}</h4><ul>${out.length ? out : html`<li class="muted">Quiet day.</li>`}</ul></div>`;
     });
     const scoring = (!opts.noScoring || (opts.parts && opts.parts.indexOf('scoring') >= 0)) && (box.sc || []).length ? html`<div class="card-in"><h4>Scoring</h4><ul class="scoring">${box.sc.map((s) => html`<li><span class="q">${K.periodName(box, s.q)}</span> ${K.badge(L.teams[s.t], 's')} <b>${s.k}</b> <span class="muted">${s.txt || ''}</span></li>`)}</ul></div>` : '';
@@ -350,6 +353,37 @@
       return html`<div class="box box-parts">${opts.parts.map((k) => part[k] || '')}</div>`;
     }
     return html`<div class="box">${lineScore}<div class="box-grid">${leaders}</div>${teamStats}${scoring}</div>`;
+  };
+
+  /** HUNT #23: one difficulty table + card row for New Game and Quick Game. testid = prefix + index */
+  K.DIFF = [
+    { emo: 'sprout', name: 'Beginner', line: 'Learn the game.', more: 'Big aim help · more Coins · no Boss' },
+    { emo: 'football', name: 'Normal', line: 'A fair fight.', more: 'The standard game' },
+    { emo: 'shield', name: 'Expert', line: 'Sharp AI.', more: 'Less help · tougher Boss' },
+    { emo: 'crown', name: 'Legend', line: 'For top coaches.', more: 'Smartest AI · fewer Coins' }
+  ];
+  K.diffCards = function (cur, testPrefix) {
+    return html`<div class="diffs" role="radiogroup" aria-label="Difficulty">${K.DIFF.map((d, i) => html`<button type="button" class="diff ${cur === i ? 'on' : ''}" role="radio" aria-checked="${cur === i}" data-action="diff" data-d="${i}" data-testid="${testPrefix}${i}" title="${d.more}">
+      <span class="diff-emo">${K.ic(d.emo)}</span><span class="diff-n">${d.name}</span><span class="diff-l">${d.line}</span></button>`)}</div>`;
+  };
+  /** HUNT #14: wrap the numbers in a sentence (scores, records, money, counts) in the number font. Text is escaped. */
+  K.numify = function (txt) {
+    const parts = String(txt == null ? '' : txt).split(/(\$?\d[\d,.]*(?:[\/–-]\d[\d,.]*)*[KMk]?)/);
+    return html`${parts.map((p, i) => (i % 2 ? html`<span class="num">${p}</span>` : p))}`;
+  };
+  /** Colours for a home/away pair that always differ (same kits as the 3D game): {h, a} as '#rrggbb'.
+   *  Away side = its jersey colour, or its helmet colour when the away jersey is white. */
+  K.kitCols = function (homeTid, awayTid) {
+    const L = PT.App.L, ht = L.teams[homeTid], at = L.teams[awayTid];
+    const fall = { h: D().hex(ht.col.pri), a: D().hex(at.col.pri), hn: ht.col.pri, an: at.col.pri };
+    try {
+      const R = PT.Render;
+      if (!R || !R.Kits || !R.Kits.make) return fall;
+      const k = R.Kits.make(ht.col, at.col), hk = k[0], ak = k[1];
+      const WHITE = 0xF4F4F0;
+      const an = ak.pri === WHITE ? ak.helm : ak.pri;
+      return { h: D().hex(hk.pri), a: D().hex(an), hn: hk.pri, an: an };
+    } catch (e) { return fall; }
   };
 
   // ---------------- layout ----------------
@@ -404,6 +438,8 @@
   };
   /** small gold "STAR" tag */
   K.starTag = (title) => html`<span class="star-tag" title="${title || 'Star player'}">${K.ic('star')}<b>STAR</b></span>`;
+  /** icon-only STAR mark for tight chips */
+  K.starMini = (title) => html`<span class="star-tag star-mini" title="${title || 'Star player'}">${K.ic('star')}</span>`;
   /** panel title; icon = pixel icon name shown before the text */
   K.h2 = (t, right, icon) => html`<div class="card-h"><h2>${icon ? K.ic(icon) : ''}${t}</h2>${right || ''}</div>`;
   K.empty = (icon, text) => html`<div class="empty"><div class="empty-emo">${K.ic(icon || 'question')}</div><p>${text}</p></div>`;

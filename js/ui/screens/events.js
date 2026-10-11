@@ -1,19 +1,27 @@
 /* Pixel Touchdown: js/ui/screens/events.js
- * Owner: WP5. Responsibility: between-week event modal(s) (design 11).
- * Shows each pending event as a big card: art (player portrait or team badge), title, 1–2 lines, 2–3 choice buttons
- * (event-choice-{i}); then a result card with effect icons and OK (btn-event-ok) → next event or back to the flow.
+ * Owner: FLOW-UX (was WP5). Between-week "Team News" (design 11) as one compact card (docs/handoff/FLOW-UX.md):
+ * left = art (player portrait or team badge) + title + 1–2 short lines; right = 2–3 choice buttons, each with its
+ * cost / effect tags (from WeeklyEvents.pending hint). No paragraphs. Then a result card with effect tags and OK.
+ * testids: event-choice-{i}, btn-event-ok, btn-event-done.
  */
 (function (PT) {
   'use strict';
   const UI = PT.UI = PT.UI || {};
-  const D = () => UI.dom, K = () => UI.comp;
+  const D = () => UI.dom, K = () => UI.comp, FK = () => UI.FlowKit;
   const html = function () { return UI.dom.html.apply(null, arguments); };
 
   const st = { result: null };
+  /** result effect kinds → [icon, label, tone]; tone 'cost' = a positive number is bad (a raise costs Team Cash).
+   * Kinds missing here (askAdj, tradeVal, oppEdge, tmAck) are invisible bookkeeping and are not shown. */
   const FX = {
-    mor: ['ok', 'Mood'], hype: ['flame', 'Hype'], coins: ['coin', 'Coins'], cash: ['coin', 'Coins'], spirit: ['heart', 'Team Spirit'], boss: ['happy', 'Boss'],
-    rat: ['dumbbell', 'Skill'], teamMor: ['happy', 'Team Mood'], inj: ['cross', 'Hurt'], fans: ['flame', 'Hype'], job: ['happy', 'Boss'], xp: ['star', 'Coach XP']
+    coins: ['coin', 'Coins'], hype: ['flame', 'Hype'], boss: ['happy', 'Boss'], spirit: ['heart', 'Spirit'], xp: ['star', 'Coach XP'],
+    scout: ['scope', 'Scout pts'], merch: ['bag', 'Merch'], mor: ['ok', 'Mood'], teamMor: ['happy', 'Team Mood'], rat: ['dumbbell', 'Skill'],
+    nx: ['bolt', 'Next game'], edge: ['bolt', 'Edge next game'], tix: ['ticket', 'Tickets'], cash: ['cash', 'Pay', 'cost'],
+    injMult: ['cross', 'Owie risk'], snowImm: ['snow', 'Snow-proof'], gym: ['dumbbell', 'New gym'], inj: ['cross', 'hurt'], bench: ['cross', 'sits next game'],
+    sign: ['contract', 'signed'], swap: ['swap', 'Swap']
   };
+  const TAG_IC = [[/^Coins/, 'coin'], [/^Hype/, 'flame'], [/^Boss/, 'happy'], [/^Spirit/, 'heart'], [/^Coach XP/, 'star'], [/Mood/, 'ok'],
+    [/Owie/, 'cross'], [/next game/, 'football'], [/^Edge/, 'bolt'], [/^Scout/, 'scope'], [/^Tickets/, 'ticket'], [/^Merch/, 'bag']];
 
   function pending(L) {
     const W = PT.League.WeeklyEvents;
@@ -24,53 +32,88 @@
   function art(L, ev) {
     const a = ev.art || {};
     const p = a.pid != null ? PT.League.Q.player(L, a.pid) : null;
-    if (p) return html`<div class="ev-art">${K().portrait(p, 120)}<span class="ev-who">${K().pname(p)}</span></div>`;
-    const t = L.teams[L.userTid];
-    return html`<div class="ev-art">${K().badge(t, 'xl')}</div>`;
+    if (p) return html`<div class="fl-ev-art">${K().portrait(p, 88)}</div>`;
+    return html`<div class="fl-ev-art">${K().badge(L.teams[a.tid != null ? a.tid : L.userTid], 'l')}</div>`;
   }
 
+  /** "Coins -30 · Team Mood +4" → small tags (green = good, red = bad) */
+  function tags(hint) {
+    if (!hint) return '';
+    return hint.split(' · ').filter(Boolean).map((t) => {
+      const m = /([+-]\d+)/.exec(t);
+      const n = m ? +m[1] : 0;
+      const ic = (TAG_IC.find((x) => x[0].test(t)) || [])[1];
+      return FK().tag(html`${ic ? K().ic(ic) : ''}${t}`, /chance|%/i.test(t) ? 'blue' : n > 0 ? 'green' : n < 0 ? 'red' : '');
+    });
+  }
+
+  /** one result tag (never a raw key, never a wrong sign) */
+  function effectTag(f) {
+    const x = FX[f.k];
+    if (!x) return '';
+    const L = PT.App.L;
+    const who = f.pid != null && L ? PT.League.Q.player(L, f.pid) : null;
+    const nm = who ? who.fn : '';
+    const n = typeof f.n === 'number' ? f.n : 0;
+    const T = (txt, tone) => FK().tag(html`${K().ic(x[0])}${txt}`, tone);
+    switch (f.k) {
+      case 'inj': return T(html`${nm || 'A player'} hurt${n > 0 ? html` · ${D().plural(n, 'wk')}` : ''}`, 'red');
+      case 'bench': return T(html`${nm || 'A player'} sits next game`, 'red');
+      case 'sign': return T(html`${nm || 'A player'} signed`, 'green');
+      case 'swap': return T(n ? 'Swap done' : 'No swap', n ? 'green' : '');
+      case 'snowImm': return T('Snow-proof next game', 'green');
+      case 'gym': return T('New gym', 'green');
+      case 'cash': return T(html`${nm ? nm + ' ' : ''}Pay +${D().money(n)}`, 'red');      // a raise costs Team Cash
+      case 'injMult': return T(n < 1 ? 'Fewer owies ×' + n : 'More owies ×' + n, n < 1 ? 'green' : 'red');
+      case 'tix': return T('Tickets ×' + n, n >= 1 ? 'green' : 'red');
+      case 'edge': return T('Edge next game', n >= 0 ? 'green' : 'red');
+      case 'hype': if (!n) return T('Hype maxed', ''); break;
+      default: break;
+    }
+    if (!n) return '';
+    const sk = f.key && f.key !== 'all' ? (PT.C.RATING_NAMES[f.key] || 'Skill') : f.k === 'nx' ? 'Skills' : '';
+    const label = f.k === 'rat' ? sk || 'Skill' : f.k === 'nx' ? sk + ' next game' : x[1];
+    const num = n % 1 && Math.abs(n) < 1 ? '×' + n : (n > 0 ? '+' : '−') + Math.abs(n);
+    return T(html`${label} ${num}${nm ? ' (' + nm + ')' : ''}`, n > 0 ? 'green' : 'red');
+  }
   function effects(list) {
-    if (!list || !list.length) return '';
-    return html`<div class="ev-fx">${list.map((f) => {
-      const x = FX[f.k] || ['sparkle', f.k];
-      const n = f.n == null ? '' : (f.n > 0 ? '+' + f.n : String(f.n));
-      const L = PT.App.L;
-      const who = f.pid != null && L ? PT.League.Q.player(L, f.pid) : null;
-      return html`<span class="chip ${f.n > 0 ? 'chip-green' : f.n < 0 ? 'chip-red' : ''}">${K().ic(x[0])} ${x[1]} <b class="num">${n}</b>${who ? html` <span class="tiny">(${who.fn})</span>` : ''}</span>`;
-    })}</div>`;
+    const tags = (list || []).map(effectTag).filter(Boolean);
+    return tags.length ? html`<div class="fl-fx">${tags}</div>` : '';
   }
 
   function mount(el) {
     const L = PT.App.L;
+    if (!L) { UI.replace('title'); return; }
     if (st.result) {
       const r = st.result;
-      D().set(el, K().layout(html`<section class="card ev-card ev-res">
+      D().set(el, K().layout(html`<section class="fl-card fl-evc fl-res" data-testid="event-result">
         <div class="micon">${K().ic(r.ok === false ? 'question' : 'party')}</div>
-        <h2 class="ev-title">${r.title || 'Done'}</h2>
-        <p class="ev-text">${r.resultText || r.msg || 'Done.'}</p>
+        <h2 class="fl-ev-h">${r.title || 'Done'}</h2>
+        <p class="fl-ev-p">${r.resultText || r.msg || 'Done.'}</p>
         ${effects(r.effects)}
-      </section>`, K().btn({ label: 'OK', icon: 'check', action: 'ok', kind: 'go', size: 'xl', testid: 'btn-event-ok', cls: 'btn-wide' }), 'fit nsa events'));
+      </section>`, FK().foot('', '', FK().pri({ label: 'OK', icon: 'check', action: 'ok', testid: 'btn-event-ok' })), 'fit flow fl-ev'));
       return;
     }
     const list = pending(L);
     if (!list.length) {
-      D().set(el, K().layout(K().empty('news', 'No news right now.'), K().btn({ label: 'Back', action: 'done', kind: 'go', size: 'l', cls: 'btn-wide', testid: 'btn-event-done' }), 'fit nsa events'));
+      D().set(el, K().layout(K().empty('news', 'No news right now.'), FK().foot('', '', FK().pri({ label: 'Back', icon: 'back', action: 'done', testid: 'btn-event-done' })), 'fit flow fl-ev'));
       return;
     }
     const ev = list[0];
-    const btns = (ev.choices || []).map((c, i) => K().btn({ label: c.label, sub: c.hint || '', action: 'choose', data: { iid: ev.iid, i: i },
-      kind: i === 0 ? 'go' : 'sec', size: 'l', testid: 'event-choice-' + i, disabled: c.disabled || c.can === false, cls: 'btn-wide ev-choice' }));
-    // ROUND6 "0 scrolling": story on the left, choices on the right
+    const choices = (ev.choices || []).map((c, i) => {
+      const off = c.disabled || c.can === false;
+      return html`<button type="button" class="fl-choice" data-action="choose" data-iid="${ev.iid}" data-i="${i}" data-testid="event-choice-${i}" ${off ? D().raw('disabled aria-disabled="true"') : ''} title="${c.why || ''}">
+        <span class="fl-choice-l">${c.label}</span>${c.hint || c.why ? html`<span class="fl-choice-tags">${tags(c.hint)}${off && c.why ? FK().tag(c.why, 'red') : ''}</span>` : ''}</button>`;
+    });
     D().set(el, K().layout(html`
-      <section class="card ev-card evx">
-        <div class="evx-story">
-          ${list.length > 1 ? html`<p class="ev-count">${K().ic('megaphone')} ${list.length} decisions waiting</p>` : ''}
-          ${art(L, ev)}
-          <h2 class="ev-title">${ev.title}</h2>
-          <p class="ev-text">${ev.text}</p>
-        </div>
-        <div class="ev-choices">${btns}</div>
-      </section>`, null, 'fit nsa events'));
+      <section class="fl-card fl-evc" data-testid="event-card">
+        <div class="fl-ev-story">${art(L, ev)}<div class="fl-ev-t">
+          <p class="fl-ev-k">${K().ic('megaphone')} Team News${list.length > 1 ? html` <span>· 1 of ${list.length}</span>` : ''}</p>
+          <h2 class="fl-ev-h">${ev.title}</h2>
+          <p class="fl-ev-p">${ev.text}</p>
+        </div></div>
+        <div class="fl-ev-ch">${choices}</div>
+      </section>`, null, 'fit flow fl-ev'));
   }
 
   UI.screens.events = {

@@ -236,7 +236,8 @@
   Standings.POWER_W = { ovr: 0.55, rec: 30, diff: 0.45, diffCap: 21, form: 10, formN: 4 };
 
   /**
-   * Weekly Power Rankings: team OVR + record + point diff + recent form (regular season and playoff games of this season).
+   * Weekly Power Rankings: team OVR + record + point diff + recent form, REGULAR-SEASON games only (same W-L as Standings).
+   * After the last regular week the ranks are frozen (L.pr.fin) until the next season.
    * `prev`/`move` compare with last week's ranks stored in L.pr (see snapPower): when nothing was played since the latest
    * snapshot the baseline is the one before it, so the arrows always mean "since last week".
    * @param {League} L
@@ -247,7 +248,7 @@
     const W = Standings.POWER_W;
     const res = L.teams.map(() => []);
     const rec = L.teams.map(() => ({ w: 0, l: 0, t: 0, pf: 0, pa: 0 }));
-    L.sched.filter((g) => g.st === 'F').sort((a, b) => (a.wk - b.wk) || (a.gid - b.gid)).forEach((g) => {
+    L.sched.filter((g) => g.st === 'F' && g.po === 0).sort((a, b) => (a.wk - b.wk) || (a.gid - b.gid)).forEach((g) => {
       const r = g.hs > g.as ? ['W', 'L'] : g.hs < g.as ? ['L', 'W'] : ['T', 'T'];
       res[g.h].push(r[0]); res[g.a].push(r[1]);
       [[g.h, g.hs, g.as, r[0]], [g.a, g.as, g.hs, r[1]]].forEach((x) => {
@@ -269,6 +270,10 @@
     }).sort((a, b) => (b.score - a.score) || (b.ovr - a.ovr) || (a.tid - b.tid));
     list.forEach((x, i) => { x.rank = i + 1; });
     const pr = L.pr && L.pr.r && L.pr.r.length === L.teams.length ? L.pr : null;
+    if (pr && pr.fin && pr.s === L.season) {                       // frozen after the regular season
+      list.forEach((x) => { x.rank = pr.r[x.tid]; x.prev = pr.p ? pr.p[x.tid] : null; x.move = x.prev ? x.prev - x.rank : 0; });
+      return list.sort((a, b) => a.rank - b.rank);
+    }
     let base = pr ? pr.r : null;
     if (pr && pr.p && list.every((x) => pr.r[x.tid] === x.rank)) base = pr.p;      // nothing new since the snapshot
     list.forEach((x) => {
@@ -280,14 +285,17 @@
 
   /**
    * Store this week's ranks (end of each regular week / playoff round, and at the new-season rollover) and keep the
-   * previous ones: L.pr = { s, wk, r:[rank by tid], p:[rank by tid]|null } (two 32-int arrays, ~200 bytes).
+   * previous ones: L.pr = { s, wk, r:[rank by tid], p:[rank by tid]|null, fin?:true } (two 32-int arrays, ~200 bytes).
    * @param {League} L
    */
   Standings.snapPower = function (L) {
+    if (L.pr && L.pr.fin && L.pr.s === L.season) return L.pr;   // frozen after the last regular week
     const ranks = new Array(L.teams.length).fill(0);
     Standings.power(L).forEach((x) => { ranks[x.tid] = x.rank; });
     const old = L.pr && L.pr.r ? L.pr.r : null;
     L.pr = { s: L.season, wk: L.week, r: ranks, p: old };
+    const reg = L.sched.filter((g) => g.po === 0);
+    if (reg.length && reg.every((g) => g.st === 'F')) L.pr.fin = true;   // regular season complete → freeze
     return L.pr;
   };
 })(globalThis.PT = globalThis.PT || {});

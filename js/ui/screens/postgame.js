@@ -3,7 +3,7 @@
  * params: { gid, box?, coins0?, xp0?, lvl0?, ach0?, hype0?, sim? } (snapshot values come from pregame/game).
  * INT2 (client: "no scrolling on the Final screen"): one screen at 390×844 / 844×390 / 1366×768 — result + score,
  * top 3 performers (MVP first), team stats, rewards row, Continue. Box Score and Scoring open in a closable overlay
- * (btn-pgm-box / btn-pgm-scoring). btn-postgame-continue → events if any, else HQ / phase screen.
+ * (btn-pgm-box; Scoring is a tab inside it). btn-postgame-continue → events if any, else HQ / phase screen.
  */
 (function (PT) {
   'use strict';
@@ -41,6 +41,12 @@
     return out.map((x) => Object.assign(x, { p: PT.League.Q.player(L, x.pid) })).filter((x) => x.p);
   }
 
+  /** HUNT #20: at most 3 stats on a top-performer line (no run yards for a QB, no catch yards for a RB) */
+  function perfLine(l, pos) {
+    const drop = pos === 'QB' ? /run yds/ : pos === 'RB' ? /catch yds/ : null;
+    return K().statLine(l, pos).split(' · ').filter((x) => !drop || !drop.test(x)).slice(0, 3).join(' · ');
+  }
+
   /** the full box score / scoring list as a closable overlay (kept off the main Final screen). ROUND6: tabs, no scrolling */
   function overlay(kind, box) {
     const L = PT.App.L;
@@ -51,7 +57,7 @@
       return list.length ? K().pg('scoring', list.map((x) => html`<div class="sc-row"><span class="q">${K().periodName(box, x.q)}</span> ${K().badge(L.teams[x.t], 's')} <b>${x.k}</b> <span class="muted">${x.txt || ''}</span></div>`))
         : html`<p class="muted">No points scored.</p>`;
     };
-    const bodyFor = (k) => (k === 'scoring' ? scoringList() : K().boxScore(box, { parts: k === 'team' ? ['team'] : ['line', 'leaders'] }));
+    const bodyFor = (k) => (k === 'scoring' ? scoringList() : K().boxScore(box, { parts: k === 'team' ? ['team'] : ['line', 'leaders'], leadMax: (globalThis.innerHeight || 800) < 480 ? 3 : 4 }));
     const render = (card) => {
       const host = card.querySelector('.box-host');
       D().set(host, bodyFor(cur));
@@ -85,20 +91,23 @@
       const va = r[3] ? r[3](ta) : (ta[r[1]] || 0), vh = r[3] ? r[3](th) : (th[r[1]] || 0);
       const na = r[3] ? (ta.d3a ? (ta.d3c || 0) / ta.d3a : 0) : va, nh = r[3] ? (th.d3a ? (th.d3c || 0) / th.d3a : 0) : vh;
       const better = r[2] ? (na < nh ? 'a' : nh < na ? 'h' : '') : (na > nh ? 'a' : nh > na ? 'h' : '');
+      // HUNT #44: conversion rows (x/y) draw each side's rate on a 0-100% scale; counts share the total
       const sum = (na + nh) || 1;
-      return html`<div class="pgx-st"><b class="num ${better === 'a' ? 'up' : ''}">${va}</b><span class="pgx-st-l"><span class="pgx-bar"><i style="width:${Math.round(na / sum * 100)}%"></i></span>${r[0]}<span class="pgx-bar pgx-bar-h"><i style="width:${Math.round(nh / sum * 100)}%"></i></span></span><b class="num ${better === 'h' ? 'up' : ''}">${vh}</b></div>`;
+      const wa = r[3] ? Math.round(na * 100) : Math.round(na / sum * 100), wh = r[3] ? Math.round(nh * 100) : Math.round(nh / sum * 100);
+      return html`<div class="pgx-st"><b class="num ${better === 'a' ? 'up' : ''}">${va}</b><span class="pgx-st-l"><span class="pgx-bar"><i style="width:${wa}%"></i></span>${r[0]}<span class="pgx-bar pgx-bar-h"><i style="width:${wh}%"></i></span></span><b class="num ${better === 'h' ? 'up' : ''}">${vh}</b></div>`;
     };
     const top = topThree(L, box);
+    const kc = K().kitCols(h, a);          // same kits as the 3D game: two same-colour teams still differ
     const perf = top.map((x) => html`<div class="pgx-p ${x.pog ? 'pog' : ''}">${K().portrait(x.p, 44, L.teams[x.p.tid] ? L.teams[x.p.tid].col.pri : undefined)}
       <span class="pgx-p-m"><span class="pgx-p-n ellip">${x.pog ? html`<span class="star-tag">${K().ic('star')}<b>MVP</b></span>` : ''}${K().short(x.p)}</span>
-      <span class="tiny ellip">${K().posChip(x.p.pos)} ${L.teams[x.l.t] ? L.teams[x.l.t].abbr : ''} · ${K().statLine(x.l, x.p.pos)}</span></span></div>`);
-    return { res: res, team: t, html: html`<div class="pgx pgx-${res}" style="${K().teamVars(t)}">
+      <span class="tiny ellip">${K().posChip(x.p.pos)} ${L.teams[x.l.t] ? L.teams[x.l.t].abbr : ''} · ${perfLine(x.l, x.p.pos)}</span></span></div>`);
+    return { res: res, team: t, html: html`<div class="pgx pgx-${res}" style="${K().teamVars(t)};--ca:${kc.a};--ch:${kc.h}">
       <section class="pgx-head" data-testid="pgm-head">
         <div class="pgx-res">${head}</div>
         <div class="pgx-score">
-          <span class="pgx-tm ${a === u ? 'me' : ''}">${K().badge(L.teams[a], 'l')}<b>${L.teams[a].abbr}</b></span>
+          <span class="pgx-tm pgx-tm-a ${a === u ? 'me' : ''}">${K().badge(L.teams[a], 'l')}<b>${L.teams[a].abbr}</b></span>
           <span class="pgx-n num"><span class="${as > hs ? 'win' : ''}">${as}</span><i>-</i><span class="${hs > as ? 'win' : ''}">${hs}</span></span>
-          <span class="pgx-tm ${h === u ? 'me' : ''}">${K().badge(L.teams[h], 'l')}<b>${L.teams[h].abbr}</b></span>
+          <span class="pgx-tm pgx-tm-h ${h === u ? 'me' : ''}">${K().badge(L.teams[h], 'l')}<b>${L.teams[h].abbr}</b></span>
         </div>
         <div class="pgx-sub">${sub}</div>
       </section>
@@ -107,7 +116,7 @@
           <h3>Top performers</h3>
           ${perf.length ? perf : html`<p class="small muted">Simmed game.</p>`}
         </section>
-        <section class="pgx-card pgx-stats" data-testid="pgm-stats" style="--ca:${D().hex(L.teams[a].col.pri)};--ch:${D().hex(L.teams[h].col.pri)}">
+        <section class="pgx-card pgx-stats" data-testid="pgm-stats">
           <h3><span>${L.teams[a].abbr}</span>Team stats<span>${L.teams[h].abbr}</span></h3>
           ${rows.map(statRow)}
         </section>
@@ -149,14 +158,14 @@
       ${badges.length ? html`<span class="pgx-r pgx-gold" title="${badges.join(', ')}">${K().ic('trophy')}<b class="ellip">${badges.length === 1 ? badges[0] : badges.length + ' badges'}</b></span>` : ''}
       ${hurt.length ? html`<span class="pgx-r bad" title="${hurt.map((p) => K().short(p)).join(', ')}">${K().ic('cross')}<b class="ellip">${hurt.length === 1 ? K().short(hurt[0]) : hurt.length + ' hurt'}</b><span class="tiny">${hurt.length === 1 ? 'Hurt' : ''}</span></span>` : ''}
     </section>`;
+    // HUNT #44: one Box Score button (Scoring is a tab inside it)
     const foot = html`${K().btn({ label: 'Box Score', icon: 'chart', action: 'box', kind: 'sec', size: 'm', testid: 'btn-pgm-box' })}
-        ${K().btn({ label: 'Scoring', icon: 'football', action: 'scoring', kind: 'sec', size: 'm', testid: 'btn-pgm-scoring' })}
         ${K().btn({ label: 'Continue', icon: 'play', action: 'cont', kind: 'go', size: 'l', testid: 'btn-postgame-continue', cls: 'pgx-go' })}`;
     const v = UI.finalView(box || { h: h, a: a, hs: hs, as: as, tm: [], pl: {} }, { sub: sub, rewards: rewards, foot: foot });
     const body = v.html;
     D().set(el, body);
     countUp(el);
-    if (res === 'W') { const host = el.querySelector('.pgx-head'); if (host) K().confetti(host, 50, [D().hex(t.col.pri), D().hex(t.col.sec), '#ffd23f', '#ffffff']); }
+    if (res === 'W') { const host = el.querySelector('.pgx'); if (host) K().confetti(host, 50, [D().hex(t.col.pri), D().hex(t.col.sec), '#ffd23f', '#ffffff']); }
   }
 
   function boxOf(params) { params = params || {}; return params.box || (params.gid != null ? PT.League.Q.box(PT.App.L, params.gid) : null); }

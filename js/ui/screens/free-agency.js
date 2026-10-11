@@ -1,204 +1,230 @@
 /* Pixel Touchdown: js/ui/screens/free-agency.js
- * Owner: WP5. Responsibility: FA list, offers, day advance ("Market", design 10.7) + Swaps (trades, design 10.8).
+ * Owner: FLOW-UX (was WP5). "Market" (free agency, design 10.7) and "Swaps" (trades, design 10.8) as flow screens
+ * (docs/handoff/FLOW-UX.md).
+ * Market: header "Market Day 1/3 · Offers today 0/5", a dense paged table (name, pos, Stars, age, ask, interest), a detail
+ *   card with an inline offer (Pay stepper, Years, verdict, Send offer = btn-offer-submit), offer answers as a ticker in
+ *   the bottom bar, ONE primary "Finish Market" (btn-fa-finish: Calendar.finishMarket → every day left → new season),
+ *   secondary "Next day" (btn-fa-next-day) only while offers wait for an answer, else "Swaps". Rows: fa-row-{pid}.
+ *   Outside the Market phase the same screen signs leftovers at their Ask (in season) or shows "Market closed".
+ * Swaps: two columns (You give | You get), a Fair meter from Trade.evaluate in the bottom bar, primary "Propose".
+ *   testids: swap-mine-{pid}, swap-theirs-{pid} (aria-pressed), btn-swap-team, swap-team-{tid}, btn-swap-propose.
  */
 (function (PT) {
   'use strict';
   const UI = PT.UI = PT.UI || {};
-  const D = () => UI.dom, K = () => UI.comp;
+  const D = () => UI.dom, K = () => UI.comp, FK = () => UI.FlowKit;
   const html = function () { return UI.dom.html.apply(null, arguments); };
   const L = () => PT.App.L;
 
-  let filter = '';
+  const FA_CAP = 90;
   const MAX_OFFERS_DAY = 5;
+  const mk = { filter: '', sel: null, day: '' };
 
   function space(lg) { try { return PT.League.Cap.space(lg, lg.userTid); } catch (e) { return 0; } }
+  /** my offers still waiting for an answer (the player is still on the Market) */
+  function pendingCount(lg) { return myOffers(lg).filter((o) => { const p = PT.League.Q.player(lg, o.pid); return p && p.tid === PT.C.TID.FA; }).length; }
   function myOffers(lg) { return ((lg.fa && lg.fa.offers) || []).filter((o) => o.tid === lg.userTid); }
-  function list(lg) {
-    try { return PT.League.FA.list(lg, { pos: filter || undefined }) || []; } catch (e) { return []; }
+  function list(lg, pos) {
+    try { return PT.League.FA.list(lg, { pos: pos || undefined }) || []; } catch (e) { return []; }
   }
   function mode(lg) {
     if (lg.phase === 'FREE_AGENCY') return 'offer';
     if (lg.phase === 'REGULAR' || lg.phase === 'PRESEASON') return 'sign';
     return 'closed';
   }
-  /** user-side interest estimate (design 10.7 score, simplified to what the UI knows) */
-  function score(lg, p, ask, sal, yrs, gift) {
-    const t = lg.teams[lg.userTid];
-    const mw = { money: 1.3, fame: 1.0, wins: 0.8, home: 0.9, chill: 1.0 }[p.want] || 1;
-    let s = 100 * (sal / Math.max(1, ask.sal)) * mw + (t.fin.hype - 50) * 0.2 + (gift || 0) / 10;
-    if (p.want === 'fame' && t.fin.hype >= 70) s += 5;
-    if (ask.yrs && Math.abs(yrs - ask.yrs) > 1) s -= 5;
-    s += [10, 0, -8, -10][lg.diff] || 0;   // ROUND6 B: Expert = Normal + 0.75 x (Legend - Normal)
-    s += ((lg.coach && lg.coach.lvl) || 1) * 0.3;
-    return s;
-  }
-  function face(s) {
-    if (s >= 105) return { face: 'happy', word: 'Likely', cls: 'good' };
-    if (s >= 90) return { face: 'meh', word: 'Maybe', cls: 'warn' };
-    return { face: 'sad', word: 'Unlikely', cls: 'bad' };
-  }
-  function interestFace(x) {
-    const i = x.interest == null ? 50 : x.interest;
-    return i >= 65 ? face(110) : i >= 40 ? face(95) : face(80);
-  }
+  const FACE = { likely: { face: 'happy', word: 'Likely', cls: 'good' }, maybe: { face: 'meh', word: 'Maybe', cls: 'warn' }, unlikely: { face: 'sad', word: 'Unlikely', cls: 'bad' } };
+  /** signing chance at his Ask on a spread-out 0..100 scale (score 80 → 0, 110 → 100) so the meter tells players apart */
+  function chance(score) { return Math.max(0, Math.min(100, Math.round(((score != null ? score : 95) - 80) / 30 * 100))); }
+  function faceOf(score) { return score >= 105 ? FACE.likely : score >= 90 ? FACE.maybe : FACE.unlikely; }
 
-  // ---------------- Market ----------------
-  // ROUND6 "0 scrolling": side panel (day, cash, links) + position chips + one paged list (pager.js). My Offers opens a sheet.
-  const FA_CAP = 60;           // best 60 per filter; the position chips reach the rest
-  function side(lg, m) {
-    const t = lg.teams[lg.userTid];
-    const left = Math.max(0, MAX_OFFERS_DAY - myOffers(lg).filter((o) => o.day === lg.sub).length);
-    const txt = m === 'offer' ? html`<b class="nc-t">Market Day ${lg.sub + 1}/${PT.C.FA_DAYS}</b><span class="small">Offers left today: <b class="num">${left}</b></span>`
-      : m === 'sign' ? html`<b class="nc-t">Free Agents</b><span class="small">Sign now at his Ask.</span>`
-      : html`<b class="nc-t">Market Closed</b><span class="small">Opens after Draft Day.</span>`;
-    const memo = sent(lg);
-    myOffers(lg).forEach((o) => { memo.o[o.pid] = { sal: o.sal, yrs: o.yrs }; });
-    const n = Object.keys(memo.o).length;
-    return html`<aside class="card card-cream nc-side-card">
-      <div class="nc-head"><span class="nc-emo" aria-hidden="true">${K().ic('contract')}</span><div class="nc-head-t">${txt}</div></div>
-      <div class="nc-stats">${K().cash(space(lg))}${K().coins(t.fin.coins)}</div>
-      <div class="nc-links">
-        ${n ? K().btn({ label: 'My Offers', sub: String(n), icon: 'contract', action: 'offers', kind: 'gold', size: 's', testid: 'btn-fa-offers', cls: 'nc-wide' }) : ''}
-        ${K().btn({ label: 'Swaps', icon: 'swap', action: 'swaps', kind: 'sec', size: 's', testid: 'btn-go-swaps' })}
-        ${K().btn({ label: 'Board', icon: 'scope', action: 'board', kind: 'sec', size: 's', testid: 'btn-go-board', title: 'Draft Board' })}
-      </div>
-    </aside>`;
-  }
-
-  /** offers I sent this offseason (UI memo), so resolved ones can show "Signed" after the day ends */
+  /** offers I sent this offseason (UI memo), so answered ones can show "Signed" / "Said no" after the day ends */
   function sent(lg) {
     const m = D().memo.mkSent;
     if (m && m.id === lg.id && m.s === lg.season) return m;
     D().memo.mkSent = { id: lg.id, s: lg.season, o: {} };
     return D().memo.mkSent;
   }
-  function offerRows(lg) {
-    const offs = myOffers(lg);
-    const memo = sent(lg);
-    const pend = {};
-    offs.forEach((o) => { pend[o.pid] = o; memo.o[o.pid] = { sal: o.sal, yrs: o.yrs }; });
-    return Object.keys(memo.o).map(Number).map((pid) => {
+  function results(lg) {
+    const memo = sent(lg), pend = {};
+    myOffers(lg).forEach((o) => { pend[o.pid] = 1; memo.o[o.pid] = { sal: o.sal, yrs: o.yrs }; });
+    return Object.keys(memo.o).map(Number).filter((pid) => !pend[pid]).map((pid) => {
       const p = PT.League.Q.player(lg, pid);
       if (!p) return '';
-      const o = pend[pid] || memo.o[pid];
-      const st = p.tid === lg.userTid ? K().chip(html`${K().ic('check')} Signed`, 'green') : pend[pid] ? K().chip(html`${K().ic('hourglass')} Waiting`, 'gold')
-        : p.tid >= 0 ? K().chip('Went to ' + lg.teams[p.tid].abbr, 'red') : K().chip('Said no', 'red');
-      return html`<div class="mk-off">${K().portrait(p, 40)}<span class="grow ellip"><b>${K().pname(p)}</b><br><span class="small num">${D().money(o.sal)} × ${D().plural(o.yrs, 'yr')}</span></span>${st}</div>`;
-    }).filter(Boolean);
-  }
-  function offersSheet() {
-    const lg = L();
-    UI.Modal.open({ title: 'My Offers', body: html`${K().pg('offers', offerRows(lg), { cls: 'nc-side' })}`, cls: 'm-offers', buttons: [{ label: 'Close', value: true, kind: 'go' }] });
+      const st = p.tid === lg.userTid ? html`<b class="good-l">signed</b>` : p.tid >= 0 ? html`<b class="bad-l">went to ${lg.teams[p.tid].abbr}</b>` : html`<b class="bad-l">said no</b>`;
+      return html`<span class="fl-ti">${K().posChip(p.pos)}<span>${K().short(p)}</span>${st}</span>`;
+    }).filter(Boolean).reverse();
   }
 
-  function filters() {
-    const all = [''].concat(PT.C.POS);
-    return html`<div class="fchips nc-chips" role="toolbar" aria-label="Position">${all.map((pos) => html`<button type="button" class="fchip ${filter === pos ? 'on' : ''}" data-action="filter" data-pos="${pos}" data-testid="fa-filter-${pos || 'all'}">${pos || 'All'}</button>`)}</div>`;
+  // ---------------- Market ----------------
+  function header(lg, m) {
+    const F = FK();
+    if (m === 'offer') {
+      const used = myOffers(lg).filter((o) => o.day === lg.sub).length;
+      const n = myOffers(lg).length;
+      void n;
+      // Swaps stays one tap away (it is not a step of the flow, so it lives in the header, not the bottom bar)
+      const swaps = html`<button type="button" class="fl-seg fl-seg-btn" data-action="swaps" data-testid="btn-go-swaps">${K().ic('swap')}<b class="fl-sv">Swaps</b></button>`;
+      return F.head(html`${F.seg('Market Day', (lg.sub + 1) + '/' + PT.C.FA_DAYS, { icon: 'contract', cls: 'fl-seg-t', testid: 'fa-day' })}${F.seg('Offers today', used + '/' + MAX_OFFERS_DAY, { cls: used >= MAX_OFFERS_DAY ? 'fl-seg-warn' : '' })}${F.gap()}${swaps}`);
+    }
+    if (m === 'sign') return F.head(html`${F.seg('', 'Free Agents', { icon: 'contract', cls: 'fl-seg-t' })}${F.seg('Sign now', 'at his Ask', { cls: 'fl-seg-dim' })}`);
+    return F.head(html`${F.seg('', 'Market Closed', { icon: 'lock', cls: 'fl-seg-t' })}${F.seg('Opens', 'after Draft Day', { cls: 'fl-seg-dim' })}`);
   }
 
-  function row(lg, x) {
+  const COLS = [{ k: 'name', label: 'Name', cls: 'c-name' }, { k: 'pos', label: 'Pos', cls: 'c-pos' }, { k: 'stars', label: 'Stars', cls: 'c-stars' },
+    { k: 'age', label: 'Age', cls: 'c-age c-c c-hs' }, { k: 'ask', label: 'Asks', cls: 'c-ask' }, { k: 'int', label: 'Chance', cls: 'c-int' }];
+
+  function rowOf(lg, x, offered) {
+    const p = x.p, f = faceOf(x.score != null ? x.score : 95);
+    return { id: p.id, testid: 'fa-row-' + p.id, sel: mk.sel === p.id, cls: offered ? 'sent' : '',
+      cells: { name: FK().name(p), pos: K().posChip(p.pos), stars: FK().stars(p.ovr), age: html`<span class="num">${p.age}</span>`,
+        ask: html`<span class="fl-ask"><b class="num">${D().money(x.ask.sal)}</b><span class="dim">${x.ask.yrs}y</span></span>`,
+        int: offered ? FK().tag(html`${K().ic('hourglass')}Sent`, 'gold') : FK().meter(chance(x.score), f.cls, f.word) } };
+  }
+
+  function detail(lg, x, m) {
+    if (!x) return html`<aside class="fl-card fl-side fl-side-empty"><p class="fl-empty">Tap a player.</p></aside>`;
     const p = x.p;
-    const f = interestFace(x);
-    const offered = myOffers(lg).some((o) => o.pid === p.id);
-    const right = html`<span class="num"><b>${D().money(x.ask.sal)}</b></span><span class="small muted">${D().plural(x.ask.yrs, 'yr')}</span>`;
-    const sub = html`<span class="muted num">${p.age}y</span> <span class="chip mk-face ${f.cls}" title="${f.word}">${K().ic(f.face)}<span class="nc-fw">${f.word}</span></span>${offered ? html` <span class="chip chip-gold">Offered</span>` : ''}`;
-    return K().playerRow(p, { action: 'row', testid: 'fa-row-' + p.id, sub: sub, right: right, compact: true, cls: 'nc-prow' });
+    const mine = myOffers(lg).find((o) => o.pid === p.id) || null;
+    const used = myOffers(lg).filter((o) => o.day === lg.sub && o.pid !== p.id).length;
+    const w = K().WANT[p.want];
+    const who = html`<div class="fl-who">${K().portrait(p, 56)}<div class="fl-who-t"><b class="fl-pn">${p.fn} ${p.ln}</b>
+      <span class="fl-pm">${K().posChip(p.pos)}<span class="fl-hide-s">${K().stars(p.ovr, { noNum: true })}</span><span class="dim">Age ${p.age}</span>${w ? html`<span class="fl-want" title="Wants ${w[1]}">${K().ic(w[0])}<span class="fl-nf">Wants </span>${w[1]}</span>` : ''}</span></div></div>`;
+    const asks = html`<p class="fl-note fl-asks"><span>Asks <b class="num">${D().money(x.ask.sal)}</b> × ${D().plural(x.ask.yrs, 'yr')}</span></p>`;
+    if (m === 'closed') return html`<aside class="fl-card fl-side" data-testid="fa-detail">${who}${asks}<p class="fl-note dim">${K().ic('lock')} The Market opens after Draft Day.</p></aside>`;
+    const key = 'fa:' + p.id + ':' + lg.sub;
+    if (mine) FK().offerState(key, { sal: mine.sal, yrs: mine.yrs });
+    const full = m === 'offer' && !mine && used >= MAX_OFFERS_DAY;
+    const offer = FK().offer({ key: key, ask: x.ask, submit: m === 'sign' ? 'Sign now' : mine ? 'Update offer' : 'Send offer', submitHtml: m === 'sign' ? '' : html`${mine ? 'Update' : 'Send'}<span class="fl-nf"> offer</span>`, disabled: full, why: full ? '5 offers a day.' : '',
+      left: (sal) => space(lg) - sal,
+      verdict: (sal, yrs) => {
+        if (m === 'sign') return sal >= x.ask.sal ? { face: 'happy', word: 'Will sign', cls: 'good' } : { face: 'angry', word: 'Too low', cls: 'bad' };
+        let s = 95;
+        try { s = PT.League.FA.score(lg, p.id, lg.userTid, { sal: sal, yrs: yrs, gift: 0 }); } catch (e) { s = 95; }
+        return faceOf(s);
+      } });
+    return html`<aside class="fl-card fl-side has-offer" data-testid="fa-detail">${who}${asks}${full ? html`<p class="fl-note bad">${K().ic('no')} 5 offers a day. Try tomorrow.</p>` : ''}${offer}</aside>`;
   }
 
   function mountMarket(el) {
     const lg = L();
     if (!lg) { UI.replace('title'); return; }
     const m = mode(lg);
-    const all = list(lg);
-    const shown = all.slice(0, FA_CAP);
-    const count = all.length > FA_CAP ? FA_CAP + ' of ' + all.length : String(all.length);
-    const main = html`<div class="nc-main"><div class="nc-tools">${filters()}<span class="nc-count small" title="Free agents">${count}</span></div>
-      <div class="fill">${K().pg('fa', shown.map((x) => row(lg, x)), { grid: true, cls: 'nc-side nc-plist', empty: K().empty('players', 'No free agents.') })}</div></div>`;
-    const body = html`${K().tip('market', 'contract', 'Tap a player to make an offer. Players answer at the end of each Market Day.')}
-      <div class="nc-split">${side(lg, m)}${main}</div>`;
-    const foot = m === 'offer' ? K().nextBtn({ testid: 'btn-fa-next-day' })
-      : ['RESIGN', 'DRAFT'].includes(lg.phase) ? K().nextBtn()
-      : K().btn({ label: 'Swaps', icon: 'swap', action: 'swaps', kind: 'pri', size: 'l', testid: 'btn-foot-swaps' });
-    D().set(el, K().layout(body, foot, 'fit market nc'));
+    if (m === 'offer') FK().noSub(el);
+    const dayKey = lg.season + ':' + lg.phase + ':' + lg.sub;
+    if (mk.day !== dayKey) { mk.day = dayKey; mk.sel = null; }
+    const rowsX = list(lg, mk.filter).slice(0, FA_CAP);
+    const offered = {};
+    myOffers(lg).forEach((o) => { offered[o.pid] = 1; });
+    if (mk.sel == null || !rowsX.concat(list(lg)).some((x) => x.p.id === mk.sel)) mk.sel = rowsX.length ? rowsX[0].p.id : null;
+    const selX = mk.sel != null ? (rowsX.find((x) => x.p.id === mk.sel) || list(lg).find((x) => x.p.id === mk.sel)) : null;
+    const filter = FK().filter({ value: mk.filter, title: 'Position',
+      list: [{ id: '', label: 'All' }].concat(PT.C.POS.map((pos) => ({ id: pos, label: pos, title: K().posLabel(pos) }))),
+      testid: (id) => 'fa-filter-' + (id || 'all'), pick: (v) => setFilter(v) });
+    const table = FK().table({ key: 'fa', cols: COLS, rows: rowsX.map((x) => rowOf(lg, x, !!offered[x.p.id])), tools: filter, cls: 'fl-t-fa', empty: html`<p class="fl-empty">No free agents.</p>` });
+    const tip = m === 'offer' ? FK().tip('fl-market', 'Send offers, then Finish Market. Players answer at day end.') : '';
+    const body = html`${header(lg, m)}${tip}<div class="fl-main">${table}${detail(lg, selX, m)}</div>`;
+    let foot;
+    const res = m === 'offer' ? results(lg) : [];
+    const info = res.length ? html`<div class="fl-tick"><span class="fl-tick-l">Answers</span>${res.slice(0, 4)}</div>` : '';
+    if (m === 'offer') {
+      // client: ≤ 5 Next presses per offseason. ONE primary finishes every Market day left and starts the season;
+      // "Next day" (one day, to see answers first) shows only while offers wait for an answer.
+      const Cal = PT.League.Calendar;
+      const pend = pendingCount(lg) > 0 && lg.sub + 1 < PT.C.FA_DAYS;
+      const sec = pend ? FK().sec({ label: 'Next day', icon: 'ff', action: 'flow-next', testid: 'btn-fa-next-day' }) : '';
+      const pri = Cal && Cal.finishMarket ? FK().pri({ label: 'Finish Market', sub: 'Start season', icon: 'play', action: 'finish', testid: 'btn-fa-finish' })
+        : FK().next({ testid: 'btn-fa-next-day' });
+      foot = FK().foot(info, sec, pri);
+    }
+    else if (['RESIGN', 'DRAFT'].includes(lg.phase)) foot = FK().foot('', '', FK().next());
+    else foot = FK().foot('', '', FK().pri({ label: 'Swaps', icon: 'swap', action: 'swaps', testid: 'btn-foot-swaps' }));
+    D().set(el, K().layout(body, foot, 'fit flow fl-market'));
+    FK().paintOffer(el);
   }
 
-  function offer(pid) {
+  function setFilter(v) { mk.filter = v || ''; mk.sel = null; if (UI.pgPage) UI.pgPage('fa', 0); UI.refresh(); }
+
+  function send() {
     const lg = L();
     const m = mode(lg);
-    const x = (PT.League.FA.list(lg, {}) || []).find((y) => y.p.id === pid);
-    if (!x) return;
-    const p = x.p, t = lg.teams[lg.userTid];
-    if (m === 'closed') {
-      UI.Modal.open({ title: K().pname(p), icon: 'hourglass', body: html`<p>The Market opens after Draft Day.</p><p class="small muted">He asks ${D().money(x.ask.sal)} for ${D().plural(x.ask.yrs, 'year')}.</p>`, buttons: [{ label: 'OK', value: true, kind: 'go' }] });
-      return;
+    const x = list(lg).find((y) => y.p.id === mk.sel);
+    if (!x || m === 'closed') return;
+    const p = x.p, o = FK().offerValue();
+    let r;
+    if (m === 'sign') {
+      if (o.sal < x.ask.sal) { UI.Toast.show(p.fn + ' wants ' + D().money(x.ask.sal) + '.', 'bad'); return; }
+      try { r = PT.League.FA.signNow(lg, p.id, { sal: o.sal, yrs: o.yrs }); } catch (e) { r = { ok: false, msg: 'Could not sign.' }; }
+      UI.Toast.show(r && r.ok ? p.fn + ' signed' : (r && r.msg) || 'No deal.', r && r.ok ? 'good' : 'bad');
+      if (r && r.ok) mk.sel = null;
+    } else {
+      try { r = PT.League.FA.offer(lg, p.id, { sal: o.sal, yrs: o.yrs, gift: 0 }); } catch (e) { r = { ok: false, msg: 'Offer failed.' }; }
+      if (r && r.ok) sent(lg).o[p.id] = { sal: o.sal, yrs: o.yrs };
+      UI.Toast.show(r && r.ok ? (r.status === 'signed' ? p.fn + ' signed' : 'Offer sent') : (r && r.msg) || 'Offer failed.', r && r.ok ? 'good' : 'bad');
     }
-    if (m === 'offer' && !myOffers(lg).some((o) => o.pid === pid) && myOffers(lg).filter((o) => o.day === lg.sub).length >= MAX_OFFERS_DAY) {
-      UI.Toast.show('Max 5 offers per day.', 'bad');
-      return;
-    }
-    UI.parts.offerSheet({
-      p: p, ask: x.ask, title: m === 'sign' ? 'Sign ' + p.fn + '?' : 'Offer to ' + p.fn, submit: m === 'sign' ? 'Sign Now' : 'Send Offer',
-      gift: m === 'offer', coins: t.fin.coins,
-      left: (sal) => space(lg) - sal,
-      verdict: (sal, yrs, gift) => (m === 'sign' ? (sal >= x.ask.sal ? { face: 'happy', word: 'Will sign', cls: 'good' } : { face: 'angry', word: 'Too low', cls: 'bad' }) : face(score(lg, p, x.ask, sal, yrs, gift)))
-    }).then((o) => {
-      if (!o) return;
-      let r;
-      if (m === 'sign') {
-        if (o.sal < x.ask.sal) { UI.Toast.show(p.fn + ' wants ' + D().money(x.ask.sal) + '.', 'bad'); return; }
-        try { r = PT.League.FA.signNow(lg, pid, { sal: o.sal, yrs: o.yrs }); } catch (e) { r = { ok: false, msg: 'Could not sign.' }; }
-        UI.Toast.show(r && r.ok ? p.fn + ' signed' : (r && r.msg) || 'No deal.', r && r.ok ? 'good' : 'bad');
-      } else {
-        try { r = PT.League.FA.offer(lg, pid, { sal: o.sal, yrs: o.yrs, gift: o.gift }); } catch (e) { r = { ok: false, msg: 'Offer failed.' }; }
-        UI.Toast.show(r && r.ok ? (r.status === 'signed' ? p.fn + ' signed' : 'Offer sent') : (r && r.msg) || 'Offer failed.', r && r.ok ? 'good' : 'bad');
-      }
-      if (PT.Events) PT.Events.emit('league:changed', { what: 'fa' });
-      UI.refresh();
-    });
+    if (PT.Events) PT.Events.emit('league:changed', { what: 'fa' });
+    UI.refresh();
+  }
+
+  /** Finish Market: every Market day left at once, then the new season starts (Calendar.finishMarket) */
+  function finishMarket() {
+    const lg = L(), F = UI.Flow;
+    const st = F && F.status ? F.status() : null;
+    if (!PT.League.Calendar.finishMarket || (st && st.blockers && st.blockers.length)) { if (F) F.next(); return; }
+    const busy = UI.Modal.busy('Finishing the Market…');
+    setTimeout(() => {
+      let r = null;
+      try { r = PT.League.Calendar.finishMarket(lg); } catch (e) { r = { ok: false, msg: 'Something went wrong. Try again.' }; if (PT.Log) PT.Log.error('ui', 'finish market', e); }
+      busy.close();
+      if (r && r.ok) {
+        try { if (PT.App.save) PT.App.save({}); } catch (e) { /* the auto save will catch up */ }
+        UI.Toast.show('Season ' + lg.season + ' begins', 'good', 3000);
+      } else UI.Toast.show((r && r.msg) || 'Not yet.', 'bad');
+      if (UI.theme) UI.theme();
+      if (F) F.goPhase(); else UI.reset();
+    }, 30);
   }
 
   UI.screens.market = {
     title: 'Market',
     nav: 'market',
     mount: (el) => mountMarket(el),
-    actions: {
-      row: (el) => offer(+el.getAttribute('data-pid')),
-      filter: (el) => { filter = el.getAttribute('data-pos') || ''; if (UI.pgPage) UI.pgPage('fa', 0); UI.refresh(); },
-      offers: () => offersSheet(),
+    actions: FK().withActions({
+      row: (el) => { mk.sel = +el.getAttribute('data-pid'); UI.refresh(); },
+      filter: (el) => setFilter(el.getAttribute('data-pos')),
+      'fl-send': () => send(),
       swaps: () => UI.go('swaps'),
-      board: () => UI.go('draft')
-    }
+      finish: () => finishMarket()
+    })
   };
 
   // ---------------- Swaps ----------------
   const sw = { tid: null, give: [], get: [], params: null };
 
-  function swapOpen(lg) {
-    if (lg.phase === 'DRAFT' || lg.phase === 'PLAYOFFS') return false;
-    if (lg.phase === 'REGULAR' && lg.week > 10) return false;
-    return true;
-  }
-  function val(lg, pid) {
+  function evalSwap(lg) {
     const T = PT.League.Trade;
-    if (T && T.value) { try { const v = T.value(lg, pid); if (typeof v === 'number' && !isNaN(v)) return v; } catch (e) { /* fallback */ } }
-    const p = PT.League.Q.player(lg, pid);
-    return p ? Math.max(1, (p.ovr - 40) * 2 + Math.max(0, 28 - p.age) * 3) : 0;
+    if (!sw.give.length || !sw.get.length) return { k: 'none', v: 0, word: 'Pick players on both sides.', cls: '' };
+    let ev = null;
+    try { ev = T && T.evaluate ? T.evaluate(lg, { pids: sw.give.slice() }, { pids: sw.get.slice(), tid: sw.tid }, sw.tid) : null; } catch (e) { ev = null; }
+    if (!ev) return { k: 'none', v: 0, word: 'Swaps are not ready.', cls: 'bad' };
+    if (!ev.legal) return { k: 'bad', v: 0, word: ev.errors[0] || 'Not allowed.', cls: 'bad' };
+    const r = ev.threshold ? ev.ratio / ev.threshold : ev.ratio;
+    if (ev.accept) return { k: 'yes', v: 100, word: 'Fair. They may say yes.', cls: 'good' };
+    if (ev.meter === 'yellow') return { k: 'close', v: 70, word: 'Close. Add a little more.', cls: 'warn' };
+    return { k: 'no', v: Math.max(10, Math.min(50, Math.round(r * 50))), word: 'Not enough for them.', cls: 'bad' };
   }
-  /** AI view: what they get (your side) vs what they give (their side), × difficulty threshold */
-  function fair(lg) {
-    const inV = sw.give.reduce((s, pid) => s + val(lg, pid), 0);
-    const outV = sw.get.reduce((s, pid) => s + val(lg, pid), 0);
-    const thr = [1.0, 1.1, 1.21, 1.25][lg.diff] || 1.1;
-    if (!sw.give.length || !sw.get.length) return { k: 'none', pct: 0, word: 'Pick players on both sides', cls: '' };
-    const r = inV / Math.max(1, outV * thr);
-    if (r >= 1) return { k: 'yes', pct: Math.min(100, 70 + (r - 1) * 60), word: 'Fair deal. They may accept.', cls: 'm-green' };
-    if (r >= 0.85) return { k: 'close', pct: 40 + (r - 0.85) * 200, word: 'Close. Add a little more.', cls: 'm-gold' };
-    return { k: 'no', pct: Math.max(6, r * 45), word: 'Not enough for them.', cls: 'm-red' };
+  function swapOpen(lg) {
+    const T = PT.League.Trade;
+    try { if (T && T.open) return T.open(lg); } catch (e) { /* fall back */ }
+    return !(lg.phase === 'DRAFT' || lg.phase === 'PLAYOFFS' || (lg.phase === 'REGULAR' && lg.week > 10));
   }
 
-  function pickRow(lg, p, side, on) {
-    return html`<button type="button" class="sw-p nc-swp ${on ? 'on' : ''}" data-action="sw-toggle" data-side="${side}" data-pid="${p.id}" data-testid="swap-${side}-${p.id}" aria-pressed="${on ? 'true' : 'false'}">
-      ${K().posChip(p.pos)}<span class="nc-swp-m"><b class="ellip">${K().short(p)}</b><span class="nc-swp-s">${K().stars(p.ovr)}</span></span><span class="sw-chk">${K().ic(on ? 'check' : 'plus')}</span></button>`;
+  const SW_COLS = [{ k: 'ck', label: '', cls: 'c-ck' }, { k: 'name', label: 'Name', cls: 'c-name' }, { k: 'pos', label: 'Pos', cls: 'c-pos' },
+    { k: 'stars', label: 'Stars', cls: 'c-stars' }, { k: 'age', label: 'Age', cls: 'c-age c-c' }];
+
+  function swapRows(lg, ps, side, sel) {
+    return ps.map((p) => ({ id: p.id, testid: 'swap-' + side + '-' + p.id, sel: sel.includes(p.id), attrs: 'data-side="' + side + '"',
+      cells: { ck: html`<span class="fl-ck">${sel.includes(p.id) ? K().ic('check') : ''}</span>`, name: FK().name(p), pos: K().posChip(p.pos),
+        stars: FK().stars(p.ovr), age: html`<span class="num">${p.age}</span>` } }));
   }
 
   /** team picker sheet (31 badges, one tap) */
@@ -213,6 +239,7 @@
   function mountSwaps(el, params) {
     const lg = L();
     if (!lg) { UI.replace('title'); return; }
+    FK().noSub(el);
     const u = lg.userTid;
     let reveal = false;
     if (sw.params !== params) {
@@ -229,19 +256,19 @@
     const on = (tid) => (pid) => { const p = PT.League.Q.player(lg, pid); return !!p && p.tid === tid; };
     sw.give = sw.give.filter(on(u)); sw.get = sw.get.filter(on(sw.tid));     // drop players who moved since
     const open = swapOpen(lg);
-    const f = fair(lg);
+    const f = open ? evalSwap(lg) : { k: 'closed', v: 0, word: 'Swaps closed. Open from Keep Players to Week 10.', cls: 'bad' };
     const mine = PT.League.Q.roster(lg, u).slice().sort((a, b) => b.ovr - a.ovr);
     const theirs = PT.League.Q.roster(lg, sw.tid).slice().sort((a, b) => b.ovr - a.ovr);
-    const names = (ids) => ids.map((pid) => { const p = PT.League.Q.player(lg, pid); return p ? p.pos + ' ' + K().short(p) : ''; }).filter(Boolean).join(', ');
-    const pick = K().btn({ label: 'Team', icon: 'swap', action: 'sw-pick', kind: 'gold', size: 's', testid: 'btn-swap-team', cls: 'nc-pick' });
-    const col = (title, t, ps, side, sel, extra) => html`<section class="card nc-swc ${side === 'mine' ? 'nc-give' : 'nc-get'}">
-      <div class="nc-swh">${K().badge(t, 's')}<b class="nc-swh-t ellip">${title}</b><span class="nc-swh-n num ${sel.length ? 'on' : ''}" title="${names(sel) || 'Nobody yet'}">${sel.length}/3</span>${extra || ''}</div>
-      ${K().pg(side === 'mine' ? 'swmine' : 'swtheirs', ps.map((p) => pickRow(lg, p, side, sel.includes(p.id))), { grid: true, cls: 'nc-side nc-swl' })}</section>`;
-    const body = html`<div class="cols2 nc-swcols">${col('You give', me, mine, 'mine', sw.give)}${col('You get: ' + them.name, them, theirs, 'theirs', sw.get, pick)}</div>`;
-    const fairBox = html`<div class="sw-fair nc-fair">${open ? html`<span class="field-l">Fairness</span>${K().meter(Math.round(f.pct), 100, f.cls, 'Fair')}<p class="small sw-fair-t ${f.k === 'yes' ? 'good' : f.k === 'no' ? 'bad' : ''}">${f.word}</p>`
-      : html`<p class="hot-seat small">${K().ic('lock')} Swaps closed. Open from Keep Players to Week 10.</p>`}</div>`;
-    const foot = html`${fairBox}${K().btn({ label: 'Propose', icon: 'contract', action: 'sw-propose', kind: 'go', size: 'l', testid: 'btn-swap-propose', disabled: !open || f.k === 'none' })}`;
-    D().set(el, K().layout(body, foot, 'fit swaps nc'));
+    const F = FK();
+    const head = F.head(html`<span class="fl-seg fl-seg-t">${K().badge(me, 's')}<b class="fl-sv">${F.team(me)}</b></span>${F.seg('', 'swap with', { cls: 'fl-seg-dim' })}<button type="button" class="fl-seg fl-seg-t fl-seg-btn" data-action="sw-pick" data-testid="btn-swap-team" title="Pick a team">${K().badge(them, 's')}<b class="fl-sv">${F.team(them)}</b><i class="fl-caret fl-caret-w" aria-hidden="true"></i></button>${F.gap()}`);
+    const give = F.table({ key: 'swmine', cols: SW_COLS, rows: swapRows(lg, mine, 'mine', sw.give), action: 'sw-toggle', cls: 'fl-t-swap fl-give',
+      tools: html`<span class="fl-sw-h"><b>You give</b><span class="fl-sw-n num">${sw.give.length}/3</span></span>` });
+    const get = F.table({ key: 'swtheirs', cols: SW_COLS, rows: swapRows(lg, theirs, 'theirs', sw.get), action: 'sw-toggle', cls: 'fl-t-swap fl-get',
+      tools: html`<span class="fl-sw-h"><b>You get</b><span class="fl-sw-n num">${sw.get.length}/3</span></span>` });
+    const body = html`${head}<div class="fl-main">${give}${get}</div>`;
+    const fair = html`<div class="fl-fair" data-testid="swap-fair">${open ? html`<span class="fl-ol">Fair?</span>${F.meter(f.v, f.cls, f.word)}` : K().ic('lock')}<span class="fl-fair-t ${f.cls}">${f.word}</span></div>`;
+    const foot = F.foot(fair, '', F.pri({ label: 'Propose', icon: 'contract', action: 'sw-propose', testid: 'btn-swap-propose', disabled: !open || f.k === 'none' || f.k === 'bad' }));
+    D().set(el, K().layout(body, foot, 'fit flow fl-swap'));
     // a fresh visit starts on page 1 (or on the page of the pre-picked player)
     if (reveal && UI.fit && UI.pgReveal) {
       UI.fit(el);
@@ -271,7 +298,7 @@
     title: 'Swaps',
     nav: 'market',
     mount: mountSwaps,
-    actions: {
+    actions: FK().withActions({
       'sw-team': (el) => { sw.tid = +el.getAttribute('data-tid'); sw.get = []; if (UI.pgPage) UI.pgPage('swtheirs', 0); UI.refresh(); },
       'sw-pick': () => teamSheet(),
       'sw-toggle': (el) => {
@@ -284,6 +311,6 @@
         UI.refresh();
       },
       'sw-propose': () => propose()
-    }
+    })
   };
 })(globalThis.PT = globalThis.PT || {});

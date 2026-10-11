@@ -290,6 +290,14 @@
     }
   };
 
+  /**
+   * The kits in use for the loaded game: [homeKit, awayKit] (null when no game). UI/HUD should colour the
+   * scoreboard, VS card and stat bars with kit.pri (jersey) / kit.helm, not the raw team primary, so two
+   * same-colour teams always differ. Also emitted on load as PT.Events 'render:kits' {home, away}.
+   * Before a game (VS card) call PT.Render.Kits.make(homeTeam.col, awayTeam.col) — no WebGL needed.
+   */
+  R.kits = function () { return G && G.kits ? [Object.assign({}, G.kits[0]), Object.assign({}, G.kits[1])] : null; };
+
   function teamColors(gt) {
     const c = (gt && gt.col) || {};
     return { pri: c.pri != null ? c.pri : 0x3a6fd8, sec: c.sec != null ? c.sec : 0xffffff, acc: c.acc };
@@ -342,6 +350,7 @@
     scene.add(g.shadows.mesh);
     // uniforms: home kit vs contrasting away kit; rigs for both rosters
     g.kits = Kits.make(g.cols[0], g.cols[1]);
+    emit('render:kits', { home: Object.assign({}, g.kits[0]), away: Object.assign({}, g.kits[1]) });
     [home, away].forEach((t, ti) => {
       (t.pl || []).forEach((pl) => g.rigs.set(pl.pid, makeRig(pl, g.kits[ti], q)));
       g.fallback[ti] = makeRig({ sp: 'dog', num: 0, cs: 0, look: {} }, g.kits[ti], q);

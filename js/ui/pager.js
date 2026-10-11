@@ -1,7 +1,7 @@
 /* Pixel Touchdown: js/ui/pager.js
  * Owner: INT2 (ROUND6 "0 scrolling allowed"). Fit-to-height paging for long lists: no screen or panel may scroll.
  *
- *   K().pg(key, rows, opts)  → Raw: <div class="pg" data-pg="key"><div class="pg-list">rows…</div><div class="pg-ctl">◀ 1/3 ▶</div></div>
+ *   K().pg(key, rows, opts)  → Raw: <div class="pg" data-pg="key"><div class="pg-list">rows…</div><div class="pg-ctl">[prev] 1/3 [next]</div></div>
  *      rows: array of Raw html (each becomes one child of .pg-list). opts: { cls, grid:true (CSS grid list), empty:Raw }
  *   UI.fit(root)             → for every .pg in root: measure how many rows fit in .pg-list's height, show one page.
  *                              Called by ui.js after every mount / refresh / resize and by Modal after open.
@@ -44,7 +44,7 @@
     if (!rows.length) { ctl.hidden = true; return; }
     const top0 = rows[0].offsetTop;
     // pixel frames draw outside the box (box-shadow edges + a small drop): leave that room under the last row
-    const extra = 4 + (parseFloat(getComputedStyle(rows[0]).marginBottom) || 0);
+    const extra = 2 + (parseFloat(getComputedStyle(rows[0]).marginBottom) || 0);
     const grid = list.classList.contains('pg-grid');
     const count = (H) => {
       const fits = (r) => r.offsetTop - top0 + r.offsetHeight + extra <= H + 1;

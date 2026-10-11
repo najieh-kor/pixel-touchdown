@@ -1,9 +1,11 @@
 /* Pixel Touchdown: js/ui/screens/team.js
  * Owner: WP5. Responsibility: finances, facilities, staff, ticket price → in design words:
- *   'team'  Team view with tabs Overview · Players · Lineup · Pay (Team Cash) · Style        params {tab}
+ *   'team'  Team section tabs Contracts (tab 'pay') · Style (tab 'style'); 'overview'/'players' → roster, 'lineup' → depth
+ *           + the shared Team kit (UI.parts.teamStrip, pickCaptain, release, extend, cutCost) — docs/handoff/TEAM-UX.md
  *   'shop'  Shop: facilities (5 levels), coaches (3 slots, 1–5 Stars), Fan Party, Coach Skills link (design 10.11)
  *   'camp'  Training Camp: Focus players + skill (design 4.5), coaches, style (Preseason 3)
- * testids: tab-{overview|players|lineup|pay|style}, style-off-{id}, style-def-{id}, btn-upgrade-{fac},
+ * testids: sub-{roster|depth|pay|style} (ui.js strip), btn-captain-pick, pay-row-{pid}, pay-card, btn-pay-release,
+ *          btn-pay-extend, btn-pay-keep, style-off-{id}, style-def-{id}, btn-upgrade-{fac},
  *          coach-{role}-{stars}, btn-fan-party, camp-pick-{pid}, camp-skill-{pid}-{skill}, btn-camp-train.
  */
 (function (PT) {
@@ -26,15 +28,17 @@
   const OFF_EMO = { air: 'plane', ground: 'tractor', west: 'target', trick: 'tophat', speed: 'bolt' };
   const DEF_EMO = { wall: 'brick', nofly: 'no', wild: 'paw', think: 'brain' };
   const FAC_EMO = { trn: 'dumbbell', med: 'cross', sct: 'scope', std: 'stadium', shop: 'bag' };
+  // HUNT #51: one short line each (the full rules live in How to Play)
   const FAC_FX = {
-    trn: 'Young players grow faster. Camp gains +1.',
-    med: 'Hurt players heal faster and get hurt less.',
-    sct: '+4 scout points. Lv 3: see Growth on other teams.',
-    std: '+15% ticket Coins. Hype stays higher.',
-    shop: '+5 merch Coins a week. Lv 3: +1 Hype per win.'
+    trn: 'Young players grow faster',
+    med: 'Heal faster, get hurt less',
+    sct: '+4 scout points a level',
+    std: '+15% ticket Coins',
+    shop: '+5 merch Coins a week'
   };
   const STAFF_EMO = { off: 'football', def: 'shield', grw: 'sprout' };
-  const STAFF_FX = { off: '+1 to all offense skills in games per Star above 1', def: '+1 to all defense skills in games per Star above 1', grw: 'Young players (≤ 25) grow +0.5 per Star above 1' };
+  // HUNT #33: one short line each
+  const STAFF_FX = { off: '+1 Offense per Star', def: '+1 Defense per Star', grw: 'Young players grow faster' };
 
   // ---------------- adapters ----------------
   UI.adapt = UI.adapt || {};
@@ -74,118 +78,214 @@
   function campGain() { return campInfo().gain; }
   function focusCount() { return campInfo().n; }
 
-  // ---------------- Team view ----------------
-  const tst = { tab: 'overview' };
+  // ---------------- Team section (TEAM-UX redesign) ----------------
+  // Sub-tabs: Roster (roster.js) · Lineup (depth.js) · Contracts ('team' tab 'pay') · Style ('team' tab 'style') · Market. Overview is gone: its useful bits live in the header strip (teamStrip)
+  // shown on every Team tab. The section list lives in ui.js (UI.SECTIONS, not ours): re-shape it here at load.
+  (function retab() {
+    const list = UI.SECTIONS && UI.SECTIONS.team;
+    if (!list) return;
+    // HUNT #38: Camp never shows (ROUND6 C runs camp automatically at rollover) → no Camp tab; the screen stays for old saves
+    const keep = list.filter((x) => ['team', 'roster', 'depth', 'pay', 'style', 'camp'].indexOf(x.id) < 0);
+    const mine = [
+      { id: 'roster', label: 'Roster', icon: 'players', to: 'roster' },
+      { id: 'depth', label: 'Lineup', icon: 'clipboard', to: 'depth' },
+      { id: 'pay', label: 'Contracts', icon: 'cash', to: 'team', tab: 'pay' },
+      { id: 'style', label: 'Style', icon: 'tophat', to: 'team', tab: 'style' }
+    ];
+    list.splice.apply(list, [0, list.length].concat(mine, keep));
+  })();
 
-  function overview() {
-    const lg = L(), t = me();
-    const o = safe(() => PT.League.Q.teamOvr(lg, t.id), { ovr: 60, off: 60, def: 60, st: 60 });
-    const r = safe(() => PT.League.Standings.get(lg).find((x) => x.tid === t.id), { w: 0, l: 0, t: 0 });
+  /** shared Team-section kit (roster.js / depth.js / player.js call it at click / mount time) */
+  const kit = UI.parts = UI.parts || {};
+  /** one slim strip on every Team tab: rating · record · spirit · hype · captain (tap = change). Other teams: styles + Swap. */
+  kit.teamStrip = function (tid) {
+    const lg = L();
+    if (tid == null) tid = lg.userTid;
+    const t = lg.teams[tid], mine = tid === lg.userTid;
+    const o = safe(() => PT.League.Q.teamOvr(lg, t.id), { ovr: 60 });
+    const r = safe(() => PT.League.Standings.get(lg).find((x) => x.tid === t.id), null) || { w: 0, l: 0, t: 0 };
+    const item = (label, val, cls) => html`<span class="tx-si ${cls || ''}"><span class="tx-sl">${label}</span><span class="tx-sv">${val}</span></span>`;
+    const head = html`${item('Team', K().stars(o.ovr, { team: true }), 'tx-rate')}${item('Record', html`<b class="num">${D().rec(r.w, r.l, r.t)}</b>`)}`;
+    if (!mine) {
+      const off = t.style && t.style.off, def = t.style && t.style.def;
+      return html`<section class="tx-strip" style="${K().teamVars(t)}">${K().badge(t, 's')}${head}
+        ${item('Offense', html`${K().ic(OFF_EMO[off])}${C.OFF_STYLES[off] || '—'}`)}${item('Defense', html`${K().ic(DEF_EMO[def])}${C.DEF_STYLES[def] || '—'}`)}
+        <span class="grow"></span>${K().btn({ label: 'Swap', icon: 'swap', action: 'swap', kind: 'sec', size: 's', testid: 'btn-team-swap', cls: 'tx-sbtn' })}</section>`;
+    }
     const spirit = t.spirit == null ? 50 : t.spirit;
     const spLabel = safe(() => PT.League.Spirit.label(spirit), spirit >= 75 ? 'In Sync' : spirit <= 25 ? 'Out of Sync' : 'Okay');
+    const hype = Math.round((t.fin && t.fin.hype) || 0);
     const capt = t.capt != null ? PT.League.Q.player(lg, t.capt) : null;
-    const rival = lg.teams[t.rival];
-    const cs = safe(() => PT.League.Coach.status(lg), { lvl: (lg.coach && lg.coach.lvl) || 1, xp: (lg.coach && lg.coach.xp) || 0, next: 50 });
-    const coach = lg.coach || {};
-    const star = (role) => safe(() => PT.League.Staff.stars(lg, t.id, role), typeof t.stf[role] === 'number' ? t.stf[role] : 1);
-    const off = t.style && t.style.off, def = t.style && t.style.def;
-    // ROUND6 0-scroll: one ID strip + three equal panels (Ratings + Captain · Spirit & Fans · Coaches)
-    return html`
-      <section class="card team-id tm-id" style="${K().teamVars(t)}">
-        ${K().badge(t, 'l')}
-        <div class="tm-name"><div class="small">${t.city}</div><div class="hero-t">${t.name}</div></div>
-        <div class="tm-rec">${K().stars(o.ovr, { team: true, big: true })}<b class="num big">${D().rec(r.w, r.l, r.t)}</b></div>
-        <div class="tm-more">
-          <span class="row wrap tm-style"><span class="chip chip-blue">${K().ic(OFF_EMO[off])} ${C.OFF_STYLES[off] || '—'}</span><span class="chip chip-red">${K().ic(DEF_EMO[def])} ${C.DEF_STYLES[def] || '—'}</span></span>
-          <span class="small ellip">${K().ic('stadium')} ${t.stad || 'Home Field'}${rival ? html` · Rival: <b>${rival.name}</b>` : ''}</span>
-        </div>
-      </section>
-      <div class="cols3 tm-cols">
-        ${K().card(html`${K().h2('Ratings')}
-          <div class="unit-row"><span>${K().ic('football')} Offense</span>${K().stars(o.off, { team: true })}</div>
-          <div class="unit-row"><span>${K().ic('shield')} Defense</span>${K().stars(o.def, { team: true })}</div>
-          <div class="unit-row"><span>${K().ic('boot')} Kicking</span>${K().stars(o.st)}</div>
-          <div class="unit-row capt-line"><span class="capt">C</span>${capt ? html`<b class="grow ellip">${K().pname(capt)}</b>${K().mood(capt.mor)}` : html`<span class="muted grow">No Captain</span>`}
-          ${K().btn({ icon: 'pencil', action: 'tab', data: { id: 'lineup' }, kind: 'sec', size: 's', testid: 'btn-team-captain', title: 'Change Captain' })}</div>`, 'tm-c')}
-        ${K().card(html`${K().h2('Spirit & Fans')}
-          <div class="unit-row"><span>${K().ic('heart')} ${spLabel}</span><span class="grow">${K().meter(spirit, 100, spirit >= 75 ? '' : spirit <= 25 ? 'm-red' : 'm-gold', 'Team Spirit')}</span></div>
-          <div class="unit-row"><span>${K().bossFace(lg.boss ? lg.boss.conf : 50)} Boss</span><span class="grow">${K().meter(lg.boss ? lg.boss.conf : 50, 100, 'm-gold', 'Boss')}</span></div>
-          <div class="unit-row"><span>${K().ic('flame')} Hype</span><span class="grow">${K().meter(t.fin.hype, 100, 'm-red', 'Hype')}</span></div>
-          ${lg.boss && lg.boss.goal ? html`<p class="small tm-goal">Boss goal: <b>${lg.boss.goal.txt}</b></p>` : ''}`, 'tm-c')}
-        ${K().card(html`${K().h2('Coaches')}
-          <div class="unit-row tm-coach"><span class="ellip">${K().sp(coach.sp || 'dog')} <b>${coach.n || 'You'}</b></span><span class="chip chip-gold">Lv ${cs.lvl}</span><span class="grow">${K().meter(cs.xp, cs.next || 100, 'm-blue', 'Coach XP')}</span></div>
-          ${C.STAFF.map((role) => html`<div class="unit-row"><span title="${C.STAFF_NAMES[role]}">${K().ic(STAFF_EMO[role])} ${C.STAFF_NAMES[role].replace(' Coach', '')}</span>${staffStars(star(role))}</div>`)}
-          <div class="btn-row tm-btns">${K().btn({ label: 'Shop', icon: 'cart', action: 'go', data: { to: 'shop' }, kind: 'sec', size: 's', testid: 'btn-team-shop' })}${K().btn({ label: 'Skills', icon: 'cap', action: 'go', data: { to: 'coach' }, kind: 'sec', size: 's', testid: 'btn-team-coach', title: 'Coach Skills' })}</div>`, 'tm-c')}
-      </div>`;
-  }
-  function staffStars(n) {
-    return html`<span class="stars" title="${n} Stars" role="img" aria-label="${n} stars">${K().starRow(n)}</span>`;
-  }
+    return html`<section class="tx-strip" style="${K().teamVars(t)}">${head}
+      ${item('Spirit', html`${K().ic('heart')}<b>${spLabel}</b>`, spirit <= 25 ? 'tx-bad' : spirit >= 75 ? 'tx-good' : '')}
+      ${item('Hype', html`${K().ic('flame')}<b class="num">${hype}</b>`)}
+      <span class="grow"></span>
+      <button type="button" class="tx-si tx-capt" data-action="tm-capt" data-testid="btn-captain-pick" title="Change Captain">
+        <span class="tx-sl">Captain</span><span class="tx-sv"><span class="capt">C</span><b>${capt ? K().pname(capt) : 'Pick one'}</b>${K().ic('pencil')}</span></button>
+    </section>`;
+  };
+  /** captain picker (modal list, smartest first) */
+  kit.pickCaptain = function () {
+    const lg = L(), t = me();
+    const list = PT.League.Q.roster(lg, t.id).filter((p) => !p.ir).sort((a, b) => (b.r.smt - a.r.smt));
+    return UI.Modal.open({ title: 'Pick a Captain', icon: 'crown', cls: 'm-list',
+      body: K().pg('capt', list.map((p) => K().playerRow(p, { action: 'pick', testid: 'capt-pick-' + p.id, compact: true,
+        right: html`<span class="small">Smarts <b class="num">${p.r.smt}</b></span>${K().mood(p.mor)}` })), { grid: true }),
+      actions: { pick: (b, card, entry) => entry.close(+b.getAttribute('data-pid')) },
+      buttons: [{ label: 'Cancel', value: null, kind: 'cancel' }] })
+      .then((pid) => {
+        if (pid == null || pid === t.capt) return;
+        const r = UI.adapt && UI.adapt.setCaptain ? UI.adapt.setCaptain(lg, t.id, pid) : null;
+        if (!r) { t.capt = pid; changed('captain'); }
+        if (r && r.ok === false) { UI.Toast.show(r.msg || 'Not now.', 'bad'); return; }
+        UI.Toast.show('New Captain!', 'good');
+        UI.refresh();
+      });
+  };
+  /** Cut Cost per year + years (same numbers Roster.release books) */
+  kit.cutCost = function (p) {
+    const lg = L();
+    if (!p.con) return { per: 0, years: 0 };
+    const R = PT.League.Roster;
+    if (R && R.cutCost) { const c = R.cutCost(lg, p.id); return { per: c.years ? c.perYear : 0, years: c.years }; }
+    const yrs = K().yrsLeft(p, lg);
+    return { per: yrs ? Math.round(p.con.sal * ((C.CAP && C.CAP.CUT_PCT) || 0.5)) : 0, years: yrs };
+  };
+  kit.cutText = function (p) {
+    const cc = kit.cutCost(p);
+    return cc.per ? html`Cut Cost <b class="num">${D().money(cc.per)}</b> ${cc.years > 1 ? html`a year for ${cc.years} years` : 'this year'}` : html`No Cut Cost`;
+  };
+  /** Cut (release) with the Cut Cost shown first. after(): called once he is gone. */
+  kit.release = function (pid, after) {
+    const lg = L(), p = PT.League.Q.player(lg, pid);
+    if (!p) return;
+    UI.Modal.open({ title: 'Cut ' + K().short(p) + '?', icon: 'scissors',
+      body: html`<p>He leaves your team and goes to the Market.</p><p>${kit.cutText(p)}.</p>`,
+      buttons: [{ label: 'Cut', value: true, kind: 'bad', testid: 'btn-release-confirm' }, { label: 'Keep him', value: false, kind: 'cancel' }] })
+      .then((ok) => {
+        if (!ok) return;
+        const r = PT.League.Roster.release(lg, p.id);
+        if (r && r.ok === false) { UI.Toast.show(r.msg || 'Could not cut him.', 'bad'); return; }
+        UI.Toast.show('Bye, ' + p.fn + '!', 'info');
+        changed('roster');
+        UI.updateHead();
+        if (after) after(); else UI.refresh();
+      });
+  };
+  /** in-season extension: his final season, REGULAR phase (Contracts.extend). 'keep' = Keep Players phase. */
+  kit.contractAct = function (p) {
+    const lg = L();
+    if (!p || p.tid !== lg.userTid || !p.con) return null;
+    if (lg.phase === 'RESIGN' && p.con.exp <= lg.season) return 'keep';
+    if (lg.phase === 'REGULAR' && p.con.exp === lg.season && PT.League.Contracts && PT.League.Contracts.extend) return 'extend';
+    return null;
+  };
+  kit.extend = function (pid) {
+    const lg = L(), p = PT.League.Q.player(lg, pid), Ct = PT.League.Contracts;
+    const a = safe(() => Ct.ask(lg, pid), null);
+    if (!p || !a) return;
+    if (a.verdict === 'wont') { UI.Modal.alert(p.fn + ' wants a new team.', html`<p>He will test the Market.</p>`, 'contract'); return; }
+    UI.Modal.open({ title: 'Extend ' + K().short(p) + '?', icon: 'contract',
+      body: html`<p>He asks <b class="num">${D().money(a.need)}</b> a year for <b>${D().plural(a.yrs, 'year')}</b>.</p><p class="small muted">Now: ${D().money(p.con.sal)} a year.</p>`,
+      buttons: [{ label: 'Offer', value: true, kind: 'go', testid: 'btn-extend-ok' }, { label: 'Not now', value: false, kind: 'cancel' }] })
+      .then((ok) => {
+        if (!ok) return;
+        const r = safe(() => Ct.extend(lg, pid, { sal: a.need, yrs: a.yrs }), { ok: false, msg: 'Not now.' });
+        UI.Toast.show((r && r.msg) || 'Done', r && r.accepted ? 'good' : 'bad', 2600);
+        UI.updateHead();
+        UI.refresh();
+      });
+  };
+  /** the actions every Team tab shares (strip) */
+  kit.teamHeadActions = { 'tm-capt': () => kit.pickCaptain() };
 
+  // ---------------- Contracts ----------------
+  const pst = { sel: null };
+  function yrsWord(p, lg) {
+    const yrs = K().yrsLeft(p, lg);
+    return yrs === 0 ? html`<span class="chip chip-hurt tiny">Ends</span>` : yrs === 1 ? html`<span class="chip chip-gold tiny">Last yr</span>` : html`<span class="num">${yrs}</span> yrs`;
+  }
   function pay() {
     const lg = L(), t = me();
     const cap = safe(() => PT.League.Cap.cap(lg), C.CAP.BASE);
     const used = safe(() => PT.League.Cap.payroll(lg, t.id), 0);
     const dead = safe(() => PT.League.Cap.dead(lg, t.id), 0);
-    const left = cap - used;
-    const list = PT.League.Q.roster(lg, t.id).filter((p) => p.con).sort((a, b) => b.con.sal - a.con.sal);
-    const deadRows = (t.dead || []).filter((d) => d.s >= lg.season);
-    // ROUND6 0-scroll: Team Cash panel on the left, the payroll as a paged 2-column list on the right
+    const list = PT.League.Q.roster(lg, t.id).filter((p) => p.con)
+      .sort((a, b) => (Math.min(2, K().yrsLeft(a, lg)) - Math.min(2, K().yrsLeft(b, lg))) || (b.con.sal - a.con.sal));
+    if (!list.some((p) => p.id === pst.sel)) pst.sel = list.length ? list[0].id : null;
     const rows = list.map((p) => {
       const yrs = K().yrsLeft(p, lg);
-      return html`<button type="button" class="pay-r ${yrs <= 1 ? 'me' : ''}" data-action="pay-row" data-id="${p.id}" data-testid="pay-row-${p.id}">
-        ${K().posChip(p.pos)}<b class="ellip pay-n">${K().short(p)}${p.con.rk ? html` <span class="chip chip-blue tiny">Rookie</span>` : ''}</b>
-        <span class="num pay-s">${D().money(p.con.sal)}</span>
-        <span class="pay-y">${yrs === 0 ? html`<span class="bad">Ending</span>` : yrs === 1 ? html`<span class="warn">Last yr</span>` : D().plural(yrs, 'yr')}</span></button>`;
+      return html`<button type="button" class="tx-row tx-prow ${yrs <= 1 ? 'tx-exp' : ''} ${p.id === pst.sel ? 'sel' : ''}" data-action="pay-row" data-id="${p.id}" data-testid="pay-row-${p.id}">
+        <span class="tx-nm"><b>${K().pname(p)}</b>${p.con.rk ? html`<span class="chip chip-blue tiny">Rookie</span>` : ''}</span>
+        <span class="tx-c-pos">${K().posChip(p.pos)}</span>
+        <span class="tx-c-pay num">${D().money(p.con.sal)}</span>
+        <span class="tx-c-yrs">${yrsWord(p, lg)}</span></button>`;
     });
-    const pctUsed = Math.min(100, ((used - dead) / cap) * 100), pctDead = Math.min(100 - pctUsed, (dead / cap) * 100);
-    return html`<div class="pay-cols">
-      ${K().card(html`${K().h2('Team Cash')}
-        <div class="cash-big ${left >= 5000 ? 'good' : left >= 1000 ? 'warn' : 'bad'}"><span class="small muted">Left to spend</span><b class="num">${D().money(left)}</b></div>
-        <div class="cash-bar" role="img" aria-label="Team Cash used"><span class="cb-pay" style="width:${pctUsed}%"></span><span class="cb-dead" style="width:${pctDead}%"></span></div>
-        <div class="cash-legend small"><span><i class="lg lg-pay"></i>Pay ${D().money(used - dead)}</span><span><i class="lg lg-dead"></i>Cut Costs ${D().money(dead)}</span><span><i class="lg lg-left"></i>Limit ${D().money(cap)}</span></div>
-        ${deadRows.length ? html`<p class="tiny muted pay-dead">Cut Costs by season: ${deadRows.slice(0, 3).map((d, i) => html`${i ? ' · ' : ''}${d.s} ${D().money(d.amt)}`)}</p>` : ''}`, 'pay-cash')}
-      ${K().card(html`${K().h2('Payroll', html`<span class="tiny muted">Yellow = last year</span>`)}${K().pg('pay', cells(rows), { grid: true, cls: 'pay-pg' })}`, 'fill pay-list')}
-    </div>`;
+    const pctUsed = Math.max(0, Math.min(100, ((used - dead) / cap) * 100)), pctDead = Math.max(0, Math.min(100 - pctUsed, (dead / cap) * 100));
+    const sel = list.find((p) => p.id === pst.sel);
+    const act = sel ? kit.contractAct(sel) : null;
+    const detail = sel ? html`
+      <button type="button" class="tx-dhead" data-action="pay-card" data-id="${sel.id}" data-testid="pay-card" title="Open player card">
+        ${K().portrait(sel, 40, t.col.pri)}<span class="tx-dname"><b>${K().pname(sel)}</b><span class="tx-dsub">${K().posChip(sel.pos)}<span class="tx-dstars">${K().stars(sel.ovr)}</span></span></span></button>
+      <div class="tx-dl"><b class="num">${D().money(sel.con.sal)}</b><span class="muted">a year</span><span class="grow"></span>${yrsWord(sel, lg)}</div>
+      <p class="tx-cut small">${kit.cutText(sel)}</p>
+      <div class="tx-acts">
+        ${act === 'extend' ? K().btn({ label: 'Extend', icon: 'contract', action: 'pay-extend', data: { id: sel.id }, kind: 'go', size: 's', testid: 'btn-pay-extend' }) : ''}
+        ${act === 'keep' ? K().btn({ label: 'Keep', icon: 'contract', action: 'pay-keep', kind: 'go', size: 's', testid: 'btn-pay-keep' }) : ''}
+        ${K().btn({ label: 'Cut', icon: 'scissors', action: 'pay-release', data: { id: sel.id }, kind: 'bad', size: 's', testid: 'btn-pay-release' })}
+      </div>` : K().empty('contract', 'No contracts.');
+    return html`${kit.teamStrip()}
+      <div class="tx-pay">
+        ${K().card(html`<div class="tx-thead tx-prow"><span class="tx-nm">Player</span><span class="tx-c-pos">Pos</span><span class="tx-c-pay">Pay</span><span class="tx-c-yrs">Left</span></div>
+          ${K().pg('pay', rows, { cls: 'tx-pg tx-side-pg' })}`, 'fill tx-list')}
+        <div class="tx-side">
+          ${K().card(html`<div class="tx-capbar-h"><b>Pay</b><span class="small"><b class="num">${D().money(used)}</b> of <span class="num">${D().money(cap)}</span></span></div>
+            <div class="cash-bar tx-cash" role="img" aria-label="Team Cash used"><span class="cb-pay" style="width:${pctUsed}%"></span><span class="cb-dead" style="width:${pctDead}%"></span></div>
+            <div class="tx-legend small">${dead ? html`<span><i class="lg lg-dead"></i>Cut Costs <span class="num">${D().money(dead)}</span></span>` : ''}</div>`, 'tx-cap')}
+          ${K().card(detail, 'fill tx-detail')}
+        </div>
+      </div>`;
   }
 
+  // ---------------- Style ----------------
   function styleTab() {
     const lg = L(), t = me();
-    const open = lg.phase === 'PRESEASON';
-    const card = (side, id, name, blurb, emo) => {
-      const on = t.style && t.style[side] === id;
-      return html`<button type="button" class="style-c ${on ? 'on' : ''}" data-action="style" data-side="${side}" data-id="${id}" data-testid="style-${side}-${id}" ${open ? '' : D().raw('disabled')}>
-        <span class="style-emo">${K().ic(emo)}</span><b>${name}</b><span class="tiny style-fx" title="${blurb[0]}">${blurb[1]}</span>${on ? D().raw('<span class="chip chip-go tiny style-yours">Yours</span>') : ''}</button>`;
+    const open = PT.League.canChangeSetup ? safe(() => PT.League.canChangeSetup(lg), false) : lg.phase === 'PRESEASON';
+    const side = (sd, title, icon, table, blurb, emo) => {
+      const cur = t.style && t.style[sd];
+      const opts = Object.keys(table).map((id) => {
+        const on = cur === id, b = blurb[id] || ['', ''];
+        return html`<button type="button" class="tx-opt ${on ? 'on' : ''}" data-action="style" data-side="${sd}" data-id="${id}" data-testid="style-${sd}-${id}" aria-pressed="${on}" ${open ? '' : D().raw('disabled')}>
+          <span class="tx-opt-ic">${K().ic(emo[id])}</span><span class="tx-opt-m"><b>${table[id]}</b><span class="tx-opt-fx">${b[1]}</span></span>${on ? html`<span class="tx-opt-on">${K().ic('check')}</span>` : ''}</button>`;
+      });
+      return K().card(html`${K().h2(title, '', icon)}<div class="tx-opts n${opts.length}">${opts}</div>`, 'fill tx-style-c');
     };
-    const lock = open ? html`<span class="tiny muted">Pick one of each</span>` : html`<span class="chip chip-want tiny">${K().ic('lock')} Preseason only</span>`;
-    return K().card(html`${K().h2('Team Style', lock)}
-      <div class="style-rows">
-        <div class="style-row"><span class="style-side">${K().ic('football')}<b>Offense</b></span><div class="style-grid st-5">${Object.keys(C.OFF_STYLES).map((id) => card('off', id, C.OFF_STYLES[id], OFF_BLURB[id] || ['', ''], OFF_EMO[id]))}</div></div>
-        <div class="style-row"><span class="style-side">${K().ic('shield')}<b>Defense</b></span><div class="style-grid st-4">${Object.keys(C.DEF_STYLES).map((id) => card('def', id, C.DEF_STYLES[id], DEF_BLURB[id] || ['', ''], DEF_EMO[id]))}</div></div>
-      </div>`, 'fill style-card');
+    const lock = open ? '' : html`<p class="tx-lock small">${K().ic('lock')} Change style before Week 1 or after the season.</p>`;
+    return html`${kit.teamStrip()}${lock}<div class="tx-style">
+      ${side('off', 'Offense', 'football', C.OFF_STYLES, OFF_BLURB, OFF_EMO)}
+      ${side('def', 'Defense', 'shield', C.DEF_STYLES, DEF_BLURB, DEF_EMO)}</div>`;
   }
 
+  const tst = { tab: 'pay' };
   function mountTeam(el, params) {
     if (params.tab) { tst.tab = params.tab; params.tab = null; }
     const tab = tst.tab;
-    let body;
-    if (tab === 'players' || tab === 'lineup') { tst.tab = 'overview'; UI.replace(tab === 'players' ? 'roster' : 'depth'); return; }
-    if (tab === 'pay') body = pay();
-    else if (tab === 'style') body = styleTab();
-    else body = overview();
-    // UI restyle: Overview · Pay · Style are sub-tabs of the Team section (frame .subnav), so no tab strip here
-    D().set(el, K().layout(body, null, 'fit nsb team-' + tab));
+    // Overview / Players / Lineup now live on their own screens
+    if (tab !== 'pay' && tab !== 'style') { tst.tab = 'pay'; UI.replace(tab === 'lineup' ? 'depth' : 'roster'); return; }
+    D().set(el, K().layout(tab === 'pay' ? pay() : styleTab(), null, 'fit tx team-' + tab));
   }
 
   UI.screens.team = {
-    title: (p) => ({ pay: 'Team Pay', style: 'Team Style' })[(p && p.tab) || tst.tab] || 'Team',
+    title: () => me().name,
     nav: 'team',
     curTab: () => tst.tab,
     mount: mountTeam,
-    actions: Object.assign({}, {
-      tab: (el) => { const id = el.getAttribute('data-id'); if (id === 'players' || id === 'lineup') { UI.reset(id === 'players' ? 'roster' : 'depth'); return; } UI.reset('team', { tab: id }); },
-      go: (el) => { const to = el.getAttribute('data-to'); if (to === 'coach') UI.go('coach'); else UI.reset(to); },
-      'pay-row': (el) => UI.go('player', { pid: +el.getAttribute('data-id') }),
+    actions: Object.assign({}, kit.teamHeadActions, {
+      'pay-row': (el) => { pst.sel = +el.getAttribute('data-id'); UI.refresh(); },
+      'pay-card': (el) => UI.go('player', { pid: +el.getAttribute('data-id') }),
+      'pay-release': (el) => kit.release(+el.getAttribute('data-id')),
+      'pay-extend': (el) => kit.extend(+el.getAttribute('data-id')),
+      'pay-keep': () => UI.reset('resign'),
       style: (el) => {
         const r = UI.adapt.setStyle(L(), L().userTid, el.getAttribute('data-side'), el.getAttribute('data-id'));
         if (r && r.ok === false) UI.Toast.show(r.msg, 'bad'); else UI.Toast.show('Style set', 'good');
@@ -193,11 +293,6 @@
       }
     })
   };
-  // shared actions from roster.js / depth.js, resolved at click time (no load-time cross-file reads)
-  const teamActions = UI.screens.team.actions;
-  ['r-filter', 'r-sort', 'd-chip', 'd-pick', 'd-cancel', 'd-auto', 'd-capt'].forEach((a) => {
-    if (!teamActions[a]) teamActions[a] = function (el, ev, p) { const src = Object.assign({}, UI.parts && UI.parts.rosterActions, UI.parts && UI.parts.lineupActions); return src[a] && src[a](el, ev, p); };
-  });
 
   // ---------------- Shop ----------------
   // ROUND6 0-scroll: two panes (Facilities · Coaches). Short screens show one pane at a time (tab buttons);
@@ -212,14 +307,18 @@
       const max = lv >= 5;
       return html`<section class="fac">
         <span class="fac-emo">${K().ic(FAC_EMO[f])}</span>
-        <div class="fac-m"><div class="fac-t"><b class="ellip">${C.FACILITY_NAMES[f]}</b><div class="fac-pips" aria-label="Level ${lv} of 5" title="Level ${lv} of 5">${[1, 2, 3, 4, 5].map((i) => html`<i class="${i <= lv ? 'on' : ''}"></i>`)}</div></div><p class="tiny fac-fx">${FAC_FX[f]}</p></div>
+        <div class="fac-m"><div class="fac-t"><b class="fac-n">${C.FACILITY_NAMES[f]}</b><div class="fac-pips" aria-label="Level ${lv} of 5" title="Level ${lv} of 5">${[1, 2, 3, 4, 5].map((i) => html`<i class="${i <= lv ? 'on' : ''}"></i>`)}</div></div><p class="tiny fac-fx">${FAC_FX[f]}</p></div>
         ${max ? html`<div class="chip chip-gold fac-max">${K().ic('star')} Max</div>` : K().btn({ label: 'Upgrade', sub: D().coins(cost) + ' Coins', icon: 'up', action: 'upgrade', data: { fac: f }, kind: cost <= coins ? 'go' : 'sec', size: 's', testid: 'btn-upgrade-' + f, disabled: cost > coins, cls: 'fac-b' })}
       </section>`;
     });
+    // HUNT #35: show how many parties are left; at 0 the button is off and a Done chip shows
+    const pMax = (PT.League.K && PT.League.K.ECO_PARTY_MAX) || 3;
+    const pLeft = Math.max(0, pMax - (safe(() => PT.League.History.ss(lg).pty, 0) || 0));
     const party = html`<section class="fac fac-party">
       <span class="fac-emo">${K().ic('balloon')}</span>
-      <div class="fac-m"><b class="ellip">Fan Party</b><p class="tiny fac-fx">+5 Hype. Up to 3 a season.</p></div>
-      ${K().btn({ label: 'Party', sub: '100 Coins', icon: 'balloon', action: 'party', kind: coins >= 100 ? 'go' : 'sec', size: 's', disabled: coins < 100, testid: 'btn-fan-party', cls: 'fac-b' })}
+      <div class="fac-m"><b class="fac-n">Fan Party</b><p class="tiny fac-fx">+5 Hype · ${pLeft ? D().plural(pLeft, 'party', 'parties') + ' left' : 'none left'} this season</p></div>
+      ${pLeft ? K().btn({ label: 'Party', sub: '100 Coins', icon: 'balloon', action: 'party', kind: coins >= 100 ? 'go' : 'sec', size: 's', disabled: coins < 100, testid: 'btn-fan-party', cls: 'fac-b' })
+        : html`<div class="chip chip-green fac-max" data-testid="fan-party-done">${K().ic('check')} Done</div>`}
     </section>`;
     const staff = C.STAFF.map((role) => {
       const cur = safe(() => PT.League.Staff.stars(lg, t.id, role), typeof t.stf[role] === 'number' ? t.stf[role] : (t.stf[role] && t.stf[role].st) || 1);
@@ -228,7 +327,8 @@
         <div class="star-pick" role="radiogroup" aria-label="${C.STAFF_NAMES[role]} stars">${[1, 2, 3, 4, 5].map((n) => {
           const delta = C.STAFF_COST[n] - C.STAFF_COST[cur];
           const can = delta <= coins || n <= cur;
-          return html`<button type="button" class="sp-star ${n <= cur ? 'on' : ''} ${n === cur ? 'cur' : ''}" role="radio" aria-checked="${n === cur}" data-action="staff" data-role="${role}" data-n="${n}" data-testid="coach-${role}-${n}" ${can ? '' : D().raw('disabled')} title="${n} Stars · ${C.STAFF_COST[n]} Coins a season"><span>${K().ic('star')}</span><span class="tiny">${C.STAFF_COST[n] ? C.STAFF_COST[n] : 'Free'}</span></button>`;
+          // HUNT #33: tiles up to the current level are gold (filled stars), above it grey stars + price
+          return html`<button type="button" class="sp-star ${n <= cur ? 'on' : ''} ${n === cur ? 'cur' : ''}" role="radio" aria-checked="${n === cur}" data-action="staff" data-role="${role}" data-n="${n}" data-testid="coach-${role}-${n}" ${can ? '' : D().raw('disabled')} title="${n} ${n === 1 ? 'Star' : 'Stars'} · ${D().coins(C.STAFF_COST[n])} Coins a season"><span>${K().ic(n <= cur ? 'star' : 'star-empty')}</span><span class="tiny num">${n === cur ? 'Now' : C.STAFF_COST[n] ? D().coins(C.STAFF_COST[n]) : 'Free'}</span></button>`;
         })}</div>
       </div>`;
     });
@@ -236,10 +336,10 @@
     const tabBtn = (id, label, icon) => html`<button type="button" class="tab shop-tab ${pane === id ? 'on' : ''}" role="tab" aria-selected="${pane === id}" data-action="shop-pane" data-id="${id}" data-testid="shop-tab-${id}">${K().ic(icon)}${label}</button>`;
     D().set(el, K().layout(html`
       <div class="shop-bar" role="tablist">${tabBtn('fac', 'Facilities', 'hammer')}${tabBtn('staff', 'Coaches', 'cap')}
-        <span class="grow"></span>${K().btn({ label: 'Coach Skills', icon: 'grad', action: 'coach', kind: 'sec', size: 's', testid: 'btn-shop-coach' })}</div>
+        <span class="grow"></span></div>
       <div class="shop-panes">
         <div class="shop-pane ${pane === 'fac' ? 'on' : ''}">${K().pg('fac', cells(facCards.concat([party])), { grid: true, cls: 'fac-pg' })}</div>
-        <div class="shop-pane ${pane === 'staff' ? 'on' : ''}">${K().card(html`${K().h2('Coaches', html`<span class="tiny muted">Paid every season</span>`)}${staff}`, 'staff-card')}</div>
+        <div class="shop-pane ${pane === 'staff' ? 'on' : ''}">${K().card(html`${K().h2('Coaches', html`<span class="tiny muted shop-paid">Paid every season</span>`)}${staff}`, 'staff-card')}</div>
       </div>`, null, 'fit nsb shop'));
   }
 
@@ -261,7 +361,7 @@
         const S = PT.League.Staff;
         const r = S && S.setStars ? S.setStars(lg, lg.userTid, role, n) : { ok: false, msg: 'Coaches are not ready yet.' };
         if (r && r.ok === false) { UI.Toast.show(r.msg || 'Not enough Coins.', 'bad'); return; }
-        UI.Toast.show(C.STAFF_NAMES[role] + ': ' + n + ' Stars', 'good');
+        UI.Toast.show(C.STAFF_NAMES[role] + ': ' + n + (n === 1 ? ' Star' : ' Stars'), 'good');   // HUNT #16 grammar
         UI.updateHead();
         UI.refresh();
       },

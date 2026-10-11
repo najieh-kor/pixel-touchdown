@@ -28,18 +28,14 @@
     return [a, b, ours, theirs];
   }
 
-  function stars(L, tid) {
-    const t = L.teams[tid];
-    const out = [];
-    const seen = new Set();
-    C.SLOTS.forEach((s) => { const pid = t.dc[s] && t.dc[s][0]; if (pid != null && s !== 'KR' && !seen.has(pid)) { seen.add(pid); const p = PT.League.Q.player(L, pid); if (p) out.push(p); } });
-    return out.sort((a, b) => b.ovr - a.ovr).slice(0, 3);
-  }
 
-  function side(L, t, label) {
+
+  /** HUNT #46: one team panel; col = its kit colour (same kits as the 3D game, so same-colour teams differ) */
+  function side(L, t, label, col, me) {
     const r = rec(L, t.id);
-    return html`<div class="pg-side" style="${K().teamVars(t)}">
-      <span class="tiny pg-ha">${label}</span>
+    const vars = K().teamVars(t) + (col != null ? ';--t-pri:' + D().hex(col) + ';--t-pri-ink:' + D().inkOn(col) : '');
+    return html`<div class="pg-side ${me ? 'me' : ''}" style="${vars}">
+      <span class="tiny pg-ha">${me ? 'You · ' + label : label}</span>
       ${K().badge(t, 'xl')}
       <b class="pg-name">${t.name}</b>
       ${K().stars(K().teamOvr(t.id), { team: true })}
@@ -58,6 +54,7 @@
     try { cfg = PT.League.Games.config(L, g.gid); } catch (e) { cfg = null; }
     const wx = cfg && cfg.weather;
     const ml = matchLine(u, opp);
+    const kc = K().kitCols(g.h, g.a);
     let rival = u.rival === opp.id, hot = false;
     try {
       const H = PT.League.History;
@@ -65,36 +62,34 @@
       const hr = H && H.hotRival ? H.hotRival(L) : null;
       hot = !!hr && hr.tid === opp.id;
     } catch (e) { /* keep fixed rival */ }
-    const hurt = PT.League.Q.roster(L, u.id).filter((p) => p.inj);
     const title = g.po ? C.PLAYOFF_NAMES[g.po] : 'Week ' + g.wk;
     const done = g.st === 'F';
-    const wxNote = !wx ? '' : wx.k === 'snow' ? 'Snow: slippery and slow.' : wx.k === 'rain' ? 'Rain: the ball is slippery.' : (wx.k === 'wind' || wx.mph >= 12) ? 'Wind: long kicks and passes drift.' : '';
-    const tops = stars(L, u.id);
-    // ROUND6 "0 scrolling": the matchup (badges, Stars, records) + one compact scouting panel; no long lists
-    const body = html`<div class="prex">
+    // UI_RULES 6: two style tags + ONE short single line per side, no wrapped sentences
+    const love = (LOVE[opp.style && opp.style.off] || 'Mixing it up').toLowerCase();
+    const them = html`${K().ic('eye')} They love ${love}.`;
+    const us = ml[2] <= -0.5 ? 'Your offense has the edge.' : ml[3] <= -0.5 ? 'Their offense has the edge.'
+      : ml[3] >= 0.5 ? 'Your defense has the edge.' : ml[2] >= 0.5 ? 'Their defense has the edge.' : 'Even matchup.';
+    const usCls = ml[2] <= -0.5 || ml[3] >= 0.5 ? 'good' : ml[3] <= -0.5 || ml[2] >= 0.5 ? 'bad' : '';
+    const tags = html`<span class="chip chip-blue">${K().ic('football')} ${C.OFF_STYLES[opp.style && opp.style.off] || 'Balanced'}</span><span class="chip chip-red">${K().ic('shield')} ${C.DEF_STYLES[opp.style && opp.style.def] || 'Balanced'}</span>`;
+    const body = html`<div class="prex prez">
       <section class="card pg-match">
-        ${side(L, home ? opp : u, 'AWAY')}
+        ${side(L, u, home ? 'HOME' : 'AWAY', home ? kc.hn : kc.an, true)}
         <div class="pg-vs"><span>VS</span>
-          <div class="pg-tags">${K().chip(title, 'ink')}${rival ? K().chip(hot ? html`${K().ic('flame')} HOT RIVAL` : 'RIVALRY', 'rival') : ''}${g.po === 4 ? K().chip('Pixel Bowl', 'gold') : ''}</div>
+          <div class="pg-tags">${K().chip(title, 'ink')}${rival ? K().chip(hot ? html`${K().ic('flame')} Hot Rival` : 'Rival', 'rival') : ''}</div>
           ${wx ? K().wx(wx.k, wx.mph) : ''}
-          <span class="tiny pg-field">${K().ic(home ? 'home' : 'flag')} ${home ? 'Your field' : 'Road game'}</span>
         </div>
-        ${side(L, home ? u : opp, 'HOME')}
+        ${side(L, opp, home ? 'AWAY' : 'HOME', home ? kc.an : kc.hn, false)}
       </section>
-      <section class="card prex-scout">
-        ${K().h2('Scouting')}
-        <div class="prex-styles"><span class="chip chip-blue">${K().ic('football')} ${C.OFF_STYLES[opp.style && opp.style.off] || '—'}</span><span class="chip chip-red">${K().ic('shield')} ${C.DEF_STYLES[opp.style && opp.style.def] || '—'}</span></div>
-        <p class="pg-love">${K().ic('eye')} They love: <b>${LOVE[opp.style && opp.style.off] || 'Mixing it up'}</b></p>
-        <p class="small ${ml[2] <= -0.5 ? 'good' : ml[2] >= 0.5 ? 'bad' : ''}">${K().ic('football')} ${ml[0]}</p>
-        <p class="small ${ml[3] >= 0.5 ? 'good' : ml[3] <= -0.5 ? 'bad' : ''}">${K().ic('shield')} ${ml[1]}</p>
-        ${wxNote ? html`<p class="small prex-wx">${K().ic(wx.k === 'snow' ? 'snow' : wx.k === 'rain' ? 'rain' : 'wind')} ${wxNote}</p>` : ''}
-        <div class="prex-tops"><span class="tiny muted">Your best</span>${tops.map((p) => html`<span class="chip prex-top" data-testid="pg-star-${p.id}">${K().posChip(p.pos)} ${K().short(p)}</span>`)}${hurt.length ? html`<span class="chip chip-red prex-hurt" title="${hurt.map((p) => K().short(p)).join(', ')}">${K().ic('cross')} ${hurt.length} hurt</span>` : ''}</div>
+      <section class="card prez-scout" data-testid="pg-scout">
+        <div class="prez-tags">${tags}</div>
+        <p class="prez-line">${them}</p>
+        <p class="prez-line ${usCls}">${K().ic('shield')} ${us}</p>
       </section>
     </div>`;
     const foot = done
       ? K().btn({ label: 'See Result', icon: 'clipboard', action: 'result', kind: 'go', size: 'xl', testid: 'btn-pg-result', cls: 'btn-wide' })
-      : html`${K().btn({ label: 'Kick Off', icon: 'football', action: 'play', kind: 'go', size: 'xl', testid: 'btn-play-game' })}${K().btn({ label: 'Sim Game', icon: 'bolt', action: 'sim', kind: 'sec', size: 'm', testid: 'btn-sim-game', cls: 'pg-sim' })}`;
-    D().set(el, K().layout(body, foot, 'fit nsa pregame'));
+      : html`${K().btn({ label: 'Sim', icon: 'bolt', action: 'sim', kind: 'sec', size: 'l', testid: 'btn-sim-game', cls: 'pg-sim' })}${K().btn({ label: 'Play', icon: 'football', action: 'play', kind: 'go', size: 'xl', testid: 'btn-play-game', cls: 'pg-play' })}`;
+    D().set(el, K().layout(body, foot, 'fit pregame'));
   }
 
   function snapshot(L) {

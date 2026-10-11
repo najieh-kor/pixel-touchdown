@@ -430,7 +430,7 @@
   /** Injury check (design 12.1). mult = hit multiplier. */
   CT.injuryCheck = function (G, e, mult) {
     const T = G.T, info = e.info;
-    if (!info || info.out) return;
+    if (!info || info.out || G.drill) return;     // practice drills: nobody gets hurt
     let p = T.INJ_BASE * mult * (1 + Math.max(0, info.age - 29) * T.INJ_AGE);
     if (info.t.glass_bones) p *= 1.75;
     if (info.t.iron_hide) p *= 0.5;

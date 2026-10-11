@@ -37,28 +37,25 @@
   function seg(key, cur, opts, label, scope, disabled) {
     return html`<div class="set-row col-row"><b>${label}</b><div class="seg" role="radiogroup" aria-label="${label}">${opts.map((o) => html`<button type="button" class="btn btn-sec btn-s ${String(cur) === String(o[0]) ? 'on' : ''}" role="radio" aria-checked="${String(cur) === String(o[0]) ? 'true' : 'false'}" data-action="seg" data-k="${key}" data-v="${o[0]}" data-scope="${scope}" data-testid="set-${key}-${o[0]}" ${disabled ? D().raw('disabled') : ''}>${o[1]}</button>`)}</div></div>`;
   }
-  function slider(key, v, label, icon) {
-    return html`<div class="set-row"><span class="set-ic">${K().ic(icon)}</span><div class="grow"><b>${label}</b><input class="rng" type="range" min="0" max="100" step="5" value="${Math.round((v == null ? 0.7 : v) * 100)}" data-k="${key}" data-testid="set-${key}" aria-label="${label}"></div><b class="num set-v">${Math.round((v == null ? 0.7 : v) * 100)}</b></div>`;
-  }
 
-  /**
-   * ROUND6 E: the in-game pace controls live in Settings only (the pause menu opens the same rows via UI.gameSettings).
-   * Game speed = prefs.speed (Session.setSpeed); Defense speed = L.settings.watch; Auto-start defense = L.settings.autoDef
-   * (the coach calls the defense and starts the play; default OFF).
-   */
-  function gameplayRows(p, s, hasL) {
+
+  /** volume as a 4-step segmented control (big touch targets instead of a thin slider) */
+  const VOL = [[0, 'Off'], [0.35, 'Low'], [0.7, 'Mid'], [1, 'High']];
+  const volCur = (v) => { const x = v == null ? 0.7 : v; return VOL.reduce((b, o) => (Math.abs(o[0] - x) < Math.abs(b - x) ? o[0] : b), 0.7); };
+  /** the basic options (client: "show fewer options, just basic ones") — shared by the screen and the in-game modal */
+  function basicRows(p) {
     return html`${seg('speed', p.speed || 0.8, [[0.7, 'Relaxed'], [0.8, 'Normal'], [1, 'Fast']], 'Game speed', 'P')}
-      ${hasL ? seg('watch', s.watch && s.watch !== 3 ? s.watch : 0.8, [[0.8, '0.8×'], [1, '1×'], [1.5, '1.5×']], 'Defense speed', 'L') : ''}
-      ${hasL ? toggle('autoDef', !!s.autoDef, 'Auto-start defense', 'The coach calls the defense and starts the play', 'L') : ''}`;
+      ${seg('music', volCur(p.music), VOL, 'Music', 'P')}
+      ${seg('sfx', volCur(p.sfx), VOL, 'Sound', 'P')}
+      ${seg('haptics', p.haptics !== false ? 1 : 0, [[0, 'Off'], [1, 'On']], 'Vibration', 'P')}`;
   }
-  /** pause-menu entry point: the same Gameplay rows in a modal (works mid-game, no screen change) */
+  /** pause-menu Settings: ONLY the basic options, in a compact 2-column modal that fits 667×375 */
   UI.gameSettings = function () {
-    const L = PT.App && PT.App.L;
-    return UI.Modal.open({ title: 'Settings', icon: 'gear', cls: 'm-settings',
-      body: html`<div class="set-modal">${gameplayRows(prefs(), (L && L.settings) || {}, !!L)}</div>`,
+    const L = PT.App && PT.App.L, st = (L && L.settings) || {};
+    return UI.Modal.open({ title: 'Settings', cls: 'm-settings',
+      body: html`<div class="set-modal">${basicRows(prefs())}${L ? seg('lefty', st.lefty ? 1 : 0, [[0, 'Off'], [1, 'On']], 'Left-handed', 'L') : ''}${L ? seg('autoDef', st.autoDef ? 1 : 0, [[0, 'Off'], [1, 'On']], 'Auto-start D', 'L') : ''}</div>`,
       actions: {
-        seg: (el, card) => { applySeg(el); D().$$('[data-k="' + el.getAttribute('data-k') + '"]', card).forEach((b) => { const on = b === el; b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on)); }); },
-        tog: (el) => applyTog(el)
+        seg: (el, card) => { applySeg(el); D().$$('[data-k="' + el.getAttribute('data-k') + '"]', card).forEach((b) => { const on = b === el; b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on)); }); }
       },
       buttons: [{ label: 'Done', value: true, kind: 'go', testid: 'btn-settings-done' }] });
   };
@@ -71,66 +68,60 @@
   function applySeg(el) {
     const k = el.getAttribute('data-k'); let v = el.getAttribute('data-v');
     if (!isNaN(+v)) v = +v;
+    if (k === 'haptics' || k === 'lefty' || k === 'autoDef') v = !!v;
     if (k === 'quality') { const was = prefs().quality; if ((was === 'low' && v !== 'low') || (was === 'med' && v === 'high')) qNote = true; else if (v === 'low') qNote = false; }
     if (el.getAttribute('data-scope') === 'P') setPref({ [k]: v });
     else if (k === 'diff') { const L = PT.App.L; const fn = PT.League.setDifficulty; if (fn && !fn.__stub) fn(L, v); else { L.diff = v; if (PT.Events) PT.Events.emit('league:changed', { what: 'diff' }); } }
     else UI.adapt.setSetting(k, v);
     if (k === 'watch') { try { if (PT.Session && PT.Session.setWatchSpeed) PT.Session.setWatchSpeed(v); } catch (e) { /* ignore */ } }
+    if (k === 'autoDef') { try { if (PT.Session && PT.Session.setAutoDef) PT.Session.setAutoDef(v); } catch (e) { /* ignore */ } }
+    if (k === 'lefty') { try { if (PT.Input && PT.Input.setOptions) PT.Input.setOptions({ lefty: v }); } catch (e) { /* ignore */ } }
   }
   let qNote = false;   // set after stepping up from Fast in this session (the lower-res buffers stay until a reload)
-  /** ROUND6 "0 scrolling": Settings is split into tabs; each tab is two short columns */
-  const SET = { tab: 'sound' };
-  function mount(el, params) {
-    if (params && params.tab) { SET.tab = params.tab; params.tab = null; }
+  /**
+   * Settings: the basics up front, everything else under "More options". Client: Settings is the ONE screen that may
+   * scroll (touch-friendly), so nothing here is ever cut off.
+   */
+  function mount(el) {
     const p = prefs();
     const L = PT.App && PT.App.L;
     const s = (L && L.settings) || {};
-    const tabs = [{ id: 'sound', label: 'Sound', icon: 'speaker' }, { id: 'play', label: 'Controls', icon: 'football' }].concat(L ? [{ id: 'rules', label: 'Rules', icon: 'clock' }] : []).concat([{ id: 'save', label: 'Save', icon: 'save' }]);
-    if (!tabs.some((x) => x.id === SET.tab)) SET.tab = 'sound';
-    const col = (inner, cls) => html`<section class="card setx-col ${cls || ''}">${inner}</section>`;
-    let cols;
-    if (SET.tab === 'play') {
-      cols = html`${col(gameplayRows(p, s, !!L), 'set-gameplay')}
-        ${col(L ? html`${seg('aimMode', s.aimMode || 'sling', [['sling', 'Slingshot'], ['point', 'Point']], 'Aim style', 'L')}
-          ${toggle('easyThrow', s.easyThrow, 'Easy Throw', 'Tap numbered badges to throw', 'L')}
-          ${toggle('autoKick', s.autoKick, 'Auto Kick', 'Kicks are automatic', 'L')}
-          ${toggle('lefty', s.lefty, 'Left-handed', 'Swap the joystick and buttons', 'L')}` : html`<p class="small muted">More controls show up once a franchise is loaded.</p>
-          ${K().btn({ label: 'How to Play', icon: 'question', action: 'controls', kind: 'sec', testid: 'btn-controls', cls: 'btn-wide' })}`)}`;
-    } else if (SET.tab === 'rules' && L) {
-      cols = html`${col(html`${seg('qLen', s.qLen || 180, [[120, '2 min'], [180, '3 min'], [300, '5 min']], 'Quarter length', 'L')}
-          ${toggle('penalties', s.penalties !== false, 'Penalties', 'Flags on the field', 'L')}
-          ${toggle('autoLineup', s.autoLineup, 'Auto Lineup', 'Best players start each week', 'L')}`)}
-        ${col(html`${seg('diff', L.diff, (PT.C.DIFFS || ['Beginner', 'Normal', 'Expert', 'Legend']).map((n, i) => [i, n]), 'Difficulty', 'L')}
-          <div class="set-row setx-help">${K().btn({ label: 'How to Play', icon: 'question', action: 'controls', kind: 'sec', testid: 'btn-controls', cls: 'btn-wide' })}</div>`)}`;
-    } else if (SET.tab === 'save') {
-      cols = html`${col(html`<div class="setx-btns">
-          ${L ? K().btn({ label: 'Save Now', icon: 'save', action: 'save', kind: 'go', size: 'l', testid: 'btn-save' }) : ''}
-          ${L ? K().btn({ label: 'Quit to Title', icon: 'home', action: 'quit', kind: 'sec', size: 'l', testid: 'btn-quit-title' }) : ''}
-          ${K().btn({ label: 'Save Slots', icon: 'folder', action: 'slots', kind: 'sec', size: 'l', testid: 'btn-set-slots' })}
-        </div>`)}
-        ${col(html`<div class="setx-btns">
-          ${L ? '' : K().btn({ label: 'How to Play', icon: 'question', action: 'controls', kind: 'sec', size: 'l', testid: 'btn-controls' })}
-          ${K().btn({ label: 'Credits', icon: 'heart', action: 'credits', kind: 'ghost', size: 'l', testid: 'btn-credits' })}
-        </div><p class="tiny muted setx-ver">Pixel Touchdown v${PT.VERSION || '0.1'}</p>`)}`;
-    } else {
-      cols = html`${col(html`${slider('sfx', p.sfx, 'Sounds', 'speaker')}${slider('music', p.music, 'Music', 'music')}${toggle('haptics', p.haptics !== false, 'Vibration', 'Buzz on big hits', 'P')}`)}
-        ${col(html`${seg('quality', p.quality || 'auto', [['auto', 'Auto'], ['high', 'Sharp'], ['med', 'Balanced'], ['low', 'Fast']], 'Graphics', 'P')}
-          ${qNote ? html`<p class="tiny muted set-note" data-testid="set-quality-note">Restart to get full sharpness.</p>` : ''}
-          ${toggle('reduceMotion', p.reduceMotion, 'Reduce Motion', 'Less shake and bounce', 'P')}
-          ${seg('textSize', p.textSize || 'normal', [['normal', 'Normal'], ['big', 'Big']], 'Text size', 'P')}`)}`;
-    }
-    const body = html`${K().tabs(tabs.map((x) => ({ id: x.id, label: x.label, icon: x.icon, testid: 'tab-set-' + x.id })), SET.tab, 'set-tab')}
-      <div class="cols2 setx">${cols}</div>`;
-    D().set(el, K().layout(body, null, 'fit nsa setx-lay'));
+    const sec = (title, icon, inner, cls) => K().card(html`${K().h2(title, null, icon)}<div class="setz-grid">${inner}</div>`, 'setz ' + (cls || ''));
+    const basics = html`${basicRows(p)}
+      ${L ? seg('diff', L.diff, (PT.C.DIFFS || ['Beginner', 'Normal', 'Expert', 'Legend']).map((n, i) => [i, n]), 'Difficulty', 'L') : ''}
+      ${L ? seg('qLen', s.qLen || 180, [[120, '2 min'], [180, '3 min'], [300, '5 min']], 'Quarter length', 'L') : ''}`;
+    const more = html`${L ? seg('watch', s.watch && s.watch !== 3 ? s.watch : 0.8, [[0.8, '0.8×'], [1, '1×'], [1.5, '1.5×']], 'Defense speed', 'L') : ''}
+      ${L ? toggle('autoDef', !!s.autoDef, 'Auto-start defense', 'Coach calls and starts the play', 'L') : ''}
+      ${seg('quality', p.quality || 'auto', [['auto', 'Auto'], ['high', 'High'], ['med', 'Med'], ['low', 'Low']], 'Graphics', 'P')}
+      ${L ? seg('aimMode', s.aimMode || 'sling', [['sling', 'Slingshot'], ['point', 'Point']], 'Aim style', 'L') : ''}
+      ${L ? toggle('lefty', s.lefty, 'Left-handed', 'Swap stick and buttons', 'L') : ''}
+      ${L ? toggle('easyThrow', s.easyThrow, 'Easy Throw', 'Numbered throw badges', 'L') : ''}
+      ${L ? toggle('autoKick', s.autoKick, 'Auto Kick', 'Kicks are automatic', 'L') : ''}
+      ${L ? toggle('penalties', s.penalties !== false, 'Penalties', 'Flags on the field', 'L') : ''}
+      ${L ? toggle('autoLineup', s.autoLineup, 'Auto Lineup', 'Best players start', 'L') : ''}
+      ${toggle('reduceMotion', p.reduceMotion, 'Reduce Motion', 'Less shake and bounce', 'P')}
+      ${seg('textSize', p.textSize || 'normal', [['normal', 'Normal'], ['big', 'Big']], 'Text size', 'P')}
+      ${qNote ? html`<p class="tiny muted set-note" data-testid="set-quality-note">Restart to get full sharpness.</p>` : ''}`;
+    const data = html`<div class="setz-btns">
+        ${L ? K().btn({ label: 'Save Now', icon: 'save', action: 'save', kind: 'go', size: 'm', testid: 'btn-save' }) : ''}
+        ${K().btn({ label: 'Save Slots', icon: 'folder', action: 'slots', kind: 'sec', size: 'm', testid: 'btn-set-slots' })}
+        ${K().btn({ label: 'How to Play', icon: 'question', action: 'controls', kind: 'sec', size: 'm', testid: 'btn-controls' })}
+        ${L ? K().btn({ label: 'Quit to Title', icon: 'home', action: 'quit', kind: 'sec', size: 'm', testid: 'btn-quit-title' }) : ''}
+        ${K().btn({ label: 'Credits', icon: 'heart', action: 'credits', kind: 'ghost', size: 'm', testid: 'btn-credits' })}
+      </div><p class="tiny muted setx-ver">Pixel Touchdown v${PT.VERSION || '0.1'}</p>`;
+    const body = html`${sec('Basics', 'gear', basics, 'setz-basic')}
+      ${sec('More options', 'plus', more, 'setz-more')}
+      ${K().card(html`${K().h2('Saves & help', null, 'save')}${data}`, 'setz')}`;
+    D().set(el, K().layout(body, null, 'settings-scroll'));
   }
 
 
   // ---------------- How to Play ----------------
   const HT = { tab: 'controls' };
-  const HT_TABS = [{ id: 'controls', label: 'Controls', icon: 'football' }, { id: 'offense', label: 'Offense', icon: 'football' }, { id: 'defense', label: 'Defense', icon: 'shield' }, { id: 'counters', label: 'Counters', icon: 'brain' }, { id: 'manager', label: 'Coach', icon: 'cap' }, { id: 'modes', label: 'Modes', icon: 'dice' }];
+  const HT_TABS = [{ id: 'controls', label: 'Controls', icon: 'football' }, { id: 'offense', label: 'Offense', icon: 'football' }, { id: 'defense', label: 'Defense', icon: 'shield' }, { id: 'counters', label: 'Counters', icon: 'brain' }, { id: 'manager', label: 'Franchise', icon: 'cap' }, { id: 'modes', label: 'Modes', icon: 'dice' }];
   const kbd = (k) => html`<span class="kbd">${k}</span>`;
   function ctlRow(what, touch, mouse, keys, pad) {
-    return html`<div class="htc-row"><b>${what}</b><span>${touch}</span><span>${mouse}</span><span>${keys.map(kbd)}</span><span class="ht-pad">${pad || '–'}</span></div>`;
+    return html`<div class="htc-row"><b>${what}</b><span>${touch}</span><span class="htc-m">${mouse}</span><span class="htc-k">${keys.map(kbd)}</span><span class="ht-pad">${pad || '–'}</span></div>`;
   }
   /** ROUND6 "0 scrolling": three picture cards on the left, the full button list paged on the right */
   function howControls() {
@@ -138,9 +129,9 @@
       <div class="ht-pics">
         <figure class="ht-pic"><div class="ht-phone"><span class="ht-joy"><i></i></span><span class="ht-btns"><i>JUKE</i><i>SPIN</i><i>DIVE</i><i>SPRINT</i></span></div><figcaption><b>Touch</b> Drag on the left to run. Buttons on the right.</figcaption></figure>
         <figure class="ht-pic"><div class="ht-sling"><span class="ht-qb">${K().ic('football')}</span><span class="ht-pull"></span><span class="ht-target">${K().ic('target')}</span></div><figcaption><b>Throw</b> Pull back like a slingshot, let go to throw.</figcaption></figure>
-        <figure class="ht-pic"><div class="ht-keys">${['W', 'A', 'S', 'D'].map(kbd)}<span class="ht-space">${kbd('Space')}</span></div><figcaption><b>Keyboard</b> WASD to run, Space to hike and juke.</figcaption></figure>
+        <figure class="ht-pic ht-pic-kbd"><div class="ht-keys">${['W', 'A', 'S', 'D'].map(kbd)}<span class="ht-space">${kbd('Space')}</span></div><figcaption><b>Keyboard</b> WASD to run, Space to hike and juke.</figcaption></figure>
       </div>
-      ${K().card(html`${K().h2('All the buttons')}<div class="htc-row htc-head"><span></span><span>Touch</span><span>Mouse</span><span>Keys</span><span>Gamepad</span></div>
+      ${K().card(html`${K().h2('All the buttons')}<div class="htc-row htc-head"><span></span><span>Touch</span><span class="htc-m">Mouse</span><span class="htc-k">Keys</span><span class="ht-pad">Gamepad</span></div>
         ${K().pg('ht-ctl', [
     ctlRow('Run', 'Drag left side', 'Hold + point', ['W', 'A', 'S', 'D'], 'Left stick'),
     ctlRow('Sprint', 'Push stick all the way', 'Hold Shift', ['Shift'], 'Hold RT'),
@@ -169,7 +160,7 @@
     step(1, 'Practice Field', 'Learn to pass, run, defend and kick, one drill at a time. Skip any drill.', ''),
     step(2, 'Quick Game', 'Pick two teams, set the weather and quarter length, and play.', ''),
     step(3, 'Franchise', 'Run a team season after season. Manage the roster, the Draft and the Market.', ''),
-    step(4, 'Fantasy Draft', 'Turn on Fantasy Draft when you start a franchise. All 32 teams draft new rosters from one pool.', ''),
+    step(4, 'Star Draft', 'Turn on Star Draft when you start a franchise. Draft your 8 Stars; the rest of the roster fills in.', ''),
     step(5, 'Power Rankings', 'All 32 teams ranked each week by record, points, Stars and form. Find it under League, Power Rank.', '')])}`, 'fill');
   }
   /** a paged grid of how-to steps (two columns on wide screens) */
@@ -216,7 +207,7 @@
     });
     return html`<div class="cols2 htx-cnt">
       ${K().card(html`${K().h2('Counters')}<div class="htk-row htk-head"><span>Their play</span><span>Great defense</span><span>Weak defense</span></div>${K().pg('ht-cnt', rows)}`, 'fill')}
-      ${K().card(html`${K().h2('Quick rules')}<p class="small">Every Defense Call beats some plays and loses to others.</p><ul class="bul small"><li>Rush (blitz) beats deep passes, but screens beat rush.</li><li>Wall stops runs up the middle, but fakes beat Wall.</li><li>Areas stop long bombs; quick short passes beat soft Areas.</li></ul>`)}
+      ${K().card(html`${K().h2('Quick rules')}<ul class="bul small"><li>Stampede beats deep passes. Screens beat Stampede.</li><li>Brick House stops inside runs. Fakes beat it.</li></ul>`)}
     </div>`;
   }
   function howManager() {
@@ -250,7 +241,6 @@
     chrome: 'full',
     mount: mount,
     actions: {
-      'set-tab': (el) => { SET.tab = el.getAttribute('data-id'); UI.refresh(); },
       tog: (el) => applyTog(el),
       seg: (el) => { applySeg(el); UI.refresh(); },
       save: () => { const r = PT.App.save({}); UI.Toast.show(r && r.ok === false ? 'Save failed' : 'Saved', r && r.ok === false ? 'bad' : 'good'); },

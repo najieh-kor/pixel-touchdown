@@ -14,8 +14,7 @@
   const D = () => UI.dom, K = () => UI.comp;
   const html = function () { return UI.dom.html.apply(null, arguments); };
 
-  const DIFF = [['rookie', 'Beginner', 'Learn the game', 'Big aim help'], ['pro', 'Normal', 'A fair fight', 'The standard game'],
-    ['shield', 'Expert', 'Sharp AI', 'Less help'], ['legend', 'Legend', 'Very tough', 'Smartest AI']];
+  // HUNT #23: difficulty cards come from K().diffCards (same table as New Game)
   /** pixel icon from PT.UI.Icons when the art pack is loaded (no emoji fallback: plain words carry the meaning) */
   const ic = (n) => (UI.Icons && UI.Icons.get ? UI.Icons.get(n) : null) || undefined;
   const QLEN = [[120, '2 min'], [180, '3 min'], [300, '5 min'], [420, '7 min']];
@@ -73,7 +72,7 @@
   const randBtn = (label) => K().btn({ label: 'Random', icon: ic('dice'), action: 'random', kind: 'gold', size: 's', testid: 'btn-qg-random', title: label, cls: 'qgx-rand' });
 
   function stepYou() {
-    return K().layout(html`<div class="qgx-head">${steps(1)}<p class="lead-note qg-note">Choose your team.</p>${randBtn('Random Team')}</div>${grid('pick-team', -1)}`, null, 'fit nsa quick');
+    return K().layout(html`<div class="qgx-head">${steps(1)}${randBtn('Random Team')}</div>${grid('pick-team', -1)}`, null, 'fit nsa quick');
   }
   function stepOpp() {
     const t = teamDef(st.tid);
@@ -85,17 +84,17 @@
     return K().layout(html`<div class="cols2 qgx">
       <div>
         <section class="card qg-vs">
-          <button type="button" class="qg-side" data-action="change-team" data-testid="btn-qg-change-team" style="${K().teamVars(t)}">${K().badge(t, 'l')}<b class="ellip">${t.name}</b>${K().stars(ovrs()[t.id], { team: true })}<span class="tiny">You · Home</span></button>
+          <button type="button" class="qg-side" data-action="change-team" data-testid="btn-qg-change-team" style="${K().teamVars(t)}">${K().badge(t, 'l')}<b class="ellip">${t.name}</b>${K().stars(ovrs()[t.id], { team: true })}</button>
           <span class="qg-vs-t">VS</span>
-          <button type="button" class="qg-side" data-action="change-opp" data-testid="btn-qg-change-opp" style="${K().teamVars(o)}">${K().badge(o, 'l')}<b class="ellip">${o.name}</b>${K().stars(ovrs()[o.id], { team: true })}<span class="tiny">Away</span></button>
+          <button type="button" class="qg-side" data-action="change-opp" data-testid="btn-qg-change-opp" style="${K().teamVars(o)}">${K().badge(o, 'l')}<b class="ellip">${o.name}</b>${K().stars(ovrs()[o.id], { team: true })}</button>
         </section>
         <section class="card">${K().h2('Difficulty')}
-          <div class="diffs" role="radiogroup" aria-label="Difficulty">${DIFF.map((d, i) => html`<button type="button" class="diff ${st.diff === i ? 'on' : ''}" role="radio" aria-checked="${st.diff === i}" data-action="diff" data-d="${i}" data-testid="qg-diff-${i}" title="${d[3]}">${ic(d[0]) ? html`<span class="diff-emo">${ic(d[0])}</span>` : ''}<span class="diff-n">${d[1]}</span><span class="diff-l">${d[2]}</span></button>`)}</div>
+          ${K().diffCards(st.diff, 'qg-diff-')}
         </section>
       </div>
       <div>
         <section class="card">${K().h2('Quarter length')}${seg(QLEN, st.q, 'qlen', 'qg-q-')}</section>
-        <section class="card">${K().h2('Weather')}${seg(Object.keys(WX).map((k) => [k, WX[k].name]), st.wx, 'wx', 'qg-wx-')}</section>
+        <section class="card qg-wx-card">${K().h2('Weather')}${seg(Object.keys(WX).map((k) => [k, WX[k].name]), st.wx, 'wx', 'qg-wx-')}</section>
       </div>
     </div>`,
     K().btn({ label: 'Kick Off', icon: ic('ball'), action: 'play', kind: 'go', size: 'xl', testid: 'btn-quick-play', cls: 'btn-wide' }), 'fit nsa quick');
@@ -178,7 +177,7 @@
       ${K().btn({ label: 'Play Again', icon: ic('replay'), action: 'again', kind: 'go', size: 'l', testid: 'btn-qg-again', cls: 'pgx-go' })}`;
     const v = UI.finalView(box, { sub: ['Quick Game', box.ot ? 'Overtime' : '', params.quit ? 'Simmed' : 'Final'].filter(Boolean).join(' · '), foot: foot });
     D().set(el, html`<div class="pgx-q">${v.html}</div>`);
-    if (res === 'W') { const host = el.querySelector('.pgx-head'); if (host) K().confetti(host, 50, [D().hex(t.col.pri), D().hex(t.col.sec), '#ffd23f', '#ffffff']); }
+    if (res === 'W') { const host = el.querySelector('.pgx'); if (host) K().confetti(host, 50, [D().hex(t.col.pri), D().hex(t.col.sec), '#ffd23f', '#ffffff']); }
   }
 
   UI.screens.quickpost = {

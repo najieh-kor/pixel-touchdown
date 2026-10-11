@@ -517,3 +517,38 @@ input[type="range"].rng::-moz-range-thumb { width: 22px; height: 30px; backgroun
 .m-list .mbody .pg { flex: 1 1 auto; }
 .m-list .pg-list.pg-grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
 .m-list .prow { min-height: 48px; }
+/* UI_RULES 8: a star rating + a SMALL grey number — never a big number next to the stars */
+.stars-num { font-size: 12px !important; font-family: var(--font) !important; opacity: 0.7; font-weight: 700; margin-left: 3px; }
+.tm-capt-n { white-space: normal; overflow-wrap: break-word; line-height: 1.1; }
+.pg-list > * { flex-shrink: 0; }   /* paged rows keep their height; the pager decides how many fit */
+/* compact footer pager (more rows per page) */
+.pg-ctl { padding-top: 4px; gap: 10px; }
+.pg-ctl .pg-b { min-height: 36px; min-width: 48px; }
+.pg-ctl .pg-n { font-size: 19px; }
+
+/* ---------------- HUNT-ui-core fixes (shared) ---------------- */
+/* #1: the rail already absorbs the left safe-area inset; everything to its right must not add it again */
+.frame.has-nav .view, .frame.has-nav .subnav, .frame.has-nav .foot { --sal: 0px; }
+/* #15: on landscape phones toasts sit bottom-left above the footer bar, never over the tab rows */
+@media (orientation: landscape) and (max-height: 480px) {
+  #toast { justify-content: flex-end; align-items: flex-start; padding: 0 0 calc(70px + var(--sab)) calc(96px + var(--sal)); }
+  #toast .toast { max-width: 46vw; }
+  #hud.on ~ #toast { justify-content: flex-start; align-items: center; padding: calc(52px + var(--sat)) 12px 0; }
+}
+/* #40: 44px touch targets on touch screens */
+@media (pointer: coarse) {
+  .btn-back, .sub-i, .tab, .fchip, .pg-b, .btn-s, .seg .btn, .hq-ticker, .rec-sb { min-height: 44px; }
+  .btn-back, .pg-b { min-width: 44px; }
+  .toggle { min-height: 40px; }
+}
+/* #41: the selected tab / chip stays in line with its neighbours (the press offset is only for :active) */
+.tab.on, .fchip.on { transform: none; }
+/* #18: the team abbreviation sits on its own band under the mascot, never over the art, and is at least 12px */
+.badge { box-shadow: var(--frame), inset 0 -14px 0 0 var(--t-sec), inset 0 var(--px) 0 0 rgba(255, 255, 255, 0.28); }
+.badge .badge-img { top: 1px; height: calc(100% - 15px); object-fit: contain; }
+.badge-ab { height: 14px; font-size: 12px; color: var(--t-sec-ink); background: var(--t-sec); }
+.badge-l .badge-img, .badge-xl .badge-img { height: calc(100% - 18px); }
+.badge-l .badge-ab { height: 17px; font-size: 15px; }
+.badge-xl .badge-img { height: calc(100% - 24px); }
+.badge-xl .badge-ab { height: 23px; font-size: 20px; }
+.badge-s .badge-img { height: 92%; top: 4%; }

@@ -198,7 +198,7 @@
 
   // ---------------- cards (in-game overlay, "pk-" classes) ----------------
   // Offense playbook groups (More view tabs) and defense groups. Grouped by the play's type/k/tags.
-  const OFF_GROUPS = [['all', 'All'], ['run', 'Runs'], ['short', 'Short'], ['deep', 'Deep'], ['screen', 'Screens'], ['trick', 'Trick']];
+  const OFF_GROUPS = [['all', 'All'], ['run', 'Runs'], ['short', 'Short'], ['deep', 'Deep'], ['screen', 'Screens'], ['trick', 'Trick'], ['special', 'Special']];
   const DEF_GROUPS = [['all', 'All'], ['run', 'Run Stop'], ['zone', 'Zone'], ['man', 'Man'], ['blitz', 'Blitz']];
   function playData(c, side) {
     try {
@@ -216,6 +216,8 @@
       if (g === 'rush' || g === 'blitz' || tags.includes('blitz') || tags.includes('rush')) return 'blitz';
       return 'man';
     }
+    // kicks / clock plays (Field Goal on any down in range, Punt, Spike, Kneel) → Special
+    if (c.k === 'special' || /^(SPECIAL|CLOCK)$/i.test(String(c.type || '')) || c.id === 'fg' || c.id === 'punt' || (d && d.clock)) return 'special';
     const ty = String((d && d.type) || c.type || '').toUpperCase();
     if (ty === 'IRUN' || ty === 'ORUN') return 'run';
     if (ty === 'SHORT') return 'short';
@@ -228,7 +230,7 @@
     if (k === 'pa' || k === 'trick' || k === 'special' || tags.includes('trick')) return 'trick';
     return tags.includes('deep') ? 'deep' : 'short';
   }
-  const GROUP_ICON = { run: 'up', short: 'ball', deep: 'lob', screen: 'back', trick: 'trick', zone: 'shield', man: 'eye', blitz: 'bolt', all: 'plus' };
+  const GROUP_ICON = { run: 'up', short: 'ball', deep: 'lob', screen: 'back', trick: 'trick', zone: 'shield', man: 'eye', blitz: 'bolt', special: 'posts', all: 'plus' };
   /** card icon: the play's icon NAME from the data ('run','pass','deep','screen','trick','blitz','zone','man', …) through
    *  PT.UI.Icons (via Hud.icon); emoji / unknown icons fall back to the group icon */
   const ICON_ALIAS = { pass: 'ball', short: 'ball', run: 'up', deep: 'lob', screen: 'back', trick: 'trick', pa: 'flip', fake: 'flip',
@@ -244,7 +246,7 @@
     }
     return GROUP_ICON[g] || 'ball';
   }
-  const GROUP_WORD = { run: 'Run', short: 'Short', deep: 'Deep', screen: 'Screen', trick: 'Trick', zone: 'Zone', man: 'Man', blitz: 'Blitz' };
+  const GROUP_WORD = { run: 'Run', short: 'Short', deep: 'Deep', screen: 'Screen', trick: 'Trick', zone: 'Zone', man: 'Man', blitz: 'Blitz', special: 'Special' };
 
   function diaHtml(c, side, big) {
     const svg = side === 'D' ? defSvg(c.id, false) : routeSvg(c.id, PC.state.flip);
@@ -332,7 +334,15 @@
     const chips = side === 'O'
       ? html`${chip('Flip', 'flip', 'flip', 'btn-flip', PC.state.flip)}${chip('Hurry', 'bolt', 'hurry', 'btn-hurry', PC.state.hurry)}${o.canTimeout !== false ? chip('Timeout', 'clock', 'timeout', 'btn-timeout', false, (tos > 0 ? '' : 'disabled') + ' data-n="' + tos + '"') : ''}`
       : html`${chip('Skip Drive', 'ff', 'simdrive', 'btn-sim-drive', false, '', 'pk-chip-skip')}${o.canTimeout ? chip('Timeout', 'clock', 'timeout', 'btn-timeout', false, (tos > 0 ? '' : 'disabled') + ' data-n="' + tos + '"') : ''}`;
-    const fourth = o.fourth ? html`${chip('Punt', 'boot', 'punt', 'btn-4th-punt', false, '', 'pk-chip-4th')}${o.fourth.fgPct ? chip('FG ' + o.fourth.fgPct + '%', 'posts', 'fg', 'btn-4th-fg', false, '', 'pk-chip-4th pk-chip-gold') : ''}` : '';
+    // special chips: 4th-down Punt/FG (resolve PUNT/FG → Session → game.fourth), else any offered Field Goal (in range,
+    // any down), Spike and Kneel cards → tapping resolves that card's id (game.callPlay('fg') starts the kick flow)
+    const spc = (id) => { const i = cards.findIndex((c) => c.id === id); return i >= 0 ? { c: cards[i], i: i } : null; };
+    const fgC = spc('fg'), spikeC = spc('spike'), kneelC = spc('kneel');
+    const fgPct = (x) => (x.c.pct != null ? x.c.pct : +((String(x.c.desc || '').match(/(\d+)\s*%/) || [])[1] || 0));
+    const cardChip = (x, label, icon, testid, cls) => html`<button type="button" class="pk-chip ${cls || ''}" data-pact="card" data-i="${x.i}" data-testid="${testid}"><span class="pk-chip-ic" aria-hidden="true">${ic(icon)}</span><span class="pk-chip-t">${label}</span></button>`;
+    const fourth = side !== 'O' ? '' : html`${o.fourth ? html`${chip('Punt', 'boot', 'punt', 'btn-4th-punt', false, '', 'pk-chip-4th')}${o.fourth.fgPct ? chip('FG ' + o.fourth.fgPct + '%', 'posts', 'fg', 'btn-4th-fg', false, '', 'pk-chip-4th pk-chip-gold') : ''}` : ''}
+      ${!(o.fourth && o.fourth.fgPct) && fgC && fgC.c.ok !== false ? cardChip(fgC, 'FG ' + fgPct(fgC) + '%', 'posts', 'btn-fg', 'pk-chip-4th pk-chip-gold') : ''}
+      ${spikeC ? cardChip(spikeC, 'Spike', 'clock', 'btn-spike', 'pk-chip-4th') : ''}${kneelC ? cardChip(kneelC, 'Kneel', 'clock', 'btn-kneel', 'pk-chip-4th') : ''}`;
     const love = side === 'D' ? loveText(o) : '';
     const head = html`<div class="pk-head">
         <div class="pk-title"><b>${side === 'O' ? 'Pick a Play' : 'Pick a Defense'}</b><span class="pk-sit">${sitText(o.sit)}</span></div>
@@ -344,21 +354,27 @@
       const groups = (side === 'O' ? OFF_GROUPS : DEF_GROUPS).filter((g) => g[0] === 'all' || cards.some((c) => groupOf(c, side) === g[0]));
       if (!groups.some((g) => g[0] === cur.filter)) cur.filter = 'all';
       const list = cards.map((c, i) => ({ c: c, i: i })).filter((x) => cur.filter === 'all' || groupOf(x.c, side) === cur.filter);
-      const locked = lockedPlays(side, cards).filter((c) => cur.filter === 'all' || groupOf(c, side) === cur.filter);
+      const allLocked = lockedPlays(side, cards);
+      const locked = allLocked.filter((c) => cur.filter === 'all' || groupOf(c, side) === cur.filter);
+      const countIn = (gid) => (gid === 'all' ? cards.length + allLocked.length
+        : cards.filter((c) => groupOf(c, side) === gid).length + allLocked.filter((c) => groupOf(c, side) === gid).length);
       // ZERO SCROLL: pages sized to what fits (cur.per is measured after render, see fitPage)
       const items = list.map((x) => miniHtml(x.c, x.i, x.i === best, side)).concat(locked.map((c) => lockedHtml(c, side)));
       const per = Math.max(1, cur.per || 8);
       const pages = Math.max(1, Math.ceil(items.length / per));
+      cur.pages = pages;
       cur.page = Math.max(0, Math.min(pages - 1, cur.page || 0));
       const shown = items.slice(cur.page * per, cur.page * per + per);
       const pager = html`<div class="pk-pager">
           <button type="button" class="pk-tab pk-pg" data-pact="pageprev" data-testid="btn-page-prev" aria-label="Previous page" ${cur.page > 0 ? '' : D().raw('disabled')}>${ic('back')}</button>
           <span class="pk-pg-n" data-testid="page-indicator">${cur.page + 1}/${pages}</span>
           <button type="button" class="pk-tab pk-pg pk-pg-next" data-pact="pagenext" data-testid="btn-page-next" aria-label="Next page" ${cur.page < pages - 1 ? '' : D().raw('disabled')}>${ic('play')}</button></div>`;
-      l.innerHTML = String(sheet('pk-more pk-side-' + side, html`${head}
-        <div class="pk-tabsrow"><div class="pk-tabs" role="tablist">${groups.map((g) => html`<button type="button" role="tab" aria-selected="${cur.filter === g[0]}" class="pk-tab ${cur.filter === g[0] ? 'pk-on' : ''}" data-pact="filter" data-f="${g[0]}" data-testid="pc-filter-${g[0]}">${g[1]}<span class="pk-tab-n">${g[0] === 'all' ? cards.length : cards.filter((c) => groupOf(c, side) === g[0]).length}</span></button>`)}
-</div>
-          ${pager}<button type="button" class="pk-tab pk-back" data-pact="less" data-testid="btn-less">${ic('back')} Back</button></div>
+      const headMore = html`<div class="pk-head">
+          <div class="pk-title"><b>${side === 'O' ? 'Playbook' : 'Defense Calls'}</b><span class="pk-sit">${sitText(o.sit)}</span></div>
+          <div class="pk-chips">${pager}<button type="button" class="pk-tab pk-back" data-pact="less" data-testid="btn-less">${ic('back')} Back</button></div></div>`;
+      l.innerHTML = String(sheet('pk-more pk-side-' + side, html`${headMore}
+        <div class="pk-tabsrow"><div class="pk-tabs" role="tablist">${groups.map((g) => html`<button type="button" role="tab" aria-selected="${cur.filter === g[0]}" class="pk-tab ${cur.filter === g[0] ? 'pk-on' : ''}" data-pact="filter" data-f="${g[0]}" data-testid="pc-filter-${g[0]}">${g[1]}<span class="pk-tab-n">${countIn(g[0])}</span></button>`)}
+</div></div>
         <div class="pk-book">${shown}</div>`, side === 'O' ? 'Playbook' : 'Defense calls'));
       show(l);
       fitPage(l);
@@ -376,21 +392,19 @@
   function fitPage(l) {
     const book = l.querySelector('.pk-book');
     const first = book && book.querySelector('.pk-mini');
-    if (!book || !first) return;
+    if (!book || !first || !cur.needFit) return;      // HUNT #1: size pages only on open / filter / resize, never on a page turn
+    cur.needFit = false;
     const cs = globalThis.getComputedStyle(book);
     const cols = Math.max(1, cs.gridTemplateColumns.split(' ').filter(Boolean).length);
     const gap = parseFloat(cs.rowGap || cs.gap) || 8;
     const padV = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
     const h = book.clientHeight - padV;
-    const ch = first.getBoundingClientRect().height + 4;      // + the card's drop shadow
+    let tallest = 0;
+    book.querySelectorAll('.pk-mini').forEach((m) => { tallest = Math.max(tallest, m.getBoundingClientRect().height); });
+    const ch = tallest + 4;      // + the card's drop shadow (all minis share one fixed height in CSS)
     const rows = Math.max(1, Math.floor((h + gap) / (ch + gap)));
     const per = cols * rows;
-    if (per !== cur.per) {
-      const firstIdx = (cur.page || 0) * (cur.per || 8);
-      cur.per = per;
-      cur.page = Math.floor(firstIdx / per);
-      render();
-    }
+    if (per !== cur.per) { cur.per = per; cur.page = 0; render(); }
   }
   function show(l) {
     const t = l.firstElementChild;
@@ -428,7 +442,7 @@
         <div class="pk-title"><b>${ic('swap')} Audible!</b><span class="pk-sit">${sub}</span></div>
         <div class="pk-chips"><button type="button" class="pk-chip" data-pact="audcancel" data-testid="btn-audible-cancel">Keep it</button></div></div>
       <div class="pk-row pk-row4">${cards.map((c, i) => html`<button type="button" class="pk-mini pk-g-${groupOf(c, side)}" data-pact="audcard" data-i="${i}" data-testid="audible-card-${i}">
-        ${diaHtml(c, side, false)}<span class="pk-mini-n">${c.name}</span>${c.tag ? html`<span class="pk-mini-tag">${c.tag}</span>` : ''}<span class="pk-num" aria-hidden="true">${i + 1}</span></button>`)}</div>`, 'Audible');
+        ${diaHtml(c, side, false)}<span class="pk-mini-n">${c.name}</span>${c.tag ? html`<span class="pk-type pk-aud-tag">${ic(cardIcon(c, side, groupOf(c, side)))} ${c.tag}</span>` : ''}<span class="pk-num" aria-hidden="true">${i + 1}</span></button>`)}</div>`, 'Audible');
   }
   function patHtml() {
     return sheet('pk-small', html`
@@ -446,6 +460,7 @@
     clearTimeout(relayT);
     relayT = setTimeout(() => {
       if (!cur) return;
+      cur.needFit = true;
       render();   // the More view re-measures its page size (fitPage)
     }, 80);
   }
@@ -544,11 +559,11 @@
       case 'card': pickIdx(+t.getAttribute('data-i')); break;
       case 'audcard': { const c = (cur.o.cards || [])[+t.getAttribute('data-i')]; done(c ? c.id : null); break; }
       case 'audcancel': done(null); break;
-      case 'more': cur.view = 'more'; cur.filter = 'all'; cur.page = 0; clearTimeout(autoTimer); render(); break;
+      case 'more': cur.view = 'more'; cur.filter = 'all'; cur.page = 0; cur.needFit = true; clearTimeout(autoTimer); render(); break;
       case 'less': cur.view = 'sug'; render(); break;
-      case 'filter': cur.filter = t.getAttribute('data-f'); cur.page = 0; render(); break;
+      case 'filter': cur.filter = t.getAttribute('data-f'); cur.page = 0; cur.needFit = true; render(); break;
       case 'pageprev': cur.page = Math.max(0, (cur.page || 0) - 1); render(); break;
-      case 'pagenext': cur.page = (cur.page || 0) + 1; render(); break;
+      case 'pagenext': cur.page = Math.min((cur.pages || 1) - 1, (cur.page || 0) + 1); render(); break;
       case 'tipok': K().tipDone(t.getAttribute('data-id')); render(); break;
       case 'flip': PC.state.flip = !PC.state.flip; render(); break;
       case 'hurry': PC.state.hurry = !PC.state.hurry; render(); break;
@@ -592,9 +607,9 @@
       if (s) { done(s.c.id); return true; }
       if (cur.view === 'more') { pickIdx(+k - 1); return true; }
     }
-    if (k === '4') { cur.view = cur.view === 'more' ? 'sug' : 'more'; cur.page = 0; render(); return true; }
+    if (k === '4') { cur.view = cur.view === 'more' ? 'sug' : 'more'; cur.page = 0; cur.needFit = true; render(); return true; }
     if (cur.view === 'more' && (k === 'ArrowLeft' || k === 'ArrowRight')) {
-      cur.page = Math.max(0, (cur.page || 0) + (k === 'ArrowRight' ? 1 : -1)); render(); return true;
+      cur.page = Math.max(0, Math.min((cur.pages || 1) - 1, (cur.page || 0) + (k === 'ArrowRight' ? 1 : -1))); render(); return true;
     }
     if (k === 't' && cur.o.canTimeout !== false && side === 'O') { done('TIMEOUT'); return true; }
     if (side === 'D' && k === 'd') { done('SIM_DRIVE'); return true; }

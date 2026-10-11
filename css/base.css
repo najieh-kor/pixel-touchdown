@@ -184,3 +184,16 @@ b.num, .num b { font-weight: 400; }
 
 /* species mascot heads (voxel portraits) used inline in text */
 .sp-img { display: inline-block; width: 1.7em; height: 1.7em; vertical-align: middle; object-fit: contain; image-rendering: pixelated; margin: -0.2em 0.1em; }
+
+/* ---------- iOS Safari / home-screen web app: the layers always fill the whole viewport ----------
+ * 100vh is the "large" viewport on iOS and fixed layers could start below a status-bar-sized gap in standalone mode
+ * (client saw a ~110 px sky strip above the top bar). Pin every layer to the top-left with an explicit size:
+ * --app-h (window.innerHeight, set by ui.js) → 100dvh → 100vh. Safe-area insets stay padding (--sat/--sab/--sal/--sar). */
+html, body { height: 100vh; height: 100dvh; height: var(--app-h, 100dvh); }
+#gl, #touch, #hud, #screen, #modal, #toast {
+  top: 0; left: 0; right: auto; bottom: auto;
+  width: 100vw; width: var(--app-w, 100vw);
+  height: 100vh; height: 100dvh; height: var(--app-h, 100dvh);
+}
+/* the pixel body font draws the "fi" ligature as a wide glyph ("fix" read as "Ax"): no ligatures anywhere */
+html, body, button, input, select, textarea { font-variant-ligatures: none; font-feature-settings: "liga" 0, "clig" 0; }

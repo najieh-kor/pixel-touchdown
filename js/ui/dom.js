@@ -79,7 +79,7 @@
   // ---------------- formatters ----------------
   const U = () => PT.Util;
   /** $K → '$4.5M' */
-  dom.money = (k) => (k == null ? '—' : U().fmtMoney(k));
+  dom.money = (k) => (k == null ? '—' : !k ? '$0' : U().fmtMoney(k));   // HUNT #48: never '$0K'
   /** int with thousands separator */
   dom.int = (n) => (n == null || isNaN(n) ? '0' : Math.round(n).toLocaleString('en-US'));
   dom.coins = (n) => dom.int(n);

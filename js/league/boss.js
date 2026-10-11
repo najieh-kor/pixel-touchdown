@@ -143,7 +143,8 @@
     L.userTid = tid;
     const t = L.teams[tid];
     t.human = true;
-    L.boss = { goal: null, conf: 55, nj: 1 };
+    L.boss = { goal: null, conf: 55, nj: 1 };                  // next season's goal is set at its start (Calendar.startSeason)
+    if (L.newSeasonCard) L.newSeasonCard.seen = true;           // HUNT-league #2: no stale season card on the new team's HQ
     // QA1: cards and next-game effects belong to the old team
     L.ev.pending = L.ev.pending.filter((e) => e.tid === tid);
     const ss = PT.League.History.ss(L);

@@ -58,7 +58,7 @@
     EASY_SIG: 1.3,
     WIND_DRIFT: 0.04,                 // yd per mph per second of flight
     BAT: { S: 0.01, M: 0.03, L: 0.06 }, BAT_RANGE: 1.5, BAT_PICK: 0.10,
-    AI_QB_SIG: 1.0, LONG_SIG_D: 25, LONG_SIG_K: 40, DEEP_CATCH_D: 18, DEEP_CATCH_K: 0.004, DEEP_CON_K: 0.008,
+    AI_QB_SIG: 1.0, LONG_SIG_D: 25, LONG_SIG_K: 22, DEEP_CATCH_D: 18, DEEP_CATCH_K: 0.007, DEEP_CON_K: 0.008,
 
     // ---------- catching (design 8.10) ----------
     UNCON_BASE: 0.95, UNCON_HND: 0.004, UNCON_OFF: 0.12, UNCON_MIN: 0.35, UNCON_MAX: 0.99,
@@ -99,7 +99,7 @@
 
     // ---------- AI QB & carriers (design 8.14) ----------
     QB_READ_BASE: 0.5, QB_SET: 0.4, QB_READ_K: 0.003, QB_OWL: 0.1,
-    OPEN_PROJ: 0.6, OPEN_MIN: 2.6, OPEN_PRESS: 2.0, OPEN_DEEP: 4.8, PRESS_R: 3.0, QB_MAX_T: 4.0,
+    OPEN_PROJ: 0.6, OPEN_MIN: 2.6, OPEN_PRESS: 2.0, OPEN_DEEP: 5.5, PRESS_R: 3.0, QB_MAX_T: 4.0,
     CAR_THINK: 0.3, CAR_FWD: 1.2, CAR_HEADINGS: 7, CAR_SPREAD: Math.PI / 3,
     CAR_JUKE: 0.12, CAR_SPIN: 0.06, CAR_SPRINT_FREE: 8,
 
@@ -118,8 +118,9 @@
     // 4 × 3:00 quarters (client pass 4): 15 s → ~5.5 drives per team, ~8.5 real minutes. Before (2 × 5:00 halves): 12–13 s;
     // 20 → 24 s. Human games ran 12–13.5 min of real time at 5:00 quarters (target 8–12); fewer snaps per game
     RUN_INB: 15, RUN_HURRY: 8, RUN_LAST_MIN_FD: 10, RUN_STOP: 6, RUN_SACK: 15, RUN_KNEEL: 40, RUN_SPIKE: 3,
-    SUG_HIST: 6, SUG_CALLED: 25, SUG_SHOWN: 14, SUG_FRESH: 8, SUG_TEMP: 7,   // play-card suggestion variety (client pass 4)
+    SUG_HIST: 6, SUG_CALLED: 25, SUG_SHOWN: 14, SUG_FRESH: 6, SUG_TEMP: 7, SUG_REP: 8, SUG_STYLE: 30, TRICK_REACT: 0.25, SUG_DEF: 4, SUG_HOT: 6, SUG_COLD: 4,   // play-card suggestion variety (client pass 4)
     FORM_CHECK: { bunch: 0.7, empty: 0.7 },   // AI zone → man check vs these formations (coverage pass)
+    FG_LATE: 8,               // ≤ this many seconds left in Q2/Q4: the FG card leads / the AI kicks on any down
     QLEN: 180,                // default quarter length when cfg.qLen is missing (4 quarters, client pass 4)
     TOS: 3, TOS_OT: 2,
 
@@ -142,7 +143,7 @@
     AB_MAGNET_REACH: 1.2, AB_MAGNET_WIN: 1.6, AB_TURBO_SPD: 0.15, AB_TURBO_ACC: 0.5, AB_LASER_SIG: 0.4, AB_LASER_SPD: 0.2, AB_LASER_REACT: 0.15,
     AI_AUDIBLE: [0, 0.2, 0.312, 0.35], AI_AUDIBLE_BAD: -0.5, DEF_AUTO_GO: [0, 0, 0, 0],   // client pass 5: never auto-GO for the user's defense (only Auto Defense)
     AB_DOZER_SPD: 0.2, AB_DOZER_TKL: 1.5, AB_LOCK_INT: 1.8, AB_WARN_T: 0.8, AB_AI_USE: 0.8,
-    AI_SKILL: [-4, 0, 1.125, 1.5], PCOUNTER: [0.20, 0.40, 0.55, 0.60], STAR_WIN: [0.90, 0.60, 0.487, 0.45],   // decision-time pass: +50%
+    AI_SKILL: [-4, -0.8, 0.75, 1.5], PCOUNTER: [0.20, 0.40, 0.55, 0.60], STAR_WIN: [0.90, 0.60, 0.487, 0.45],   // decision-time pass: +50%
     USER_FUM: [0.7, 1, 1, 1], USER_INJ: [0.6, 1, 1.15, 1.2],
     STAR_NEAR: 3.0, STAR_AIR: 4.0, STAR_CHASE: 5.0, STAR_CLOSE_V: 2.0, STAR_SUPER_BRK: 0.25, STAR_SUPER_REACH: 1.5, STAR_WHIFF_BRK: 0.20, STAR_JUMP_D: 20, STAR_JUMP_PICK: 0.10,
     STAR_WHIFF_D: 10, STAR_SLOWMO: 0.5,

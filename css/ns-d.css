@@ -5,7 +5,8 @@
 
 /* ---------- shared: a pager that sits in the top-right corner of the page (beside a tab strip / head bar) ---------- */
 .lay.sched .scroll > .page, .lay.results .scroll > .page, .lay.stats .scroll > .page, .lay.news-scr .scroll > .page, .lay.teams-scr .scroll > .page, .lay.history .scroll > .page, .lay.coach .scroll > .page, .lay.awards .scroll > .page, .lay.growth-scr .scroll > .page, .lay.goodbyes .scroll > .page, .lay.fired .scroll > .page { position: relative; }
-.pg.pg-top > .pg-ctl { position: absolute; top: 2px; right: 3px; padding-top: 0; z-index: 2; }
+/* INT2: pagers live in the panel footer — never floated over a tab row or header */
+.pg.pg-top > .pg-ctl { position: static; }
 /* my screens: tighter cards so lists get the height */
 .lay.sched .card, .lay.results .card, .lay.stats .card, .lay.news-scr .card, .lay.history .card, .lay.coach .card,
 .lay.awards .card, .lay.growth-scr .card, .lay.goodbyes .card, .lay.fired .card { margin-bottom: 10px; }
@@ -253,7 +254,7 @@
 @media (orientation: landscape) and (max-height: 480px) {
   .lay.coach .coach-card { margin-right: 186px; }
   .lay.coach .coach-card .coach-ava { display: none; }
-  .sk-pg > .pg-ctl { position: absolute; top: 12px; right: 3px; padding-top: 0; }
+  .sk-pg > .pg-ctl { position: static; }
 }
 @media (orientation: landscape) and (max-height: 480px) { .coach-tip { display: none; } }
 

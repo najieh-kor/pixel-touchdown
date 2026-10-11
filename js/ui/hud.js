@@ -20,7 +20,7 @@
 
   let host = null, on = false, cfg = null, userIdx = 0, els = {}, last = {}, subs = [];
   let mode = 'none', paused = false, quitReq = false, ffOn = false, lastBan = { t: '', at: 0 }, banTimer = 0;
-  let lastSnap = null, audUsed = false, kickPlay = false;
+  let lastSnap = null, audUsed = false, kickPlay = false, comboSeen = {}, armedFlag = false;
 
   // ---------------- pixel icons (no emoji) ----------------
   // PT.UI.Icons.get(name) (UI art system) when present, else these tiny 8×8 pixel SVGs.
@@ -128,8 +128,32 @@
   };
   Hud._host = function () { const h = hostEl(); Hud._wire(h); return h; };
 
-  function teamBlock(gt, side, idx) {
-    return html`<div class="hud-sb-tm hud-sb-${side} ${idx === userIdx ? 'hud-me' : ''}" data-h="${side}" style="${K().teamVars({ col: gt.col })}">
+  /** scorebug colours from the render KITS (same-colour teams always differ): jersey colour, or the helmet colour
+   *  when the jersey is white (away kit); falls back to the raw team colours */
+  const WHITE_KIT = 0xF4F4F0;
+  function kitsNow() {
+    const R = PT.Render;
+    try {
+      const k = R && typeof R.kits === 'function' ? R.kits() : null;
+      if (k) return k;
+      if (R && R.Kits && R.Kits.make && cfg && cfg.home && cfg.away) return R.Kits.make(cfg.home.col, cfg.away.col);
+    } catch (e) { /* raw colours */ }
+    return null;
+  }
+  function kitCol(gt, kit) {
+    if (!kit) return gt.col;
+    const white = (kit.pri & 0xffffff) === WHITE_KIT || D().lum(kit.pri) > 0.85;
+    const bg = white ? kit.helm : kit.pri;
+    const stripe = white ? kit.pri : (kit.sec != null ? kit.sec : gt.col.sec);
+    return { pri: bg, sec: stripe, acc: kit.acc };
+  }
+  function applyKits(k) {
+    if (!on || !k) return;
+    const pairs = [['h', cfg.home, k[0]], ['a', cfg.away, k[1]]];
+    pairs.forEach(([side, gt, kit]) => { const e = els[side]; if (e && gt && kit) e.setAttribute('style', K().teamVars({ col: kitCol(gt, kit) })); });
+  }
+  function teamBlock(gt, side, idx, col) {
+    return html`<div class="hud-sb-tm hud-sb-${side} ${idx === userIdx ? 'hud-me' : ''}" data-h="${side}" style="${K().teamVars({ col: col || gt.col })}">
       <span class="hud-sb-ab">${idx === userIdx ? html`<span class="hud-sb-you" aria-label="Your team">${ic('star')}</span>` : ''}<span class="hud-sb-ball" aria-label="has the ball">${ic('ball')}</span> ${abbrOf(gt)}</span>
       <b class="hud-sb-sc num" data-h="${side}s">0</b>
       <span class="hud-sb-to" data-h="${side}t" aria-label="Timeouts"></span>
@@ -149,19 +173,20 @@
     const ut = cfg.userTid != null ? cfg.userTid : (L ? L.userTid : -1);
     userIdx = cfg.away && cfg.away.tid === ut ? 1 : 0;
     unsub();
-    last = {}; els = {}; paused = false; quitReq = false; ffOn = false; mode = 'none'; lastSnap = null;
+    last = {}; els = {}; paused = false; quitReq = false; ffOn = false; mode = 'none'; lastSnap = null; comboSeen = {};
     const home = cfg.home || { abbr: 'HOM', col: { pri: 0x3a86ff, sec: 0xffffff }, sp: 'dog' };
     const away = cfg.away || { abbr: 'AWY', col: { pri: 0xff5a5f, sec: 0xffffff }, sp: 'cat' };
+    const kits = kitsNow();
     host.innerHTML = String(html`<div class="hud-root" data-h="root">
       <div class="hud-top">
         <div class="hud-sb" data-testid="hud-score">
-          ${teamBlock(away, 'a', 1)}
+          ${teamBlock(away, 'a', 1, kits ? kitCol(away, kits[1]) : null)}
           <div class="hud-sb-mid"><span class="hud-sb-q" data-h="q">Q1</span><span class="hud-sb-clk num" data-h="clk">5:00</span></div>
-          ${teamBlock(home, 'h', 0)}
+          ${teamBlock(home, 'h', 0, kits ? kitCol(home, kits[0]) : null)}
         </div>
         <button type="button" class="hud-pause-btn" data-hact="pause" data-testid="btn-pause" aria-label="Pause">${ic('pause')}</button>
       </div>
-      <div class="hud-dd" data-h="ddrow"><span class="hud-dd-chip" data-h="dd"></span><span class="hud-dd-bo" data-h="bo"></span><span class="hud-dd-wx" data-h="wx"></span></div>
+      <div class="hud-dd" data-h="ddrow"><span class="hud-dd-chip" data-h="dd"></span><span class="hud-dd-bo"><span data-h="bo"></span><span class="hud-dd-wx" data-h="wx"></span></span></div>
       <div class="hud-meters" data-h="meters" hidden>
         <div class="hud-mt" data-h="mtoff"><span class="hud-mt-l">ATK</span><span class="hud-mt-bar"><i data-h="mtoffbar"></i></span></div>
         <div class="hud-mt" data-h="mtdef"><span class="hud-mt-l">DEF</span><span class="hud-mt-bar"><i data-h="mtdefbar"></i></span></div>
@@ -218,7 +243,15 @@
     if (us > opp + 7) return 'Up big. Run the ball and burn clock.';
     return 'Mix runs and passes. Keep them guessing.';
   }
-  /** Halftime card: score, 3 quick stats each, a coach tip. Does not pause; closes on tap or after 6 s. */
+  let halfPaused = false, halfT = 0;
+  function closeHalftime() {
+    clearTimeout(halfT);
+    const hf = host && host.querySelector('.hud-half');
+    if (hf) hf.remove();
+    if (halfPaused) { halfPaused = false; try { if (PT.Session && PT.Session.resume && !paused) PT.Session.resume(); } catch (e) { /* ignore */ } }
+    Hud.flushBanners();
+  }
+  /** Halftime card: score, 3 quick stats each, a coach tip. Pauses the game; closes on tap or after 6.5 s. */
   Hud.halftime = function () {
     if (!on || !els.root) return;
     const S = PT.Session, g = S && typeof S.game === 'function' ? S.game() : null;
@@ -238,14 +271,19 @@
     d.className = 'hud-half';
     d.setAttribute('data-testid', 'hud-halftime');
     d.innerHTML = String(html`<div class="hud-half-c">
-      <div class="hud-half-t">${ic('pause')} HALFTIME</div>
+      <div class="hud-half-t">${ic('clock')} HALFTIME</div>
       <div class="hud-half-sc"><span>${abbrOf(away)}</span><b class="num">${as}–${hs}</b><span>${abbrOf(home)}</span></div>
       <table class="hud-half-tb"><tbody>${row('Yards', 'ty')}${row('Pass yds', 'py')}${row('Run yds', 'ry')}</tbody></table>
       <p class="hud-half-tip">${ic('cap')} <b>Coach:</b> ${tip}</p>
       <button type="button" class="btn btn-go btn-l" data-hact="half-ok" data-testid="btn-second-half"><span class="btn-t">Second Half</span></button>
     </div>`);
     els.root.appendChild(d);
-    setTimeout(() => { d.remove(); Hud.flushBanners(); }, 6500);
+    // HUNT #5: freeze the game behind the card (no menu); resume on "Second Half!" or after the timeout
+    const S2 = PT.Session;
+    halfPaused = false;
+    try { if (S2 && typeof S2.pause === 'function' && !paused) { S2.pause({ menu: false }); halfPaused = true; } } catch (e) { halfPaused = false; }
+    clearTimeout(halfT);
+    halfT = setTimeout(() => closeHalftime(), 6500);
   };
 
   Hud.hide = function () {
@@ -380,7 +418,10 @@
     if (snap.phase === 'KICK' || (bk && /^(ko|kickoff|punt|fg|pat|onside)$/.test(bk)) || hud.retHint || (snap.cam && snap.cam.mode === 'kick')) kickPlay = true;
     const show = live && !kickPlay && mode !== 'kick' && mode !== 'none';
     if (setKey('abVis', show) && els.ab) els.ab.hidden = !show;
-    const armed = !act && snap.phase === 'PRESNAP' && userO && (snap.ents || []).some((e) => e.star === 3 && e.tm === hud.poss);
+    // SET! comes from the 'abilityArmed' event (Stars v2 marks Stars with ents.star 3 for other reasons, so it can't
+    // be read from the snapshot). It clears on 'ability', 'call', 'playEnd' and whenever the play is not pre-snap/live.
+    if (snap.phase !== 'PRESNAP' && snap.phase !== 'LIVE') armedFlag = false;
+    const armed = !act && armedFlag && userO;
     const st = act ? 'act' : armed ? 'armed' : v >= 100 ? 'full' : 'fill';
     if (setKey('abSt', st + ':' + v) && els.ab) {
       els.ab.disabled = st !== 'full';
@@ -424,7 +465,7 @@
       { id: 'spin', label: 'Spin', icon: 'spin', testid: 'btn-spin', key: 'R' },
       { id: 'dive', label: 'Dive', icon: 'dive', testid: 'btn-dive', key: 'E' },
       { id: 'sprint', label: 'Sprint', icon: 'bolt', testid: 'btn-sprint', hold: true, key: 'Shift' }], hint: '' },
-    defense: { big: true, aud: true, btns: [{ id: 'snap', label: 'GO!', icon: 'shield', testid: 'btn-go', key: 'Enter' }], hint: 'Tap a defender to make him your Star' },
+    defense: { big: true, aud: true, btns: [{ id: 'snap', label: 'GO!', icon: 'shield', testid: 'btn-go', key: 'Enter' }], hint: 'Tap a defender to make them your Star.' },
     watch: { row: true, btns: [
       { id: 'ff', label: '2×', icon: 'ff', testid: 'btn-ff', toggle: true, key: 'F', title: 'Fast (2×)' },
       { id: 'skip', label: 'Skip', icon: 'skip', testid: 'btn-skip', key: 'X' }], hint: '' },
@@ -479,7 +520,7 @@
   function act(a, t) {
     if (UI.click) UI.click(a === 'pause' ? 'back' : 'tap');
     switch (a) {
-      case 'half-ok': { const hf = host && host.querySelector('.hud-half'); if (hf) hf.remove(); Hud.flushBanners(); break; }
+      case 'half-ok': closeHalftime(); break;
       case 'snap': press('snap'); break;
       case 'juke': case 'spin': case 'dive': press(a); break;
       case 'star': press('star'); break;
@@ -536,10 +577,10 @@
         <div class="hud-pm-emo" aria-hidden="true">${ic('pause')}</div>
         <h2 class="hud-pm-t">Paused</h2>
         <div class="hud-pm-btns">
-          ${K().btn({ label: 'Resume', icon: ic('play'), kind: 'go', size: 'l', testid: 'btn-resume', cls: 'btn-wide', data: { hact: 'resume' } })}
+          ${K().btn({ label: 'Resume', icon: ic('play'), kind: 'go', size: 'l', testid: 'btn-resume', cls: 'btn-wide hud-pm-wide', data: { hact: 'resume' } })}
+          ${hudMode() === 'practice' ? '' : K().btn({ label: 'Sim This Game', icon: ic('ff'), kind: 'sec', size: 'm', testid: 'btn-sim-rest', cls: 'btn-wide hud-pm-wide', data: { hact: 'simrest' } })}
           ${K().btn({ label: 'Settings', icon: ic('gear'), kind: 'sec', size: 'm', testid: 'btn-game-settings', cls: 'btn-wide', data: { hact: 'settings' } })}
-          ${hudMode() === 'practice' ? '' : K().btn({ label: 'Sim to End', icon: ic('ff'), kind: 'sec', size: 'm', testid: 'btn-sim-rest', cls: 'btn-wide', data: { hact: 'simrest' } })}
-          ${K().btn({ label: hudMode() === 'practice' ? 'Leave Practice' : hudMode() === 'quick' ? 'Quit Game' : 'Quit to HQ', icon: ic('home'), kind: 'bad', size: 'm', testid: 'btn-quit-game', cls: 'btn-wide', data: { hact: 'quit' } })}
+          ${K().btn({ label: hudMode() === 'practice' ? 'Leave' : hudMode() === 'quick' ? 'Quit Game' : 'Quit to HQ', icon: ic('home'), kind: 'bad', size: 'm', testid: 'btn-quit-game', cls: 'btn-wide', data: { hact: 'quit' } })}
         </div></div>`);
       els.pause.hidden = false;
       const r = els.pause.querySelector('[data-testid="btn-resume"]');
@@ -641,7 +682,7 @@
       if (p.yds) Hud.pop(p.yds + ' yd TD!', 'good');
     });
     on_('game:turnover', (p) => {
-      const t = p.kind === 'int' ? 'PICK!' : p.kind === 'fumble' ? 'FUMBLE!' : 'LOST BALL!';
+      const t = p.kind === 'int' ? 'PICK!' : p.kind === 'downs' ? 'TURNOVER ON DOWNS!' : 'FUMBLE!';
       Hud.banner(t, isUser(p.tid) ? 'good' : 'turnover');
       // a user pick / fumble recovery in a live play: the user runs it back → carrier controls
       if (isUser(p.tid) && p.kind !== 'downs' && lastSnap && lastSnap.phase === 'LIVE') Hud.setControls('carrier');
@@ -672,26 +713,39 @@
     on_('game:dive', () => { if (mode === 'watch' || (lastSnap && lastSnap.star && lastSnap.star.ring === 'used')) Hud.banner('SUPER!', 'super', 1000); });
     on_('game:star', () => Hud.banner('SUPER!', 'super', 1000));
     on_('game:record', () => Hud.banner('NEW RECORD!', 'record', 2200));
+    subs.push(E.on('render:kits', (p) => { if (on && p && p.home && p.away) applyKits([p.home, p.away]); }));
     on_('game:ability', (p) => {
       const list = Array.isArray(p.names) ? p.names : Array.isArray(p.abilities) ? p.abilities.map((a) => (a && (a.name || a.k)) || a) : [p.name || 'Star Power'];
       const uniq = list.filter((x, i) => x && list.indexOf(x) === i);
       const nm = uniq.map((x) => String(x).toUpperCase()).join(' + ') + '!';
       const mine = p.user || isUser(p.tid);
-      if (p.perfect && mine) { Hud.banner('PERFECT!', 'super', 900); setTimeout(() => { if (on) Hud.banner(nm, 'super', 1300); }, 850); }
-      else Hud.banner(nm, mine ? 'super' : 'bad', 1400);
+      if (mine) {
+        // the user's own Surge always gets the banner (one banner, PERFECT first when timed in the green ring)
+        armedFlag = false;
+        Hud.banner((p.perfect ? 'PERFECT! ' : '') + nm, 'super', 1500);
+        return;
+      }
+      // AI Surges (HUNT #6: ~10 a game): the big banner once per half per combo, otherwise a small pop that never
+      // replaces a banner on screen
+      const half = lastSnap && lastSnap.hud && lastSnap.hud.q > 2 ? 2 : 1;
+      const key = half + ':' + nm;
+      if (comboSeen[key]) { Hud.pop(nm, 'bad'); return; }
+      comboSeen[key] = 1;
+      Hud.pop('THEIR ' + nm, 'bad');
     });
     on_('game:abilityWarn', () => warn('Their Star is powered up!'));
     // INT2: an offense Star armed pre-snap fires on the catch / handoff / throw — say so (it was silent before)
     on_('game:abilityArmed', (p) => {
       if (!(p.user || isUser(p.tid))) return;
-      const when = /magnet/i.test(p.name || '') ? 'on the catch' : /turbo/i.test(p.name || '') ? 'when he gets the ball' : 'on the throw';
+      armedFlag = true;
+      const when = /magnet/i.test(p.name || '') ? 'on the catch' : /turbo/i.test(p.name || '') ? 'on the handoff' : 'on the throw';
       Hud.pop(String(p.name || 'Star').toUpperCase() + ' READY ' + when, 'good');
     });
     on_('game:audibleCall', () => { audUsed = true; if (els.aud) els.aud.hidden = true; });
     // one audible per play (INT2): reset only when a new play is called / the old one ends. Resetting on a mode
     // change brought the button back after the audible's re-lineup, and the engine then refused the 2nd audible.
-    on_('game:call', () => { audUsed = false; });
-    on_('game:playEnd', () => { audUsed = false; });
+    on_('game:call', () => { audUsed = false; armedFlag = false; });
+    on_('game:playEnd', () => { audUsed = false; armedFlag = false; });
     // Yards / incomplete text is drawn in the 3D world by the renderer (engine fx 'text' = play desc), so the HUD
     // adds no second "+N yds" / "No catch" line (too much text at once). Only the big banners above stay.
     on_('game:gameEnd', () => { Hud.setControls('none'); Hud.banner('FINAL!', 'record', 2600); });

@@ -129,7 +129,7 @@
   /** Add points. */
   /** Add points. extra = {yd, pid, how} is copied onto the scoring-summary entry (WP2 records). */
   RU.score = function (G, ti, pts, kind, txt, extra) {
-    G.score[ti] += pts;
+    if (!G.drill) G.score[ti] += pts;          // practice drills keep the scoreboard at 0-0
     PT.Box.score(G.box, G.tids[ti], pts, RU.boxQ(G), Math.max(0, G.clk), kind, txt);
     const e = G.box.sc[G.box.sc.length - 1];
     e.yd = extra && extra.yd != null ? extra.yd : 0; e.yds = e.yd;
@@ -159,6 +159,13 @@
       const offGain = (P.offEndY - los0) * dirO;                        // yards for offense stats (to where it lost the ball)
       const gain = res.team === off ? Math.round((res.y - los0) * dirO) : Math.round(offGain);
       yds = gain;
+      // play results this game (suggestions' hot hand / cold hand)
+      if (P.kind === 'scrim' && P.play && !P.play.clock) {
+        if (!G.pres) G.pres = [{}, {}];
+        const pr = G.pres[off][P.play.id] || (G.pres[off][P.play.id] = { n: 0, y: 0, bad: 0 });
+        pr.n++; pr.y += res.team === off ? gain : -10;
+        if (res.team !== off || P.sack || (res.k !== 'td' && gain <= 0)) pr.bad++;
+      }
       // ----- offense stats -----
       if (P.kind !== 'two') {
         if (P.kind === 'spike') {
@@ -256,6 +263,15 @@
         let y = res.y;
         if ((y - RU.ownGoalY(G, def)) * RU.dirOf(G, def) <= 0) y = RU.ownYard(G, def, T.TB_PUNT);   // touchback
         RU.setPoss(G, def, y);
+        deadT = T.DEAD_TURN_T;
+      } else if (P.defHad && res.k !== 'inc') {
+        // double change of possession (INT / fumble by the defense, then the offense got it back): a NEW series for the
+        // offense at the dead-ball spot — not "next down" (ROUND6 rules fix)
+        result = 'turnover'; turnover = 'fumble'; desc = 'Recovered! New set of downs';
+        B.team(box, dtid, 'to');
+        G.em.emit('turnover', { kind: 'fumble', by: pid(P.carrierEnd), tid: tid });
+        RU.setPoss(G, off, PT.Util.clamp(res.y, GL + 0.5, GH - 0.5));
+        firstDown = true;
         deadT = T.DEAD_TURN_T;
       } else {
         // offense keeps it (or incomplete)
@@ -375,6 +391,7 @@
     const nextPoss = next === 'call' ? G.poss : -1;
     R = RU.aiTimeout(G, R, nextPoss);
     // pending runoff is applied at the next snap/kick; untimed tries (XP / 2-pt) keep the score's runoff pending
+    if (G.drill) R = 0;                        // practice drills: no clock runoff
     G.pend += R; if (R > 0) G.pendTeam = off;
     if (G.untimedNext) { G.untimed = true; G.untimedNext = false; }
 
@@ -486,6 +503,19 @@
 
   RU.isClose = function (G) { return G.q >= 4 && Math.abs(G.score[0] - G.score[1]) <= 8; };
 
+  /**
+   * End of a half and in field-goal range: kick it now (any down). Q2: always take the points; Q4/OT: only when a FG ties
+   * or wins (down 0–3). Used by the AI offense and to put the FG card first for the user.
+   */
+  RU.lateFG = function (G, forUser) {
+    if (G.tryTwo || !RU.halfEndQ(G) || RU.clockLeft(G) > G.T.FG_LATE) return false;
+    const kp = G.kicker(G.poss), dist = RU.fgDist(G);
+    if (!kp || dist > PT.Engine.Kicking.maxRange(G, kp) || RU.toGoal(G) >= 50) return false;
+    if (forUser) return true;
+    const diff = G.score[G.poss] - G.score[1 - G.poss];
+    return G.q === 2 || (diff >= -3 && diff <= 0);
+  };
+
   /** AI 4th-down decision (design 8.8). @returns {'go'|'punt'|'fg'} */
   RU.ai4th = function (G) {
     const k = PT.Engine.Kicking, kp = G.kicker(G.poss);
@@ -520,6 +550,7 @@
 
   /** Penalty chance multiplier for one player (design 8.15). */
   RU.penMul = function (G, e) {
+    if (G.drill) return 0;                     // practice drills: no flags
     const s = G.cfg.settings || {};
     let set = s.penalties;
     let m = set === false || set === 'off' ? 0 : set === 'fewer' ? 0.5 : (G.diff === 0 && e.tm === G.userIdx && set !== 'on' ? 0.5 : 1);

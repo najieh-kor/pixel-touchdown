@@ -1,7 +1,8 @@
 /* Pixel Touchdown: js/ui/screens/roster.js
- * Owner: WP5. Responsibility: roster list, filters, release, player card open.
- * params.tid → any team (read-only for AI teams). Exposes PT.UI.parts.rosterList(state, tid) for the Team screen.
- * testids: player-row-{pid}, roster-filter-{id}, roster-sort-{id}.
+ * Owner: WP5 (TEAM-UX redesign). Team › Roster: who is on the team. One paged table that fills the height:
+ * portrait · full name · pos · rating (stars + small number) · age · tags (STAR, hurt, mood). One filter row on top.
+ * Sort = tap a column head. Tap a row → player card. params.tid → any team (read-only for AI teams; strip has Swap).
+ * testids: player-row-{pid}, roster-filter-{id}, roster-sort-{stars|pos|age}, btn-captain-pick (strip), btn-team-swap.
  */
 (function (PT) {
   'use strict';
@@ -9,70 +10,60 @@
   const D = () => UI.dom, K = () => UI.comp;
   const html = function () { return UI.dom.html.apply(null, arguments); };
   UI.parts = UI.parts || {};
-  /** ROUND6: each paged row sits in a .pg-cell so its pixel frame + drop shadow count toward the measured height */
-  const cells = (rows) => rows.map((r) => html`<div class="pg-cell">${r}</div>`);
 
   const st = { filter: 'all', sort: 'stars' };
-  const FILTERS = [['all', 'All'], ['off', 'Off', 'Offense'], ['def', 'Def', 'Defense'], ['QB', 'QB'], ['RB', 'RB'], ['WR', 'WR'], ['TE', 'TE'], ['OL', 'OL'],
+  const FILTERS = [['all', 'All'], ['QB', 'QB'], ['RB', 'RB'], ['WR', 'WR'], ['TE', 'TE'], ['OL', 'OL'],
     ['DL', 'DL'], ['LB', 'LB'], ['CB', 'CB'], ['S', 'S'], ['K', 'K'], ['hurt', 'Hurt']];
-  const SORTS = [['stars', 'Stars'], ['pos', 'Spot'], ['age', 'Age'], ['pay', 'Pay'], ['yrs', 'Years'], ['mood', 'Mood']];
 
-  function yearsLeft(L, p) { return K().yrsLeft(p, L); }
-  function sorted(L, list) {
+  function sorted(list) {
     const posI = (p) => PT.C.POS.indexOf(p.pos);
     const by = {
       stars: (a, b) => b.ovr - a.ovr,
       pos: (a, b) => posI(a) - posI(b) || b.ovr - a.ovr,
-      age: (a, b) => a.age - b.age || b.ovr - a.ovr,
-      pay: (a, b) => ((b.con && b.con.sal) || 0) - ((a.con && a.con.sal) || 0),
-      yrs: (a, b) => yearsLeft(L, a) - yearsLeft(L, b),
-      mood: (a, b) => a.mor - b.mor
-    }[st.sort];
+      age: (a, b) => a.age - b.age || b.ovr - a.ovr
+    }[st.sort] || ((a, b) => b.ovr - a.ovr);
     return list.slice().sort(by);
   }
   function keep(p) {
     const f = st.filter;
     if (f === 'all') return true;
-    if (f === 'off') return PT.C.OFF_POS.includes(p.pos);
-    if (f === 'def') return PT.C.DEF_POS.includes(p.pos);
     if (f === 'hurt') return !!p.inj || p.ir;
     return p.pos === f;
   }
-  function starterSlot(t, pid) {
-    for (const s of PT.C.SLOTS) { if (s !== 'KR' && t.dc[s] && t.dc[s][0] === pid) return s; }
-    return null;
+
+  function row(L, t, p, mine) {
+    const star = K().isStar(L, p);
+    const capt = t.capt === p.id;
+    return html`<button type="button" class="tx-row tx-rrow ${p.inj || p.ir ? 'is-hurt' : ''} ${p.ir ? 'is-ir' : ''}" data-action="player" data-pid="${p.id}" data-testid="player-row-${p.id}" title="${K().pname(p)}">
+      <span class="tx-c-por">${K().portrait(p, 28, t.col.pri)}</span>
+      <span class="tx-nm"><b>${K().pname(p)}</b>${capt ? D().raw('<span class="capt" title="Captain">C</span>') : ''}</span>
+      <span class="tx-c-pos">${K().posChip(p.pos)}</span>
+      <span class="tx-c-rate">${K().stars(p.ovr)}</span>
+      <span class="tx-c-age"><span class="num">${p.age}</span><span class="tx-u">yrs</span></span>
+      <span class="tx-c-tags">${star ? K().starTag() : ''}${p.ir ? html`<span class="chip chip-hurt tiny" title="Hurt List">IR</span>` : p.inj ? K().hurtShort(p) : ''}${mine ? K().mood(p.mor) : ''}</span>
+    </button>`;
   }
 
-  /** list block (filters + sorted player rows), shared with Team › Players */
-  UI.parts.rosterList = function (tid, head) {
+  /** roster table (filter row + sortable head + paged rows). Hurt List players come last. */
+  UI.parts.rosterList = function (tid) {
     const L = PT.App.L;
     const t = L.teams[tid];
     const mine = tid === L.userTid;
     const all = PT.League.Q.roster(L, tid);
-    const active = all.filter((p) => !p.ir), ir = all.filter((p) => p.ir);
-    const rows = sorted(L, active.filter(keep));
-    const right = (p) => {
-      const sl = starterSlot(t, p.id);
-      return html`<span class="ros-r1">${sl ? html`<span class="chip chip-go tiny">Starter</span>` : html`<span class="chip tiny">Bench</span>`}${mine ? K().mood(p.mor) : ''}</span>
-        ${mine ? html`<span class="small">${K().payYears(p)}</span>` : html`<span class="small muted">Age ${p.age}</span>`}`;
-    };
-    // ROUND6 0-scroll: filter + sort chips in a side grid, then a paged grid (Hurt List players at the end).
-    // The roster count sits in the title bar (rosterCount); Team Cash lives on the Pay tab.
-    const list = rows.map((p) => K().playerRow(p, { team: t, right: right(p), compact: true }))
-      .concat(ir.filter(keep).map((p) => K().playerRow(p, { team: t, cls: 'is-ir', compact: true, right: html`<span class="chip chip-hurt tiny">Hurt List</span><span class="small">${K().injuryText(p)}</span>` })));
+    const active = sorted(all.filter((p) => !p.ir && keep(p))), ir = sorted(all.filter((p) => p.ir && keep(p)));
+    const rows = active.concat(ir).map((p) => row(L, t, p, mine));
     const nHurt = all.filter((p) => p.inj || p.ir).length;
-    const chip = (f, action, on, extra) => html`<button type="button" class="fchip ${on ? 'on' : ''}" data-action="${action}" data-id="${f[0]}" data-testid="${action === 'r-sort' ? 'roster-sort-' : 'roster-filter-'}${f[0]}" title="${f[2] || f[1]}">${f[1]}${extra || ''}</button>`;
-    return html`<div class="ros-cols">
-      <div class="ros-side">
-        <div class="ros-lab tiny">Show</div>
-        <div class="ros-grid">${FILTERS.map((f) => chip(f, 'r-filter', st.filter === f[0], f[0] === 'hurt' && nHurt ? html` <b class="ros-n num">${nHurt}</b>` : ''))}</div>
-        <div class="ros-lab tiny">Sort</div>
-        <div class="ros-grid ros-sort">${SORTS.map((f) => chip(f, 'r-sort', st.sort === f[0]))}</div>
-      </div>
-      <div class="ros-main">${head || ''}${K().pg('roster', cells(list), { grid: true, cls: 'ros-pg', empty: K().empty('scope', 'No players.') })}</div>
-    </div>`;
+    const chip = (f) => html`<button type="button" class="tx-f ${st.filter === f[0] ? 'on' : ''}" data-action="r-filter" data-id="${f[0]}" data-testid="roster-filter-${f[0]}" aria-pressed="${st.filter === f[0]}">${f[1]}${f[0] === 'hurt' && nHurt ? html`<b class="tx-fn num">${nHurt}</b>` : ''}</button>`;
+    const head = (id, label, cls) => html`<button type="button" class="tx-sort ${cls} ${st.sort === id ? 'on' : ''}" data-action="r-sort" data-id="${id}" data-testid="roster-sort-${id}" title="Sort by ${label}">${label}${st.sort === id ? K().ic('down') : ''}</button>`;
+    const SORTS = [['stars', 'Rating'], ['pos', 'Pos'], ['age', 'Age']];
+    const sNow = SORTS.find((x) => x[0] === st.sort) || SORTS[0], sNext = SORTS[(SORTS.indexOf(sNow) + 1) % SORTS.length];
+    const cycle = html`<button type="button" class="tx-f tx-cyc" data-action="r-sort" data-id="${sNext[0]}" data-testid="roster-sort" title="Sort by ${sNext[1]}">${K().ic('down')}${sNow[1]}</button>`;
+    return html`<div class="tx-filters" role="toolbar" aria-label="Show">${FILTERS.map(chip)}${cycle}</div>
+      ${K().card(html`<div class="tx-thead tx-rrow"><span class="tx-c-por"></span><span class="tx-nm">Player <span class="muted num">${UI.parts.rosterCount(tid)}</span></span>
+        ${head('pos', 'Pos', 'tx-c-pos')}${head('stars', 'Rating', 'tx-c-rate')}${head('age', 'Age', 'tx-c-age')}<span class="tx-c-tags"></span></div>
+        ${K().pg('roster', rows, { cls: 'tx-pg tx-side-pg', empty: html`<p class="muted tx-empty">No players here.</p>` })}`, 'fill tx-list tx-roster')}`;
   };
-  /** "22/22" for the title bar (the roster count moved out of the page) */
+  /** "22/22" (active players / limit) */
   UI.parts.rosterCount = function (tid) {
     const L = PT.App.L;
     const n = PT.League.Q.roster(L, tid).filter((p) => !p.ir).length;
@@ -80,37 +71,26 @@
     return n + '/' + max;
   };
   UI.parts.rosterActions = {
-    'r-filter': (el) => { st.filter = el.getAttribute('data-id'); UI.refresh(); },
-    'r-sort': (el) => { st.sort = el.getAttribute('data-id'); UI.refresh(); }
+    'r-filter': (el) => { st.filter = el.getAttribute('data-id'); UI.pgPage('roster', 0); UI.refresh(); },
+    'r-sort': (el) => { st.sort = el.getAttribute('data-id'); UI.pgPage('roster', 0); UI.refresh(); }
   };
 
   function mount(el, params) {
     const L = PT.App.L;
     const tid = params.tid == null ? L.userTid : params.tid;
-    const t = L.teams[tid];
-    const mine = tid === L.userTid;
-    let head = '';
-    if (!mine) {
-      let r = { w: 0, l: 0, t: 0 };
-      try { r = PT.League.Standings.get(L).find((x) => x.tid === tid) || r; } catch (e) { /* ignore */ }
-      head = html`<section class="card team-head ros-head" style="${K().teamVars(t)}">${K().badge(t, 'm')}<div class="grow ros-head-t"><b class="big ellip">${t.city} ${t.name}</b><span class="ros-head-s">${K().stars(K().teamOvr(tid), { team: true })} <b class="num">${D().rec(r.w, r.l, r.t)}</b>
-        <span class="small">${(PT.C.OFF_STYLES[t.style && t.style.off] || '')} · ${(PT.C.DEF_STYLES[t.style && t.style.def] || '')}</span></span></div>
-        ${K().btn({ label: 'Swap', icon: 'swap', action: 'swap', kind: 'sec', size: 's', testid: 'btn-team-swap' })}</section>`;
-    }
-    D().set(el, K().layout(UI.parts.rosterList(tid, head), null, 'fit nsb roster'));
+    D().set(el, K().layout(html`${UI.parts.teamStrip(tid)}${UI.parts.rosterList(tid)}`, null, 'fit tx tx-ros'));
   }
 
   UI.screens.roster = {
     title: (p) => {
       const L = PT.App.L, tid = p.tid == null ? L.userTid : p.tid;
-      let n = '';
-      try { n = ' ' + UI.parts.rosterCount(tid); } catch (e) { n = ''; }
-      return (tid === L.userTid ? 'Players' : L.teams[tid].name) + n;
+      return tid === L.userTid ? L.teams[tid].name : L.teams[tid].city + ' ' + L.teams[tid].name;
     },
     nav: 'roster',
     mount: mount,
     actions: Object.assign({
-      swap: (el, ev, params) => UI.go('swaps', { tid: params.tid })
+      swap: (el, ev, params) => UI.go('swaps', { tid: params.tid }),
+      'tm-capt': () => UI.parts.pickCaptain()
     }, UI.parts.rosterActions)
   };
 })(globalThis.PT = globalThis.PT || {});

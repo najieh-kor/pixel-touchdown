@@ -22,6 +22,8 @@
     const b = PT.League.Q.box(L, gid);
     const g = L.sched.find((x) => x.gid === gid);
     if (!b && !g) return;
+    // HUNT #10: one tabbed box-score overlay everywhere (Summary / Team Stats / Scoring)
+    if (b && UI.postgameOverlay) { UI.postgameOverlay('box', b); return; }
     UI.Modal.open({
       title: 'Box Score', cls: 'm-wide',
       body: b ? K().boxScore(b) : html`<p class="center">${L.teams[g.a].name} ${g.as} – ${g.hs} ${L.teams[g.h].name}</p><p class="muted center small">Box score not available.</p>`,
@@ -75,12 +77,11 @@
     const lastWk = L.phase === 'REGULAR' ? Math.max(1, L.week - 1) : PT.C.REG_WEEKS;
     const body = html`
       <div class="sch-head">
-        ${K().badge(L.teams[u], 's')}<div class="sch-tn"><b class="ellip">${L.teams[u].name}</b><span class="muted small">Season ${L.season}</span></div>
+        ${K().badge(L.teams[u], 's')}<div class="sch-tn"><b>${L.teams[u].name}</b><span class="muted small sch-season">Season ${L.season}</span></div>
         <div class="sch-rec num">${D().rec(r.w, r.l, r.t)}</div>
-        <div class="sch-btns">${K().btn({ label: 'Week Results', icon: 'news', action: 'results', data: { wk: lastWk }, kind: 'sec', size: 's', testid: 'btn-week-results' })}
-        ${K().btn({ label: 'Bracket', icon: 'carrot', action: 'bracket', kind: 'sec', size: 's', testid: 'btn-sch-bracket' })}</div>
+        <div class="sch-btns">${K().btn({ label: 'Week Results', icon: 'news', action: 'results', data: { wk: lastWk }, kind: 'sec', size: 's', testid: 'btn-week-results' })}</div>
       </div>
-      ${K().pg('sch', rows, { grid: true, cls: 'pg-top sch-pg' })}`;
+      ${K().pg('sch', rows, { grid: true, cls: 'sch-pg' })}`;
     D().set(el, K().layout(body, null, 'fit sched'));
     const seen = L.season + ':' + L.phase + ':' + L.week + ':' + nowId;
     if (nowId && seen !== schedSeen && UI.fit && UI.pgReveal) {
@@ -139,7 +140,7 @@
       myCard = K().card(html`<div class="res-line">${K().badge(t, 'm')}
         ${res ? html`<div class="score-big num"><span class="res-chip res-${res.r}">${res.r}</span>${res.us}–${res.them}</div>` : html`<div class="vs">${mine.h === u ? 'VS' : '@'}</div>`}
         ${K().badge(opp, 'm')}</div>
-        <div class="res-line res-say"><p class="grow small">${res ? (res.r === 'W' ? 'Beat the ' : res.r === 'L' ? 'Lost to the ' : 'Tied the ') : 'Next: the '}<b>${opp.name}</b></p>
+        <div class="res-line res-say" hidden><p class="grow small">${res ? (res.r === 'W' ? 'Beat the ' : res.r === 'L' ? 'Lost to the ' : 'Tied the ') : 'Next: the '}<b>${opp.name}</b></p>
         ${res ? K().btn({ label: 'Box', icon: 'clipboard', title: 'Box Score', action: 'box', data: { gid: mine.gid }, kind: 'sec', size: 's', testid: 'btn-res-box' }) : ''}</div>`, 'res-mine');
     }
     let div = [];

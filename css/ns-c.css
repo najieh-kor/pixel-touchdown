@@ -269,7 +269,7 @@
   .nc-bk .bk-ms { gap: 6px; }
 }
 /* INT2: playoff-picture tiles wrap a long team name onto 2 lines instead of cutting it */
-.nc-tile-m.ellip, .nc-tile .ellip { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.05; overflow-wrap: anywhere; }
-.nc-n { display: block; line-height: 1.05; overflow-wrap: anywhere; }
+.nc-tile-m.ellip, .nc-tile .ellip { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.05; overflow-wrap: normal; word-break: keep-all; }
+.nc-n { display: block; line-height: 1.05; overflow-wrap: normal; word-break: keep-all; }
 .nc-n .nc-ab { display: none; }
 @media (orientation: landscape) and (max-height: 480px) { .nc-n .nc-full { display: none; } .nc-n .nc-ab { display: inline; } }

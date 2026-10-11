@@ -36,7 +36,7 @@
    * @param {League} L @param {string} k kind @param {string} txt @param {number} [tid] @returns {Object} item
    */
   News.add = function (L, k, txt, tid) {
-    const item = { s: L.season, wk: L.week, k: k, txt: String(txt) };
+    const item = { s: L.season, wk: L.week, k: k, txt: String(txt).replace(/\.\s*$/, '') };   // no trailing periods (HUNT-league #3)
     if (tid != null && tid >= 0) item.tid = tid;
     L.news.unshift(item);
     if (L.news.length > MAX) L.news.length = MAX;
@@ -82,7 +82,7 @@
       const ws = Math.max(g.hs, g.as), ls = Math.min(g.hs, g.as);
       if (!stars) { stars = {}; for (const t of L.teams) stars[t.id] = teamStars(L, t.id); }
       if (stars[l] - stars[w] >= 2) {
-        cands.push([PRIO.upset, 'upset', News.tpl('upset', { S: stars[w], T: L.teams[w].name, T2: L.teams[l].name }), w]);
+        cands.push([PRIO.upset, 'upset', News.tpl('upset', { S: Math.round(stars[w]), T: L.teams[w].name, T2: L.teams[l].name }), w]);
       } else {
         cands.push([PRIO.game - 1 + (ws - ls) / 100, 'game', News.tpl('win', { T: L.teams[w].name, T2: L.teams[l].name, N: ws, N2: ls }), w]);
       }
