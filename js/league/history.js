@@ -40,10 +40,16 @@
     if (L.ss && L.ss.s === L.season) return L.ss;
     L.ss = fresh(L.season);
     const car = PT.League.Coach.car(L);
-    L.teams.forEach((t) => { if (t.fo == null) t.fo = 1 + (PT.RNG.hash(L.seed, 'fo', t.id) % 5); });
+    // Front Office skill 1..5 (design 17.1): tied to the starting tier ±1 so good organisations stay good longer (HUNT5 #2)
+    L.teams.forEach((t) => { if (t.fo == null) t.fo = Math.max(1, Math.min(5, (t.tier || 3) + (PT.RNG.hash(L.seed, 'fo', t.id) % 3) - 1)); });
     if (!L.scout || typeof L.scout.pts !== 'number') L.scout = { pts: 0, spent: {} };
     if (first) {
       if (car.teams.indexOf(L.userTid) < 0) car.teams.push(L.userTid);
+      // generated veterans: years played before the league began (HUNT5 #4), so career counts read right
+      for (const p of L.players) {
+        if (p.exp0 != null || p.tid === C.TID.PROSPECT || p.dr || p.cs.length) continue;
+        p.exp0 = Math.max(0, p.age - 22 - (PT.RNG.hash(L.seed, p.id, 'exp0') % 2));
+      }
       return L.ss;
     }
     // ---- a new season begins ----
@@ -170,11 +176,13 @@
   /** Build a Legend record for a retired player. */
   History.toLegend = function (L, p) {
     const seasons = p.cs.map((c) => c.s);
+    if (p.st && p.st.gp && seasons.indexOf(L.season) < 0) seasons.push(L.season);
+    const pre = Math.max(0, PT.League.Progression.careerYears(L, p) - Object.keys(seasons.reduce((o, s) => { o[s] = 1; return o; }, {})).length);
     const tids = [];
     for (const c of p.cs) if (c.t >= 0 && tids.indexOf(c.t) < 0) tids.push(c.t);
     return {
       id: p.id, fn: p.fn, ln: p.ln, sp: p.sp, pos: p.pos, num: p.num,
-      yrs: seasons.length ? [Math.min.apply(null, seasons), Math.max.apply(null, seasons)] : [L.season, L.season],
+      yrs: seasons.length ? [Math.min.apply(null, seasons) - pre, Math.max.apply(null, seasons)] : [L.season - pre, L.season],
       tids: tids, car: History.career(p), aw: p.aw.slice(), hof: !!p.hof, hp: p.hp || 0, fb: p.hof === 2 ? 1 : 0, ovr: p.ovr
     };
   };
@@ -374,8 +382,14 @@
     const bye = L.ss && L.ss.bye;
     const pr = bye && tid === L.userTid ? bye.prompts.find((x) => x.num === num) : null;
     if (pr) return PT.League.Progression.retireNumber(L, pr.pid, true);
-    if (PT.League.Progression.retireNum(L, tid, num)) PT.League.Economy.addHype(L, tid, 5);
-    return { ok: true, retired: true, num: num };
+    // Hype +5 only for an eligible player: a player retiring this season with that number and 3+ seasons on this team
+    // (the prompt list is handled above). Anyone else: the number is retired, but no Hype (matches the Goodbyes UI).
+    const PG = PT.League.Progression;
+    const eligible = L.players.some((p) => p.tid === C.TID.RETIRED && p.num === num &&
+      (p.ft === tid || p.cs.some((c) => c.t === tid)) && PG.seasonsWith(p, tid, p.ft, L.season) >= 3);
+    const added = PG.retireNum(L, tid, num);
+    if (added && eligible) PT.League.Economy.addHype(L, tid, 5);
+    return { ok: true, retired: true, num: num, hype: added && eligible ? 5 : 0 };
   };
 
   /** Records book (design 14.4): league + your franchise. */

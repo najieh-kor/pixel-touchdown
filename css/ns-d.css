@@ -247,7 +247,7 @@
 .sk-pg .sk .btn, .sk-pg .sk .chip { flex: none; align-self: center; }
 @media (orientation: landscape) and (max-height: 480px) {
   .coach-card .coach-ava, .coach-card .lvl-badge { width: 48px; height: 48px; }
-  .coach-card .lvl-badge .small { font-size: 11px; }
+  .coach-card .lvl-badge .small { font-size: 12px; }
   .coach-card .coach-xp { font-size: 12px; }
   .sk-pg .pg-list.pg-grid { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
 }

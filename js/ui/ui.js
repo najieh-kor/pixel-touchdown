@@ -270,7 +270,8 @@
     const t = lg.teams[lg.userTid];
     let space = 0;
     try { space = PT.League.Cap.space(lg, lg.userTid); } catch (e) { space = 0; }
-    return D().html`${K().coins(t.fin.coins)}${K().cash(space)}`;   // UI_RULES 3: currency only here — Coins + Team Cash
+    // UI_RULES 3: currency only here — Coins + Team Cash. HUNT5 #8: a tap explains each (tooltips never show on touch)
+    return D().html`<button type="button" class="hs-b" data-action="head-info" data-why="Coins: earn them in games, spend them in the Shop." data-testid="hs-coins">${K().coins(t.fin.coins)}</button><button type="button" class="hs-b" data-action="head-info" data-why="Team Cash: room left under the pay limit (not money to spend)." data-testid="hs-cash">${K().cash(space)}</button>`;
   }
   function updateHead() {
     const box = roots.screen, lg = L();
@@ -365,6 +366,7 @@
       UI.reset(x.to, x.tab ? { tab: x.tab } : {});
     },
     'flow-next': () => UI.Flow.next(),
+    'head-info': (t) => { UI.click('tap'); UI.Toast.show(t.getAttribute('data-why'), 'info', 2800); },
     player: (t) => { UI.click('tap'); UI.go('player', { pid: +t.getAttribute('data-pid') }); },
     'team-view': (t) => { UI.click('tap'); UI.go('roster', { tid: +t.getAttribute('data-tid') }); },
     'tip-ok': (t) => {
@@ -504,7 +506,7 @@
       if (b.k === 'ROSTER') return { text: 'Fix Roster', sub: (b.errors && b.errors[0] && b.errors[0].msg) || 'Lineup needs help', icon: 'clipboard' };
       if (b.k === 'CAP') return { text: 'Too Much Pay', sub: 'Over the Team Cash limit', icon: 'cash' };
       if (b.k === 'DRAFT_PICK') return { text: 'On the Clock', sub: 'Make your pick', icon: 'grad' };
-      if (b.k === 'FANTASY') return { text: 'Fantasy Draft', sub: '', icon: 'dice' };
+      if (b.k === 'FANTASY') return { text: 'Star Draft', sub: '', icon: 'dice' };
     }
     const away = awayFromPhase();
     if (away) return away.label;
@@ -603,9 +605,9 @@
     if (b) {
       switch (b.k) {
         case 'USER_GAME': {
-          // HUNT2 #7: a regular-season game starts straight from HQ; playoff games keep the Pregame card
+          // HUNT2 #7 / HUNT5 #3: your game (regular season or playoffs) starts straight from HQ
           const g = gameOf(b.gid);
-          if (g && !g.po && UI.Game && UI.current() && UI.current().name === 'hub') UI.Game.play(b.gid);
+          if (g && UI.Game && UI.current() && UI.current().name === 'hub') UI.Game.play(b.gid);
           else UI.go('pregame', { gid: b.gid });
           return Promise.resolve(null);
         }
@@ -655,18 +657,24 @@
     // round 2/HUNT3 #8: say exactly what Auto-Fix will do, one line per step, plus the dead money total
     let fp = null;
     try { const lg = L(); fp = PT.League.Roster.fixPlan ? PT.League.Roster.fixPlan(lg, lg.userTid, { useFA: true }) : null; } catch (e) { fp = null; }
-    const parts = fp && fp.text ? fp.text.split(' · ') : [];
+    const lines = [];
+    if (fp) {
+      (fp.signs || []).forEach((x) => lines.push('Sign ' + x.pos + ' ' + (x.walkOn ? 'walk-on' : x.name) + ' (' + x.ovr + ')'));
+      (fp.cut || []).forEach((x) => lines.push('Cut ' + x.pos + ' ' + x.name + (x.perYear ? ' · dead ' + D().money(x.perYear) + (x.years > 1 ? ' ×' + x.years : '') : '')));
+      if (!lines.length && fp.text) fp.text.split(' · ').forEach((x) => lines.push(x));
+    }
     const dead = fp && fp.cut ? fp.cut.reduce((a, x) => a + (x.perYear || 0), 0) : 0;
     const tooMany = codes.some((c) => c === 'TOO_MANY' || /TOO_MANY/.test(c));
     const tooFew = codes.some((c) => /^TOO_FEW/.test(c));
     const go = tooMany ? { label: 'Go to Pay', to: () => UI.reset('team', { tab: 'pay' }) }
       : tooFew ? { label: 'Go to Market', to: () => UI.reset('market') }
         : { label: 'Go to Lineup', to: () => UI.reset('depth') };
-    return UI.Modal.open({ title: 'Roster Issues', icon: 'clipboard', cls: 'm-roster',
-      body: D().html`<ul class="bul">${errs.map((m) => D().html`<li>${m}</li>`)}</ul>${parts.length
-        ? D().html`<p class="small"><b>Auto-Fix will:</b></p><ul class="bul small">${parts.map((x) => D().html`<li>${x}</li>`)}${dead ? D().html`<li>Dead money ${D().money(dead)}/yr</li>` : ''}</ul>`
+    // HUNT5 #2: buttons in one row (Later · Go to … · Auto-Fix) so the plan you approve is on screen
+    return UI.Modal.open({ title: 'Roster Issues', icon: 'clipboard', cls: 'm-roster', row: true,
+      body: D().html`<ul class="bul">${errs.map((m) => D().html`<li>${m}</li>`)}</ul>${lines.length
+        ? D().html`<p class="small"><b>Auto-Fix will:</b></p><ul class="bul small rh-plan">${lines.map((x) => D().html`<li>${x}</li>`)}</ul>${dead ? D().html`<p class="small"><b>Dead money: ${D().money(dead)} a year</b></p>` : ''}`
         : D().html`<p class="muted small">Fix it yourself or use Auto-Fix.</p>`}`,
-      buttons: [{ label: 'Auto-Fix', value: 'fix', kind: 'go', testid: 'btn-fix-roster' }, { label: go.label, value: 'go', kind: 'sec' }, { label: 'Later', value: null, kind: 'cancel' }] })
+      buttons: [{ label: 'Later', value: null, kind: 'cancel' }, { label: go.label, value: 'go', kind: 'sec' }, { label: 'Auto-Fix', value: 'fix', kind: 'go', testid: 'btn-fix-roster' }] })
       .then((v) => {
         if (v === 'fix') { PT.League.Auto.resolve(L(), b); UI.Toast.show('Roster fixed', 'good'); if (PT.Events) PT.Events.emit('league:changed', { what: 'roster' }); UI.refresh(); }
         else if (v === 'go') go.to();

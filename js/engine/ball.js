@@ -383,6 +383,7 @@
       if (e.info.t.glue_paws) drop *= 0.5;
       if (e.info.q.drop) drop *= e.info.q.drop;
       if (ST().active(G, e, 'magnet')) drop = 0;                   // Magnet Hands: can't drop
+      if (e.tm === G.userIdx && G.human()) drop = Math.max(0, drop - T.EASY_HANDS[G.diff]);   // HUNT5 #13: a perfect throw is caught
       if (wx === 'rain') drop *= 1.3;
       if (rng.chance(drop)) return BL.incomplete(G, 'drop', -1, r);
       return BL.caught(G, r, false, false);
@@ -430,7 +431,10 @@
     if (roll < pc + pp) return BL.caught(G, dfi, true, true);
     P.pdBy = dfi;
     // pass interference (design 8.15)
-    if (D - R > 15 && rng.chance(T.PEN_PI * PT.Engine.Rules.penMul(G, de))) {
+    // HUNT5 #6: flag only real interference — a late-arriving defender beating the receiver on his own merit (no Super
+    // Jump, no Edge / closer-defender bonus)
+    const Dbase = BL.dScore(G, de, 0, defN - 1);
+    if (!(star.idx === dfi && star.superJump) && Dbase - R > 15 && dfd > rd + 0.3 && rng.chance(T.PEN_PI * PT.Engine.Rules.penMul(G, de))) {
       P.pen = { kind: 'pi', team: d, yds: 0, txt: 'Pass interference! First down', spot: ly, fd: true };
     }
     return BL.incomplete(G, 'defended', dfi);

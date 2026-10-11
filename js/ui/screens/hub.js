@@ -56,14 +56,15 @@
         <div class="boss-face" aria-hidden="true">${K().sp('bear', 64)}</div>
         <div class="grow">
           <h2 class="big">Welcome, ${L.coach && L.coach.n ? L.coach.n : 'Coach'}</h2>
-          <p class="small">Boss of the <b>${t.name}</b>: win games, keep fans happy.</p>
-          <p class="small">${K().ic('dice')} <b>${tw.name}</b>${goal ? html` · Goal: <b>${goal.txt}</b>` : ''}</p>
+          <p class="small">You run the <b>${t.name}</b>. Win games and keep the Boss (owner) happy.</p>
+          ${tw.id !== 'normal' ? html`<p class="small">${K().ic('dice')} <b>${tw.name}</b></p>` : ''}
+          ${goal ? html`<p class="small">${K().ic('briefcase')} Goal: <b>${K().numify(goal.txt)}</b></p>` : ''}
           ${L.newSeasonCard && L.newSeasonCard.tv ? html`<p class="small ns-x">${K().icon('coin')} ${K().numify('TV money +' + D().int(L.newSeasonCard.tv) + ' Coins')}</p>` : ''}
         </div>
       </div>
       <div class="welcome-btns">
         ${practiceOffer()}
-        ${K().btn({ label: 'Got It', icon: 'check', action: 'welcome-ok', kind: 'go', size: 'l', testid: 'btn-welcome-ok' })}
+        ${K().btn({ label: 'Got It', icon: 'check', action: 'welcome-ok', kind: 'sec', size: 'l', testid: 'btn-welcome-ok' })}
       </div>`, 'card-cream welcome-card hq-gate');
   }
 
@@ -84,7 +85,7 @@
     const lines = (c.lines || []).filter((x) => typeof x === 'string');
     return K().card(html`<h2 class="hq-gate-t">${K().ic('calendar')} Season ${c.s || L.season}</h2>
       <div class="ns-rows">
-        <div class="ns-row"><span class="ns-ic">${K().ic('dice')}</span><span class="grow ns-tw"><b>${tw.name}</b>${tw.desc ? html`<span class="small ns-fx">${K().numify(tw.desc)}</span>` : ''}</span></div>
+        ${tw.id !== 'normal' ? html`<div class="ns-row"><span class="ns-ic">${K().ic('dice')}</span><span class="grow ns-tw"><b>${tw.name}</b>${tw.desc ? html`<span class="small ns-fx">${K().numify(tw.desc)}</span>` : ''}</span></div>` : ''}
         ${goal ? html`<div class="ns-row"><span class="ns-ic">${K().ic('briefcase')}</span><span class="grow"><b>Boss goal:</b> ${K().numify(goal)}</span></div>` : ''}
         ${money.length ? html`<div class="ns-row"><span class="ns-ic">${K().icon('coin')}</span><span class="grow small">${K().numify(money.join(' · '))}</span></div>` : ''}
         ${camp.length ? html`<div class="ns-row ns-x"><span class="ns-ic">${K().ic('dumbbell')}</span><span class="grow small">Camp: ${camp.map((p) => K().short(p)).join(', ')}</span></div>` : ''}
@@ -144,7 +145,7 @@
     const heavy = off.length >= def.length ? off : def;
     const cnt = {}; heavy.forEach((p) => { cnt[p.pos] = (cnt[p.pos] || 0) + 1; });
     const posTxt = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a]).slice(0, 3).map((k) => (cnt[k] > 1 ? cnt[k] + ' ' : '') + k).join(', ');
-    const starTxt = ps.length ? 'Their Stars: ' + off.length + ' O · ' + def.length + ' D' + (posTxt ? ' (' + posTxt + ')' : '') : '';
+    const starTxt = ps.length ? 'Their Stars: ' + off.length + ' offense, ' + def.length + ' defense' + (posTxt ? ' (' + posTxt + ')' : '') : '';
     const skew = ps.length && Math.abs(off.length - def.length) >= 4;
     return html`<div class="nx-scout" data-testid="hub-scout"><span class="nx-tags">${sc.tags}${starTxt && !skew ? html`<span class="chip chip-gold">${K().ic('star')} ${off.length} O · ${def.length} D</span>` : ''}</span><p>${sc.them}</p>${skew
       ? html`<p class="nx-stars" data-testid="hub-opp-stars">${K().ic('star')} ${starTxt}</p>` : html`<p class="${sc.usCls}">${K().ic('shield')} ${sc.us}</p>`}</div>`;
@@ -284,7 +285,8 @@
   function todoPanel(L, t) {
     const items = todoItems(L, t);
     if (!items.length) return '';
-    return K().card(html`${K().h2('To do', null, 'check')}
+    const goal = L.boss && L.boss.goal && L.boss.goal.txt;
+    return K().card(html`${K().h2('To do', goal ? html`<span class="chip chip-ink todo-goal" title="Boss goal">${K().ic('briefcase')} ${K().numify(goal)}</span>` : null, 'check')}
       <div class="todo">${items.map((x) => html`<button type="button" class="todo-i" data-action="go" data-to="${x.to}" data-testid="todo-${x.id}"><span class="todo-ic">${K().ic(x.icon)}</span><span class="grow">${x.txt}</span><span class="todo-go">${K().ic('play')}</span></button>`)}</div>`, 'hub-todo');
   }
   /** one-line latest news */
@@ -301,12 +303,14 @@
     if (!L) { UI.replace('title'); return; }
     if (L.fd && !L.fd.done) { UI.replace('fantasy'); return; }              // Fantasy Draft still running
     const t = L.teams[L.userTid];
+    // HUNT5 #12: the New Season card goes away by itself once you have played (or simmed) a game this season
+    if (seasonCardOn(L) && L.sched.some((g) => g.st === 'F' && (g.h === L.userTid || g.a === L.userTid))) dismissSeason();
     const showWelcome = D().memo.welcome === L.id || params.welcome;
     // HUNT2 #7: game week = [Sim] + [Play Week N] right here (no Pregame stop); Sim Season lives on the Calendar
     const gw = userGameThisWeek(L);
     let first = null;
     try { const st = PT.League.Calendar.status(L); first = st && st.blockers && st.blockers[0]; } catch (e) { first = null; }
-    const simEnd = gw && gw.po === 0 && gw.st !== 'F' && first && first.k === 'USER_GAME' && first.gid === gw.gid
+    const simEnd = gw && gw.st !== 'F' && first && first.k === 'USER_GAME' && first.gid === gw.gid
       ? K().btn({ label: 'Sim', icon: 'bolt', action: 'sim-game', data: { gid: gw.gid }, kind: 'sec', size: 'l', testid: 'btn-hub-sim', title: 'Sim this game', cls: 'btn-simend' }) : '';
     const gate = showWelcome ? welcomeCard(L, t) : seasonCardOn(L) ? newSeasonCard(L) : '';
     // UI_RULES 4: HQ = what's next only: the next game (display only), ONE To do panel, a news line, the bottom bar

@@ -104,6 +104,10 @@
     p.gl = r.weighted(GROWTH);
     const g = GAP[p.gl];
     p.pot = Math.min(99, p.ovr + r.int(g[0], g[1]));
+    // HUNT5 #2: pull high ceilings toward the league's starter level so classes don't flood the top end
+    const m = K().DRAFT_POT_MEAN;
+    if (p.pot > m) p.pot = Math.max(p.ovr, Math.round(m + (p.pot - m) * K().DRAFT_POT_PULL));
+    p.gl = PT.League.Progression.letter(p.pot - p.ovr);
   }
 
   /** Re-rank the class by consensus (fogged OVR + true Growth bonus). */

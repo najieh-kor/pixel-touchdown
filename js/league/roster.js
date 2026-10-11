@@ -477,7 +477,14 @@
     let keep = [];
     if (Array.isArray(t.stars)) keep = t.stars;
     else if (t.stars && typeof t.stars === 'object') keep = [t.stars.off, t.stars.def].filter((x) => x != null);
+    const before = keep.slice();
     t.stars = Roster.pickStars(L, tid, keep);
+    // HUNT5 #5: tell the user when an empty Star spot was refilled automatically
+    const added = tid === L.userTid && before.length ? t.stars.filter((pid) => before.indexOf(pid) < 0) : [];
+    if (added.length && PT.League.News && PT.League.News.add) {
+      const names = added.map((pid) => { const p = Q().player(L, pid); return p ? p.fn.charAt(0) + '. ' + p.ln : '?'; });
+      PT.League.News.add(L, 'roster', 'New Stars: ' + names.join(', ') + '. Change them in Lineup.', tid);
+    }
     return t.stars;
   };
 
@@ -691,10 +698,14 @@
     // keep score (lowest is cut). AI teams: design 17.5 value per pay. The user's "Fix it": value first (never trade a
     // good starter for a walk-on). Both: dead cap (Cut Cost) and starting count against cutting (HUNT2-league #1).
     const cc = {}, sc = {};
+    // HUNT5 #5: an old (33+) or expiring kicker is not the long-term K when a younger one is on the roster
+    const oldK = (p) => p.pos === 'K' && (p.age >= 33 || (p.con && p.con.exp <= L.season));
+    const youngK = act.some((q) => q.pos === 'K' && !oldK(q));
     cands.forEach((p) => {
       cc[p.id] = Roster.cutCost(L, p.id).total;
       const v = Roster.value(L, p);
       sc[p.id] = (t.human ? v + p.ovr : v / Math.max((p.con ? p.con.sal : 0) / 1000, 0.5)) + cc[p.id] / 100 + (isStarter(t, p.id) ? 1e6 : 0);
+      if (oldK(p) && youngK) sc[p.id] -= 2e6;
     });
     const draftKey = (p) => (p.dr ? 5 - Math.min(4, p.dr.rd) : 0);     // undrafted / walk-ons first, then late rounds
     cands.sort((a, b) => (sc[a.id] - sc[b.id]) || (draftKey(a) - draftKey(b)) || (cc[a.id] - cc[b.id]) || (a.id - b.id));
@@ -832,7 +843,11 @@
     const plan = Roster.fixPlan(L, tid, o);
     const cut = [], signed = [], ir = [];
     plan.ir.forEach((x) => { if (Roster.setIR(L, x.pid, true).ok) ir.push(x.pid); });
-    plan.cut.forEach((c) => { if (Roster.release(L, c.pid).ok) cut.push(c.pid); });
+    plan.cut.forEach((c) => {
+      if (!Roster.release(L, c.pid).ok) return;
+      cut.push(c.pid);
+      if (L.teams[tid].human && PT.League.News && PT.League.News.add) PT.League.News.add(L, 'cut', 'The ' + L.teams[tid].name + ' release ' + c.name, tid);   // HUNT5 #5
+    });
     plan.signs.forEach((x) => {
       let r = null;
       if (o.useFA && x.pid != null) {
@@ -869,8 +884,10 @@
       const score = (p) => Roster.value(L, p) / Math.max(p.con.sal / 1000, 0.5) + (isStarter(t, p.id) ? 1e6 : 0);
       cands.sort((a, b) => (score(a) - score(b)) || (b.con.sal - a.con.sal) || (a.id - b.id));
       const pos = cands[0].pos;
+      const nm = cands[0].fn.charAt(0) + '. ' + cands[0].ln;
       Roster.release(L, cands[0].id);
       cut.push(cands[0].id);
+      if (t.human && PT.League.News && PT.League.News.add) PT.League.News.add(L, 'cut', 'The ' + t.name + ' release ' + nm, tid);   // HUNT5 #5
       if (swap) Roster.walkOn(L, tid, pos);
     }
     return cut;

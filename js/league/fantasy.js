@@ -43,7 +43,7 @@
    * @param {League} L @returns {Result} {pool, total}
    */
   Fantasy.begin = function (L) {
-    if (!Fantasy.canBegin(L)) return fail('NOT_NOW', 'The Fantasy Draft is for new franchises only.');
+    if (!Fantasy.canBegin(L)) return fail('NOT_NOW', 'The Star Draft is for new franchises only.');
     const rng = LG().rng(L);
     const pool = [];
     L.teams.forEach((t) => {
@@ -310,7 +310,7 @@
       if (L.newSeasonCard) L.newSeasonCard.goal = L.boss.goal;
     }
     try { if (LG().Standings.snapPower) LG().Standings.snapPower(L); } catch (e) { /* optional */ }
-    if (LG().News && LG().News.add) LG().News.add(L, 'sign', 'Fantasy Draft complete. Every team has 8 new Stars.', L.userTid);
+    if (LG().News && LG().News.add) LG().News.add(L, 'sign', 'Star Draft done. Every team has 8 Stars.', L.userTid);
     LG().emit('league:fantasyDone', { mine: mine.length });
   }
 })(globalThis.PT = globalThis.PT || {});

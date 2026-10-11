@@ -431,22 +431,41 @@
     const t = l.firstElementChild;
     if (t && !cur.shown) { t.classList.add('pk-enter'); cur.shown = true; }
   }
+  // CLIENT: "I click OK on the coach tip and it doesn't go away". Root cause: Save.sanitizePrefs (HUNT4 #9) keeps only
+  // primitive values for unknown keys, so K.tipDone's `prefs.tips = {id:1}` object was dropped on every write and
+  // tipSeen() stayed false → the next render() showed the tip again. Dismissal is now kept in memory for this app
+  // session (one tap always closes it; it never re-opens this game) and persisted as a primitive key `tip_<id>: 1`.
+  const tipGone = {};
+  function tipIsSeen(id) {
+    if (tipGone[id]) return true;
+    try { const p = PT.Save && PT.Save.prefs ? PT.Save.prefs() : {}; if (p['tip_' + id]) { tipGone[id] = 1; return true; } } catch (e) { /* ignore */ }
+    return K().tipSeen(id);
+  }
+  function tipDismiss(id) {
+    if (!id) return;
+    tipGone[id] = 1;
+    try { K().tipDone(id); } catch (e) { /* ignore */ }
+    try { if (PT.Save && PT.Save.setPrefs) { const o = {}; o['tip_' + id] = 1; PT.Save.setPrefs(o); } } catch (e) { /* ignore */ }
+  }
   function tipHtml(side) {
     const id = side === 'D' ? 'defense' : 'playcall';
-    if (K().tipSeen(id)) return '';
+    if (tipIsSeen(id)) return '';
     const txt = side === 'D' ? "Pick a defense. Tap TAP! when the ring turns green. Tap SURGE when it's full." : 'Tap a play, then HIKE. ' + (UI.Hud && UI.Hud.throwHint ? UI.Hud.throwHint() : 'Pull back to throw!');
     return html`<div class="pk-tip"><span aria-hidden="true">${ic('cap')}</span><span class="pk-tip-t">${txt}</span><button type="button" class="pk-chip" data-pact="tipok" data-id="${id}" data-testid="tip-ok-${id}">Got it</button></div>`;
   }
 
   function fourthHtml(o) {
     const sit = o.sit || {};
+    // HUNT5 #7: ONE primary = the coach's choice (FG at >= 50%, GO at 1-2 to go, else PUNT); the rest are secondary
+    const togo = sit.togo == null ? 10 : sit.togo;
+    const rec = o.fgPct >= 50 ? 'fg' : togo <= 2 ? 'go' : 'punt';
+    const kind = (k, own) => (rec === k ? own : 'sec');
     return sheet('pk-small', html`
       <div class="pk-big-t">${sit.down ? PT.Util.ordinal(sit.down) + ' & ' + togoText(sit.togo == null ? 1 : sit.togo, false) : '4th Down'}!</div>
-      <p class="pk-q">What do you want to do?</p>
       <div class="pk-choice">
-        ${K().btn({ label: 'Go for it', icon: ic('ball'), kind: 'go', size: 'l', testid: 'btn-4th-go', data: { pact: 'go' } })}
-        ${K().btn({ label: 'Punt', icon: ic('boot'), kind: 'sec', size: 'l', testid: 'btn-4th-punt', data: { pact: 'punt' } })}
-        ${o.fgPct ? K().btn({ label: 'Field Goal', sub: 'Chance ' + o.fgPct + '%', icon: ic('posts'), kind: 'gold', size: 'l', testid: 'btn-4th-fg', data: { pact: 'fg' } }) : ''}
+        ${K().btn({ label: 'Go for it', icon: ic('ball'), kind: kind('go', 'go'), size: 'l', testid: 'btn-4th-go', data: { pact: 'go' } })}
+        ${K().btn({ label: 'Punt', icon: ic('boot'), kind: kind('punt', 'go'), size: 'l', testid: 'btn-4th-punt', data: { pact: 'punt' } })}
+        ${o.fgPct ? K().btn({ label: 'Field Goal', sub: 'Chance ' + o.fgPct + '%', icon: ic('posts'), kind: kind('fg', 'go'), size: 'l', testid: 'btn-4th-fg', data: { pact: 'fg' } }) : ''}
       </div>
       <p class="pk-keys"><span class="hud-kbd">G</span> go · <span class="hud-kbd">P</span> punt${o.fgPct ? D().raw(' · <span class="hud-kbd">K</span> kick') : ''}</p>`, 'Fourth down');
   }
@@ -585,7 +604,7 @@
       case 'filter': cur.filter = t.getAttribute('data-f'); cur.page = 0; cur.needFit = true; render(); break;
       case 'pageprev': cur.page = Math.max(0, (cur.page || 0) - 1); render(); break;
       case 'pagenext': cur.page = Math.min((cur.pages || 1) - 1, (cur.page || 0) + 1); render(); break;
-      case 'tipok': K().tipDone(t.getAttribute('data-id')); render(); break;
+      case 'tipok': tipDismiss(t.getAttribute('data-id')); render(); break;
       case 'flip': PC.state.flip = !PC.state.flip; render(); break;
       case 'hurry': PC.state.hurry = !PC.state.hurry; render(); break;
       case 'timeout': done('TIMEOUT'); break;

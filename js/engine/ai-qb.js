@@ -16,6 +16,7 @@
     const q = play.qb || {};
     const big = !!PB.UNDER[play.form];   // under center
     qb.qbX0 = qb.x; qb.qbY0 = qb.y; qb.qbRead = 0; qb.qbNext = 0; qb.rs = 0; qb.thinkT = 0;
+    qb.readMul = G.rng.range(1 - G.T.JIT_READ, 1 + G.T.JIT_READ);              // HUNT5 #11: read tempo varies per snap
     P.qbMode = 'drop'; P.readStart = 0.4;
     if (q.drop) {
       const dr = PB.DROPS[q.drop];
@@ -224,7 +225,7 @@
     if (t < P.readStart + (play.readAt ? 0 : T.QB_SET)) return out;
     const fog = (G.cfg.weather || {}).k === 'fog' && !qb.info.q.fogImm;
     const smt = qb.r.smt;
-    const readEvery = Math.max(0.2, T.QB_READ_BASE - smt * T.QB_READ_K - (qb.info.q.owl ? T.QB_OWL : 0));
+    const readEvery = Math.max(0.2, T.QB_READ_BASE - smt * T.QB_READ_K - (qb.info.q.owl ? T.QB_OWL : 0)) * (qb.readMul || 1);
     // pressure is only "felt" after a reaction delay (longer from the blind side) — that is where sacks come from
     let pressure = false;
     const pn = PT.Engine.AI.nearestOpp(G, qb, qb.x, qb.y);

@@ -176,7 +176,7 @@
     const P = G.P;
     h.retHint = '';
     if (P && (P.kind === 'kickoff' || P.kind === 'punt') && G.ball.st === 'air' && G.userRet(1 - P.off) && !P.retCall) {
-      if (P.kind === 'punt') h.retHint = 'fc';
+      if (P.kind === 'punt') { const RU = PT.Engine.Rules, rt = 1 - P.off; h.retHint = (G.ball.ly - RU.ownGoalY(G, rt)) * RU.dirOf(G, rt) < 10 ? 'let' : 'fc'; }   // 'let' = it bounces unless you tap
       else { const RU = PT.Engine.Rules, rt = 1 - P.off; if ((G.ball.ly - RU.ownGoalY(G, rt)) * RU.dirOf(G, rt) <= 0) h.retHint = 'tb'; }
     }
     if (G.debug) S.writeDebug(G);

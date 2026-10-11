@@ -13,7 +13,7 @@
  *   FK.tip(id, text)                   one small dismissible line (data-action fl-tip), shown once
  *   FK.table(o)                        table card: o = { key, cols:[{k,label,cls}], rows:[{id,testid,cells,cls,sel,attrs,static,action}], noHead, grid (rows flow in columns),
  *                                        tools:Raw, cls, empty:Raw, action:'row' }  (paged with K.pg → pager.js)
- *   FK.filter(o)                       one-row position filter (chips; a "Pos" button + sheet on narrow layouts)
+ *   FK.filter(o)                       position filter: one "Pos: X" button → sheet of choices (all widths; HUNT5-ui-core #13)
  *   FK.foot(info, sec, pri)            bottom bar (secondary left of primary)
  *   FK.offer(o) / FK.offerAct          inline offer control (Pay stepper, Years, verdict, Send) used by Market + Keep
  *   FK.actions                         actions every flow screen merges in (fl-tip, fl-pos, offer steppers)
@@ -48,7 +48,7 @@
   /** name that is never cut: the full name; on narrow layouts the CSS shows "J. Lastname" instead */
   FK.name = function (p) {
     if (!p) return '';
-    return html`<span class="fl-nm"><span class="fl-nf">${p.fn} ${p.ln}</span><span class="fl-ns">${p.fn.charAt(0)}. ${p.ln}</span></span>`;
+    return html`<span class="fl-nm"><span class="fl-nf">${p.fn} ${p.ln}</span><span class="fl-ns"><b class="fl-ini">${p.fn.charAt(0)}.</b> ${p.ln}</span></span>`;   // HUNT5 #7: initial in the display font (Z vs 2)
   };
   /** team name: full on wide layouts, abbr on narrow */
   FK.team = function (t) {
@@ -107,18 +107,18 @@
    * Chips on wide layouts; on narrow ones a single "Pos: X" button opens a sheet with the same chips.
    */
   FK.filter = function (o) {
+    // HUNT5-ui-core #13: one "Pos" dropdown at every width; the sheet lists the choices (needs read "QB (need)")
     const cur = o.list.find((x) => x.id === o.value) || o.list[0];
-    const chip = (x, inSheet) => html`<button type="button" class="fl-chip ${x.id === o.value ? 'on' : ''}" data-action="${inSheet ? 'fl-pos-pick' : 'filter'}" data-pos="${x.id}" ${inSheet ? '' : D().raw('data-testid="' + D().esc(o.testid(x.id)) + '"')} title="${x.title || x.label}">${x.label}${x.dot ? D().raw('<i class="fl-dot" title="Need"></i>') : ''}</button>`;
+    const chip = (x) => html`<button type="button" class="fl-chip ${x.id === o.value ? 'on' : ''} ${x.dot ? 'need' : ''}" data-action="fl-pos-pick" data-pos="${x.id}" data-testid="${o.testid(x.id)}" title="${x.title || x.label}">${x.label}${x.dot ? html`<span class="fl-need">(need)</span>` : ''}</button>`;
     FK._sheet = { list: o.list, value: o.value, chip: chip, pick: o.pick };
     return html`<div class="fl-filter" role="toolbar" aria-label="${o.title || 'Position'}">
-      <div class="fl-chips">${o.list.map((x) => chip(x, false))}</div>
-      <button type="button" class="fl-chip fl-posbtn ${o.value ? 'on' : ''}" data-action="fl-pos" data-testid="${o.testid('menu')}">${o.short || 'Pos'}<b>${cur.label}</b><i class="fl-caret" aria-hidden="true"></i></button>
+      <button type="button" class="fl-chip fl-posbtn ${o.value ? 'on' : ''}" data-action="fl-pos" data-testid="${o.testid('menu')}" aria-haspopup="dialog">${o.short || 'Pos'}<b>${cur.label}</b><i class="fl-caret" aria-hidden="true"></i></button>
     </div>`;
   };
   function posSheet() {
     const s = FK._sheet;
     if (!s) return;
-    UI.Modal.open({ title: 'Show', cls: 'm-flpos', body: html`<div class="fl-sheet">${s.list.map((x) => s.chip(x, true))}</div>`,
+    UI.Modal.open({ title: 'Show', cls: 'm-flpos', body: html`<div class="fl-sheet">${s.list.map((x) => s.chip(x))}</div>`,
       buttons: [{ label: 'Close', value: null, kind: 'cancel' }],
       actions: { 'fl-pos-pick': (t, card, entry) => entry.close(t.getAttribute('data-pos')) } })
       .then((v) => { if (v != null && s.pick) s.pick(v); });
@@ -157,11 +157,68 @@
       return out;
     } catch (e) { return []; }
   };
-  /** active (non-Hurt-List) players and the Week 1 limit */
+  const OFFSEASON = { SEASON_END: 1, RESIGN: 1, DRAFT: 1, FREE_AGENCY: 1 };
+  /**
+   * Players who will count at Week 1, and the Week 1 limit. In season: active (non-Hurt-List) players. In the offseason
+   * EVERYONE counts, because the rollover heals all injuries and clears the Hurt List (HUNT5 #2: 22/22 became 24/22).
+   */
   FK.rosterCount = function (lg) {
     let act = 0;
-    try { act = PT.League.Q.active(lg, lg.userTid).length; } catch (e) { act = 0; }
+    try { act = OFFSEASON[lg.phase] ? PT.League.Q.roster(lg, lg.userTid).length : PT.League.Q.active(lg, lg.userTid).length; } catch (e) { act = 0; }
     return { act: act, max: (PT.C.ROSTER && PT.C.ROSTER.MAX_SEASON) || 22 };
+  };
+  /** offseason only: take your players off the Hurt List now (the rollover does it anyway), so cut plans see everyone */
+  FK.clearHurtList = function (lg) {
+    if (!OFFSEASON[lg.phase]) return;
+    PT.League.Q.roster(lg, lg.userTid).filter((p) => p.ir).forEach((p) => {
+      let r = null;
+      try { r = PT.League.Roster.setIR(lg, p.id, false); } catch (e) { r = null; }
+      if (!r || r.ok === false) p.ir = false;
+    });
+  };
+  /**
+   * The Week 1 cut plan (HUNT5 #3): ONE list that is both the preview and what Auto fix releases.
+   * Size first: Roster.nextCut (the user's keep score: value, starters protected, dead money counted) until the roster
+   * fits the limit; then Team Cash: lowest value per pay (never below a position minimum, never a starter first).
+   * Call FK.clearHurtList(lg) first in the offseason. @returns {{cuts:{p, sal, perYear, years, why}[], over:number, cash:number}}
+   */
+  FK.weekOnePlan = function (lg) {
+    const uid = lg.userTid, R = PT.League.Roster, Q = PT.League.Q, Cap = PT.League.Cap, C = PT.C;
+    const rc = FK.rosterCount(lg);
+    const ex = {}, cuts = [];
+    const cost = (p) => { try { return R.cutCost(lg, p.id); } catch (e) { return { perYear: 0, years: 0 }; } };
+    const add = (p, why) => { const c = cost(p); ex[p.id] = true; cuts.push({ p: p, sal: p.con ? p.con.sal : 0, perYear: c.perYear, years: c.years, why: why }); };
+    let guard = 40;
+    while (rc.act - cuts.length > rc.max && guard-- > 0) {
+      const p = R.nextCut(lg, uid, ex);
+      if (!p) break;
+      add(p, 'size');
+    }
+    const saves = (x) => x.sal - x.perYear;
+    let space = 0;
+    try { space = Cap.space(lg, uid); } catch (e) { space = 0; }
+    space += cuts.reduce((n, x) => n + saves(x), 0);
+    const t = lg.teams[uid];
+    const cnt = {};
+    C.POS.forEach((pos) => { cnt[pos] = 0; });
+    Q.roster(lg, uid).forEach((p) => { if (!ex[p.id]) cnt[p.pos]++; });
+    guard = 40;
+    while (space < 0 && guard-- > 0) {
+      const cands = Q.roster(lg, uid).filter((p) => !ex[p.id] && p.con && cnt[p.pos] > (C.ROSTER.NEED[p.pos] || 0) && p.con.sal - cost(p).perYear > 0);
+      if (!cands.length) break;
+      const score = (p) => R.value(lg, p) / Math.max(p.con.sal / 1000, 0.5) + (R.startsAt && R.startsAt(t, p.id) ? 1e6 : 0);
+      cands.sort((a, b) => (score(a) - score(b)) || (b.con.sal - a.con.sal) || (a.id - b.id));
+      add(cands[0], 'cash');
+      cnt[cands[0].pos]--;
+      space += saves(cuts[cuts.length - 1]);
+    }
+    return { cuts: cuts, over: Math.max(0, rc.act - rc.max), cash: space };
+  };
+  /** release exactly the planned players. @returns {number[]} released pids */
+  FK.applyPlan = function (lg, plan) {
+    const out = [];
+    plan.cuts.forEach((x) => { const r = PT.League.Roster.release(lg, x.p.id); if (r && r.ok !== false) out.push(x.p.id); });
+    return out;
   };
   /** header segment "Roster 24/22" (red when over the Week 1 limit) */
   FK.rosterSeg = function (lg) {

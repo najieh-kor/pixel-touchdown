@@ -51,6 +51,8 @@
       if (b.info.q.bigEars) t += T.BIG_EARS_T;
       if (G.twist.groundwar) t += 0.3;
       if (b.role === R.ESCORT || b.role === R.KBLOCK) t *= T.ESCORT_SHED;
+      // perimeter stalk blocks (WR/TE on a CB/S) don't hold as long (HUNT5 #3: outside runs were too easy)
+      if ((b.pos === 'WR1' || b.pos === 'WR2' || b.pos === 'TE') && (d.pos === 'CB1' || d.pos === 'CB2' || d.pos === 'S')) t *= T.STALK_SHED;
       d.engWin = d.shed > b.block;
     }
     t = Math.max(0.15, t);
@@ -291,7 +293,7 @@
     const dirC = RU.dirOf(G, c.tm);
     // QB committed to the throw: can't be sacked (late hit → roughing chance)
     if (P.kind === 'scrim' && ci === P.qb && P.windT > 0 && P.windSafe) return false;
-    const isSack = P.kind === 'scrim' && ci === P.qb && !P.thrown && G.ball.car === ci && !P.crossed && !P.run && (c.y - P.los0) * dirC < 0.5 && !(P.play && (P.play.sneak || P.play.option));
+    const isSack = P.kind === 'scrim' && ci === P.qb && !P.thrown && G.ball.car === ci && !P.crossed && !P.run && (c.y - P.los0) * dirC < 0.5 && !(P.play && (P.play.sneak || P.play.option || P.play.k === 'run'));   // a run stuffed before the handoff is not a sack (HUNT5 #10)
     if (isSack) {
       let pe = T.SACK_ESC_BASE + (c.r.pow - d.r.tkl) * 0.005 + (c.r.mov - 50) * 0.003 + (c.info.t.scrambler ? 0.10 : 0);
       pe = PT.Util.clamp(pe, T.SACK_ESC_MIN, T.SACK_ESC_MAX);
@@ -363,6 +365,7 @@
     const dz2 = PT.Engine.Stars.active(G, d, 'bulldozer');
     if (dz2) pb /= 1 + (T.AB_DOZER_TKL - 1) * dz2;                        // Bulldozer: tackle chance ×1.5
     if (c.turboBrk) { c.turboBrk = false; pb = 1; }                         // Turbo: the first tackle attempt is auto-broken
+    if (!Number.isFinite(pb)) pb = T.BRK_BASE;                              // HUNT5 #2 guard: a bad tuning key can't silently zero breaks
     pb = PT.Util.clamp(pb, T.BRK_MIN, T.BRK_MAX);
     const closing = Math.hypot(c.vx - d.vx, c.vy - d.vy);
     // L tacklers hit harder (big hit sooner); only a clean, unblocked hit on a carrier who isn't spinning (HUNT3 #6)

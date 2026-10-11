@@ -68,9 +68,23 @@
     if (f.k === 'tmAck') return ['clock', 'He waits', 0];
     return null;
   }
+  /** HUNT5 #6: the swap card says who you lose and who you get (position, Stars, STAR tag), not just "Swap done" */
+  function swapTags(L, raw) {
+    const v = (raw && raw.vars) || {};
+    const pl = (pid) => PT.League.Q.player(L, pid);
+    const who = (p) => html`${K().posChip(p.pos)}${p.fn.charAt(0)}. ${p.ln} ${K().stars(p.ovr)}${K().isStar && K().isStar(L, p) ? K().starTag() : ''}`;
+    const give = ((v.give && v.give.pids) || (raw && raw.pid != null ? [raw.pid] : [])).map(pl).filter(Boolean);
+    const get = ((v.get && v.get.pids) || []).map(pl).filter(Boolean);
+    const picks = (v.get && v.get.picks) || [];
+    const out = give.map((p) => FK().tag(html`Lose ${who(p)}`, 'red fl-tag-swap'));
+    get.forEach((p) => out.push(FK().tag(html`Get ${who(p)}`, 'green fl-tag-swap')));
+    picks.forEach((pk) => out.push(FK().tag(html`${K().ic('grad')}Get Rd ${pk.rd} pick`, 'green')));
+    return out;
+  }
   /** choice tags from the fx: certain effects green/red, chancy ones one amber "Risk 20%: …" / "50%: …" tag */
-  function choiceTags(ch) {
+  function choiceTags(ch, L, raw) {
     const out = [];
+    if ((ch.fx || []).some((f) => f.k === 'swap') && L) return swapTags(L, raw);
     (ch.fx || []).forEach((f) => {
       if (f.k === 'roll') {
         const pa = Math.round((f.p == null ? 0.5 : f.p) * 100);
@@ -155,7 +169,7 @@
     const choices = (ev.choices || []).map((c, i) => {
       const off = c.disabled || c.can === false;
       const dch = dv && dv.choices ? dv.choices[i] : null;
-      const ct = dch ? choiceTags(dch) : [];
+      const ct = dch ? choiceTags(dch, L, (L.ev && L.ev.pending || []).find((x) => x.iid === ev.iid)) : [];
       const tg = ct.length ? ct : tags(c.hint);
       return html`<button type="button" class="fl-choice" data-action="choose" data-iid="${ev.iid}" data-i="${i}" data-testid="event-choice-${i}" ${off ? D().raw('disabled aria-disabled="true"') : ''} title="${c.why || ''}">
         <span class="fl-choice-l">${c.label}</span>${(tg && tg.length) || c.why ? html`<span class="fl-choice-tags">${tg}${off && c.why ? FK().tag(c.why, 'red') : ''}</span>` : ''}</button>`;

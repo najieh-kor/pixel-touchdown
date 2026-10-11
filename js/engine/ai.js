@@ -43,7 +43,7 @@
   /** Defender reaction time for this play (design 4.1 + Edge 7.4). */
   AI.react = function (G, e) {
     const T = G.T, edge = G.P.kind === 'scrim' ? G.P.edge || 0 : 0;
-    let rt = e.react - 0.05 * edge;
+    let rt = (e.react - 0.05 * edge) * (e.tm !== G.P.off ? (e.reactMul || 1) : 1);
     if (e.tm !== G.userIdx && G.userIdx >= 0) rt += T.EASY_REACT[G.diff];    // Rookie: AI defenders read a beat late
     if (e.tm !== G.P.off) {
       rt += T.AB_LASER_REACT * PT.Engine.Stars.offLaser(G);                  // Laser: the throw beats their eyes
@@ -740,7 +740,9 @@
         const disc = qb * qb - 4 * qa * qc;
         if (disc >= 0) { const sq = Math.sqrt(disc), t1 = (-qb - sq) / (2 * qa), t2 = (-qb + sq) / (2 * qa); ti = t1 > 0 && t2 > 0 ? Math.min(t1, t2) : Math.max(t1, t2); if (ti < 0) ti = dist / sp; }
       }
-      let tl = ti * (dist < 8 ? 1 : 0.55 + e.r.smt * 0.0045);
+      // a carrier running laterally (sweeps, stretches) is led fully — no "take the angle late" (HUNT5 #3)
+      const lateral = Math.abs(c.vx) > Math.abs(c.vy);
+      let tl = ti * (dist < 8 || lateral ? 1 : 0.55 + e.r.smt * 0.0045);
       if (tl > 2.5) tl = 2.5;
       let tx = c.x + c.vx * tl, ty = c.y + c.vy * tl;
       // the last line (deepest defender, still goal-side) keeps leverage: meet him near his own depth, don't over-run
@@ -751,7 +753,7 @@
         if (tx < 1) tx = 1; else if (tx > C.FIELD.W - 1) tx = C.FIELD.W - 1;
       }
       // contain: outermost defender on each side stays outside the carrier until close
-      if (dist > T.CONTAIN_R && AI.isOutermost(G, e, c)) {
+      if (dist > T.CONTAIN_R && AI.outerRank(G, e, c) < T.CONTAIN_N) {   // the 2 outermost on each side keep contain
         const side = e.x > c.x ? 1 : -1;
         if ((tx - c.x) * side < T.CONTAIN_GAP) tx = c.x + side * T.CONTAIN_GAP;
       }
@@ -791,6 +793,18 @@
     const o = e.tm * 7;
     for (let k = 0; k < 7; k++) { const d = G.ents[o + k]; if (d !== e && d.downT <= 0 && (d.y - e.y) * dirC > 0) return false; }
     return true;
+  };
+
+  /** How many teammates are further outside than e on his side of the carrier (0 = outermost). */
+  AI.outerRank = function (G, e, c) {
+    const o = e.tm * 7, side = e.x > c.x ? 1 : -1;
+    let n = 0;
+    for (let k = 0; k < 7; k++) {
+      const d = G.ents[o + k];
+      if (d === e || d.downT > 0) continue;
+      if ((d.x - c.x) * side > (e.x - c.x) * side) n++;
+    }
+    return n;
   };
 
   AI.isOutermost = function (G, e, c) {

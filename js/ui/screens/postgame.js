@@ -44,21 +44,22 @@
   /** HUNT #20: at most 3 stats on a top-performer line (no run yards for a QB, no catch yards for a RB) */
   function perfLine(l, pos) {
     const drop = pos === 'QB' ? /run yds/ : pos === 'RB' ? /catch yds/ : null;
-    const max = (globalThis.innerWidth || 1000) < 700 ? 2 : 3;          // 667px wide: 2 stats fit on one line
+    const max = 3;                     // HUNT5 #11: the performers card has the full width now
     return K().statLine(l, pos).split(' · ').filter((x) => !drop || !drop.test(x)).slice(0, max).join(' · ');
   }
 
   /** the full box score / scoring list as a closable overlay (kept off the main Final screen). ROUND6: tabs, no scrolling */
   function overlay(kind, box) {
     const L = PT.App.L;
-    const tabs = [['sum', 'Summary'], ['team', 'Team Stats'], ['scoring', 'Scoring']];
-    let cur = kind === 'scoring' ? 'scoring' : 'sum';
+    // HUNT5 #11: the Final already shows the top players, so the box opens on the team numbers (line score + stats)
+    const tabs = [['team', 'Team Stats'], ['players', 'Players'], ['scoring', 'Scoring']];
+    let cur = kind === 'scoring' ? 'scoring' : 'team';
     const scoringList = () => {
       const list = (box && box.sc) || [];
       return list.length ? K().pg('scoring', list.map((x) => html`<div class="sc-row"><span class="q">${K().periodName(box, x.q)}</span> ${K().badge(L.teams[x.t], 's')} <b>${x.k}</b> <span class="muted">${x.txt || ''}</span></div>`))
         : html`<p class="muted">No points scored.</p>`;
     };
-    const bodyFor = (k) => (k === 'scoring' ? scoringList() : K().boxScore(box, { parts: k === 'team' ? ['team'] : ['line', 'leaders'], leadMax: (globalThis.innerHeight || 800) < 480 ? 3 : 4 }));
+    const bodyFor = (k) => (k === 'scoring' ? scoringList() : K().boxScore(box, { parts: k === 'team' ? ['line', 'team'] : ['leaders'], leadMax: (globalThis.innerHeight || 800) < 480 ? 3 : 4 }));
     const render = (card) => {
       const host = card.querySelector('.box-host');
       D().set(host, bodyFor(cur));
@@ -83,20 +84,6 @@
     const res = us > them ? 'W' : us < them ? 'L' : 'T';
     const head = res === 'W' ? 'Victory' : res === 'L' ? 'Defeat' : 'Tie game';
     const sub = o.sub;
-    // team stats (away left, home right — same as the score)
-    const tl = (tid) => ((box && box.tm) || []).find((x) => x.tid === tid) || {};
-    const ta = tl(a), th = tl(h);
-    const third = (x) => (x.d3a ? (x.d3c || 0) + '/' + x.d3a : '–');
-    const rows = [['Total yards', 'ty'], ['Passing', 'py'], ['Rushing', 'ry'], ['Turnovers', 'to', true], ['3rd down', 'd3', false, third]];
-    const statRow = (r) => {
-      const va = r[3] ? r[3](ta) : (ta[r[1]] || 0), vh = r[3] ? r[3](th) : (th[r[1]] || 0);
-      const na = r[3] ? (ta.d3a ? (ta.d3c || 0) / ta.d3a : 0) : va, nh = r[3] ? (th.d3a ? (th.d3c || 0) / th.d3a : 0) : vh;
-      const better = r[2] ? (na < nh ? 'a' : nh < na ? 'h' : '') : (na > nh ? 'a' : nh > na ? 'h' : '');
-      // HUNT #44: conversion rows (x/y) draw each side's rate on a 0-100% scale; counts share the total
-      const sum = (na + nh) || 1;
-      const wa = r[3] ? Math.round(na * 100) : Math.round(na / sum * 100), wh = r[3] ? Math.round(nh * 100) : Math.round(nh / sum * 100);
-      return html`<div class="pgx-st"><b class="num ${better === 'a' ? 'up' : ''}">${va}</b><span class="pgx-st-l"><span class="pgx-bar"><i style="width:${wa}%"></i></span>${r[0]}<span class="pgx-bar pgx-bar-h"><i style="width:${wh}%"></i></span></span><b class="num ${better === 'h' ? 'up' : ''}">${vh}</b></div>`;
-    };
     const top = topThree(L, box);
     const kc = K().kitCols(h, a);          // same kits as the 3D game: two same-colour teams still differ
     const perf = top.map((x) => html`<div class="pgx-p ${x.pog ? 'pog' : ''}">${K().portrait(x.p, 44, L.teams[x.p.tid] ? L.teams[x.p.tid].col.pri : undefined)}
@@ -116,10 +103,6 @@
         <section class="pgx-card pgx-perf" data-testid="pgm-top">
           <h3>Top performers</h3>
           ${perf.length ? perf : html`<p class="small muted">Simmed game.</p>`}
-        </section>
-        <section class="pgx-card pgx-stats" data-testid="pgm-stats">
-          <h3><span>${L.teams[a].abbr}</span>Team stats<span>${L.teams[h].abbr}</span></h3>
-          ${rows.map(statRow)}
         </section>
       </div>
       ${o.rewards || ''}

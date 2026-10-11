@@ -134,6 +134,8 @@
 
 
   // ---------------- How to Play ----------------
+  /** HUNT5 #10: words that match the device ('Tap' on touch, 'Press' / keys otherwise) */
+  const touchDev = () => { try { return !!(globalThis.matchMedia && globalThis.matchMedia('(pointer: coarse)').matches); } catch (e) { return false; } };
   const HT = { tab: 'controls' };
   const HT_TABS = [{ id: 'controls', label: 'Controls', icon: 'football' }, { id: 'offense', label: 'Offense', icon: 'football' }, { id: 'defense', label: 'Defense', icon: 'shield' }, { id: 'counters', label: 'Counters', icon: 'brain' }, { id: 'manager', label: 'Franchise', icon: 'cap' }, { id: 'modes', label: 'Modes', icon: 'dice' }];
   const kbd = (k) => html`<span class="kbd">${k}</span>`;
@@ -162,7 +164,7 @@
     ctlRow('Control player', 'Tap a defender', 'Click a defender', ['Tab'], 'LB'),
     ctlRow('Surge', 'SURGE button', 'Click SURGE', ['G'], 'Y'),
     ctlRow('Kick', 'Pull back + let go', 'Drag + let go', ['←', '→', 'Space'], 'Stick + hold A'),
-    ctlRow('2× speed', '2× button', 'Click 2×', ['F'], 'RB'),
+    ctlRow('Speed up', '» (tap again: end play)', 'Click »', ['F'], 'RB'),
     ctlRow('Pause', 'Tap Pause', 'Click Pause', ['Esc'], 'Start'),
     ctlRow('Menus', 'Tap', 'Click', ['Arrows', 'Enter', 'Esc'], 'D-pad, A = OK'),
     ctlRow('Next (HQ)', 'NEXT', 'Click NEXT', ['N'], 'A on NEXT'),
@@ -197,7 +199,7 @@
     return K().card(html`${K().h2('Offense')}
       ${steps('ht-off', [
     step(1, 'Pick a play', 'Pick one of three play cards. The flame marks the coach’s pick. White lines are routes; yellow is the first read.', first ? dia(first.id, 'O') : ''),
-    step(2, 'Hike', 'Tap HIKE or press Space. On run plays the handoff is automatic.', run ? dia(run.id, 'O') : ''),
+    step(2, 'Hike', (touchDev() ? 'Tap HIKE.' : 'Click HIKE or press Space.') + ' On run plays the handoff is automatic.', run ? dia(run.id, 'O') : ''),
     step(3, 'Throw', 'Pull back like a slingshot and let go. Throw where the catcher is GOING. Hold LOB to throw over defenders.', ''),
     step(4, 'Run and dodge', 'Steer with the joystick. JUKE, SPIN and DIVE to slip past tacklers.', ''),
     step(5, '4th down', 'Go for it, punt or kick a field goal. The make chance shows on the button.', '')])}`, 'fill');
@@ -211,7 +213,7 @@
     step(2, 'Control a player', 'Tap a defender to control him before the snap.', ''),
     step(3, 'Star Play', 'Tap TAP! when the ring turns green for a Super Dive or Super Jump.', html`<span class="ht-ring"><i></i></span>`),
     step(4, 'Surge', 'When the meter is full, tap SURGE: all your Stars on the field use their power.', ''),
-    step(5, 'Speed up', 'Press 2× to go fast, End play to jump to the result, or Sim drive.', '')])}`, 'fill');
+    step(5, 'Speed up', (touchDev() ? 'Tap' : 'Press') + ' » for 2×, again to end the play, or Sim drive.', '')])}`, 'fill');
   }
   function howCounters() {
     const DF = PT.Data.Defense, PB = PT.Data.Playbook;
@@ -232,8 +234,9 @@
   function howManager() {
     return K().card(html`${K().h2('Franchise Basics')}
       ${steps('ht-coach', [
-    step('play', 'Press NEXT', 'The big button on HQ moves the season forward and shows what comes next.', ''),
-    step('star', 'Stars & Growth', 'Stars show how good a player is. Growth (A+ to D) shows how much he can still improve.', ''),
+    step('play', (touchDev() ? 'Tap' : 'Press') + ' NEXT', 'The big button on HQ moves the season forward and shows what comes next.', ''),
+    step('chart', 'Rating & Growth', 'Rating stars show how good a player is. Growth (A+ to D) shows how much he can still improve.', ''),
+    step('star', 'Stars', 'Your 8 picked players. +5 skills, and they power the SURGE.', ''),
     step('cash', 'Team Cash', 'All Pay must fit under the Team Cash limit. Cutting a player has a Cut Cost.', ''),
     step('coin', 'Coins', 'Earn Coins from games and fans. Spend them in the Shop on facilities and coaches.', ''),
     step('flame', 'Hype & Boss', 'Win to keep fans hyped and the Boss happy. Hit the Boss Goal each season.', '')])}`, 'fill');

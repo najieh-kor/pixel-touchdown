@@ -24,7 +24,7 @@
   const TWO_COLS = [{ k: 'main', label: '', cls: 'c-name' }];
   /** the recap's three tabs (one screen, one Next — client: "no 50 NEXT buttons") */
   const TABS = [{ id: 'awards', label: 'Awards', icon: 'trophy' }, { id: 'growth', label: 'Growth', icon: 'sprout' }, { id: 'goodbyes', label: 'Goodbyes', icon: 'hand' }];
-  const recap = { tab: 'awards', key: '', name: '' };
+  const recap = { tab: 'awards', key: '', name: '', pro: false };
   function recapLayout(el, lg, v) {
     FK().noSub(el);
     FK().railOn(el, 'hub');            // part of the NEXT flow: the rail lights HQ (ui.js maps awards/goodbyes to Office)
@@ -75,9 +75,10 @@
       cells: { main: two(S.coy === u ? 'Your coach (you)' : coy.name + ' coach', html`${K().ic('whistle')}<b>Coach of the Year</b>`, S.coy === u ? FK().tag('You', 'gold') : K().badge(coy, 's')) } });
     // Pixel Pro Team: yours first
     const pro = (S.allLg || []).map((pid) => P(lg, pid)).filter(Boolean).sort((a, b) => isMine(lg, b) - isMine(lg, a));
+    const proRows = [];
     pro.forEach((p) => {
       const t = p.tid >= 0 ? lg.teams[p.tid] : null;
-      rows.push({ id: p.id, testid: 'pro-' + p.id, action: 'player', cls: isMine(lg, p) ? 'mine' : '',
+      proRows.push({ id: p.id, testid: 'pro-' + p.id, action: 'player', cls: isMine(lg, p) ? 'mine' : '',
         cells: { main: two(p.fn + ' ' + p.ln, html`${K().ic('star')}<b>Pro Team</b>${K().posChip(p.pos)}${t ? html`${K().badge(t, 's')}<span class="fl-nf">${t.abbr}</span>` : 'Free Agent'}`, isMine(lg, p) ? FK().tag('Yours', 'gold') : '') } });
     });
     const mineN = pro.filter((p) => isMine(lg, p)).length;
@@ -88,8 +89,13 @@
         ${ru ? html`<p class="fl-line fl-ru">Runner-up: <b>${ru.name}</b></p>` : ''}
         <div class="fl-mini">${bossLine(lg, ur)}<span class="fl-line fl-myrec">${K().badge(me, 's')}<b class="fl-nf">${me.name}</b> <b class="num">${D().rec(ur.w || 0, ur.l || 0, ur.t || 0)}</b></span></div>
       </section>` : html`<section class="fl-card fl-hero"><p class="fl-hero-k">${K().ic('trophy')} Awards Night</p></section>`;
-    const table = F.table({ key: 'aw', cols: TWO_COLS, rows: rows, noHead: true, grid: true, cls: 'fl-t-two',
-      tools: html`<span class="fl-bar-t">Winners</span>${chips([F.tag(html`${K().ic('star')}Pro Team: ${mineN} yours`, mineN ? 'gold' : '')])}` });
+    // HUNT5 #9: the major awards first; the Pixel Pro Team sits behind its own switch (no player listed twice on a page)
+    const showPro = recap.pro && proRows.length;
+    const sw = html`<span class="fl-segtog fl-aw-sw" role="tablist">
+      <button type="button" role="tab" class="fl-seg fl-seg-btn ${showPro ? '' : 'on'}" data-action="aw-list" data-v="0" data-testid="aw-majors"><b class="fl-sv">Awards</b></button>
+      ${proRows.length ? html`<button type="button" role="tab" class="fl-seg fl-seg-btn ${showPro ? 'on' : ''}" data-action="aw-list" data-v="1" data-testid="aw-pro">${K().ic('star')}<b class="fl-sv">Pro Team${mineN ? ' · ' + mineN + ' yours' : ''}</b></button>` : ''}
+    </span>`;
+    const table = F.table({ key: showPro ? 'awpro' : 'aw', cols: TWO_COLS, rows: showPro ? proRows : rows, noHead: true, grid: true, cls: 'fl-t-two', tools: sw });
     return { hero: hero, table: table, S: S, champ: champ, won: won };
   }
 
@@ -118,7 +124,7 @@
     const hero = star ? html`<section class="fl-card fl-hero" data-testid="gr-riser">
         <p class="fl-hero-k">${K().ic('up')} Biggest Riser</p>
         <div class="fl-hero-row">${K().portrait(star.p, 56)}<div class="fl-hero-m"><b class="fl-hero-n">${star.p.fn} ${star.p.ln}</b>
-          <span class="fl-line">${K().posChip(star.p.pos)}<span>Age ${star.p.age}</span></span></div></div>
+          <span class="fl-line">${K().posChip(star.p.pos)}<span>Age <b class="num">${star.p.age}</b></span></span></div></div>
         <div class="fl-hero-d"><span class="from num">${star.from}</span><span class="from">to</span><span class="to num">${star.p.ovr}</span><span class="up num">+${star.d}</span></div>
         <div class="fl-line">${K().stars(star.p.ovr, { noNum: true })}</div>
       </section>` : html`<section class="fl-card fl-hero"><p class="fl-hero-k">${K().ic('sprout')} Growth Day</p><p class="fl-line">Nobody moved up this year.</p></section>`;
@@ -126,7 +132,7 @@
       const cls = x.d > 0 ? 'up' : x.d < 0 ? 'down' : 'same';
       const d = x.known ? html`<span class="fl-delta ${cls} num">${x.d > 0 ? '+' + x.d : x.d < 0 ? '−' + Math.abs(x.d) : '='}</span>` : '';
       return { id: x.p.id, testid: 'player-row-' + x.p.id, action: 'player',
-        cells: { main: two(x.p.fn + ' ' + x.p.ln, html`${K().posChip(x.p.pos)}<span>Age ${x.p.age}</span><span class="fl-ovr num">${x.known && x.d ? html`${x.from} → ` : ''}<b>${x.p.ovr}</b></span>${d}`) } };
+        cells: { main: two(x.p.fn + ' ' + x.p.ln, html`${K().posChip(x.p.pos)}<span>Age <b class="num">${x.p.age}</b></span><span class="fl-ovr num">${x.known && x.d ? html`${x.from} → ` : ''}<b>${x.p.ovr}</b></span>${d}`) } };
     });
     const table = F.table({ key: 'gr', cols: TWO_COLS, rows: rows, noHead: true, grid: true, cls: 'fl-t-two fl-t-gr',
       tools: html`<span class="fl-bar-t">Your Team</span>${has ? chips([F.tag(html`${K().ic('up')}${up}`, 'green'), F.tag(html`${K().ic('down')}${down}`, 'red'), F.tag('= ' + same, '')]) : ''}` });
@@ -136,6 +142,8 @@
   // ---------------- Goodbyes ----------------
   /** seasons played, same formula as Progression.retire: unique archived seasons + this season if he played */
   function careerYears(p) {
+    const PG = PT.League && PT.League.Progression;
+    if (PG && PG.careerYears) return PG.careerYears(PT.App.L, p);   // includes years before the league began (HUNT5 #4)
     const cs = p.cs || [];
     const set = {};
     cs.forEach((c) => { set[c.s] = 1; });
@@ -169,7 +177,11 @@
     const cs = r.p && r.p.cs ? r.p.cs : null;
     let withUs = cs ? cs.filter((c) => c.t === u).length : r.tids.filter((t) => t === u).length;
     if ((r.ft === u || (r.p && r.p.ft === u)) && !(cs && cs.some((c) => c.s === lg.season && c.t === u))) withUs += 1;
-    return withUs >= 1;
+    // HUNT5 #5 (design 14.10): a number is retired for a long-tenured player, not a 1-season backup:
+    // the league's Goodbyes prompt list (Progression.retire → ss.bye.prompts), or 3+ seasons with you
+    let prompted = false;
+    try { const H = PT.League.History, ss = H && H.ss ? H.ss(lg) : lg.ss; prompted = !!(ss && ss.bye && ss.bye.prompts.some((x) => x.pid === r.id)); } catch (e) { prompted = false; }
+    return prompted || withUs >= 3;
   }
 
   const GB_OTHERS = 14;   // league-wide retirements beyond yours + Hall of Famers are trimmed to the longest careers
@@ -188,7 +200,7 @@
     const top = shown[0];
     const list = shown.slice(1);            // the hero card shows the first one: no repeat in the list
     const rows = list.map((r) => ({ id: r.id, testid: 'gb-row-' + r.id, static: true, cls: mine(r) ? 'mine' : '',
-      cells: { main: two(r.fn + ' ' + r.ln, html`${K().posChip(r.pos)}<span>${r.yrs || 1}<span class="fl-nf"> ${(r.yrs || 1) === 1 ? 'season' : 'seasons'}</span><span class="fl-ns"> ${(r.yrs || 1) === 1 ? 'yr' : 'yrs'}</span></span>${r.hof ? FK().tag('Hall of Fame', 'ink') : mine(r) ? FK().tag('Yours', 'gold') : ''}${retireBtn(r)}`) } }));
+      cells: { main: two(r.fn + ' ' + r.ln, html`${K().posChip(r.pos)}<span><b class="num">${r.yrs || 1}</b><span class="fl-nf"> ${(r.yrs || 1) === 1 ? 'season' : 'seasons'}</span><span class="fl-ns"> ${(r.yrs || 1) === 1 ? 'yr' : 'yrs'}</span></span>${r.hof ? FK().tag('Hall of Fame', 'ink') : mine(r) ? FK().tag('Yours', 'gold') : ''}${retireBtn(r)}`) } }));
     const F = FK();
     const hero = top ? html`<section class="fl-card fl-hero ${mine(top) ? 'mine' : ''}" data-testid="gb-row-${top.id}">
         <p class="fl-hero-k">${K().ic(top.hof ? 'crown' : 'hand')} ${mine(top) ? 'Thank you' : top.hof ? 'Hall of Fame' : 'Farewell'}</p>
@@ -209,7 +221,7 @@
     if (!lg) { UI.replace('title'); return; }
     const S = lastSeason(lg);
     const key = lg.id + ':' + (S ? S.s : lg.season);
-    if (recap.key !== key || recap.name !== name) { recap.key = key; recap.name = name; recap.tab = name === 'growth' || name === 'goodbyes' ? name : 'awards'; }
+    if (recap.key !== key || recap.name !== name) { recap.key = key; recap.name = name; recap.pro = false; recap.tab = name === 'growth' || name === 'goodbyes' ? name : 'awards'; }
     const v = recap.tab === 'growth' ? growthView(lg) : recap.tab === 'goodbyes' ? goodbyesView(lg) : awardsView(lg);
     recapLayout(el, lg, v);
     if (recap.tab !== 'awards' || !S) return;
@@ -235,6 +247,7 @@
     title: 'Season Recap', nav: 'hub', mount: (el) => mountRecap(el, name),
     actions: FK().withActions({
       'recap-tab': (t) => { recap.tab = t.getAttribute('data-tab'); UI.refresh(); },
+      'aw-list': (t) => { recap.pro = t.getAttribute('data-v') === '1'; UI.refresh(); },
       'retire-num': (el) => retireNum(el)
     })
   });

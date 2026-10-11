@@ -149,7 +149,7 @@
     }
     const ros = blockers.find((b) => b.k === 'ROSTER');
     if (blockers.length && blockers[0].k === 'FIRED') nextLabel = 'Big News';
-    else if (blockers.length && blockers[0].k === 'FANTASY') nextLabel = 'Fantasy Draft';
+    else if (blockers.length && blockers[0].k === 'FANTASY') nextLabel = 'Star Draft';
     else if (ros) nextLabel = ros.errors[0].msg;
     else if (blockers.some((b) => b.k === 'CAP')) nextLabel = 'Over the Team Cash Limit';
     return { phase: L.phase, week: L.week, sub: L.sub, season: L.season, label: label, nextLabel: nextLabel,
@@ -157,7 +157,7 @@
   };
 
   const BLOCK_MSG = { EVENT: 'Pick an answer for the team news first.', USER_GAME: 'Play or sim your game first.',
-    DRAFT_PICK: 'You are on the clock.', FANTASY: 'Finish the Fantasy Draft first.', FIRED: 'The Boss wants to talk. Take a new job first.', CAP: 'You are over the Team Cash limit.' };
+    DRAFT_PICK: 'You are on the clock.', FANTASY: 'Finish the Star Draft first.', FIRED: 'The Boss wants to talk. Take a new job first.', CAP: 'You are over the Team Cash limit.' };
 
   function compactOld(L) {
     const u = L.userTid;

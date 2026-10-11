@@ -61,7 +61,7 @@
     AI_QB_SIG: 1.0, LONG_SIG_D: 25, LONG_SIG_K: 22, DEEP_CATCH_D: 18, DEEP_CATCH_K: 0.007, DEEP_CON_K: 0.008,
 
     // ---------- catching (design 8.10) ----------
-    UNCON_BASE: 0.95, UNCON_HND: 0.004, UNCON_OFF: 0.12, UNCON_MIN: 0.35, UNCON_MAX: 0.99,
+    UNCON_BASE: 0.96, UNCON_HND: 0.004, UNCON_OFF: 0.12, UNCON_MIN: 0.35, UNCON_MAX: 0.99,
     CON_BASE: 0.6, CON_K: 0.012, CON_MIN: 0.10, CON_MAX: 0.92,
     PICK_BASE: 0.03, PICK_K: 0.004, PICK_MIN: 0.02, PICK_MAX: 0.30,
     DPICK_BASE: 0.14, DPICK_K: 0.008, DPICK_MIN: 0.10, DPICK_MAX: 0.80,
@@ -86,16 +86,16 @@
     // playtest (human QB only, by difficulty): pass-rush win time ×USER_POCKET (TWIN was tuned for the instant AI QB;
     // a standing human was sacked 28% of dropbacks by 2.0 s), second-level blitzers read for USER_BLITZ_GO s at 45%
     // pace, and +USER_SACK_ESC "break free" chance on a sack
-    TWIN: 1.35, TWIN_SD: 0.25, USER_POCKET: [2.0, 2.2, 1.6, 1.2], USER_POCKET_ADD: [0.7, 0.7, 0.28, 0], USER_POCKET_MIN: [2.6, 2.4, 1.8, 1.4], USER_BLITZ_GO: [1.1, 1.0, 0.64, 0.4], USER_BLITZ_PACE: 0.95, USER_STEM: [0.85, 0.85, 0.963, 1], JUKE_REACT: [0.22, 0.22, 0.13, 0.1], JUKE_REACT_R: 5, USER_SACK_ESC: [0.15, 0.10, 0.07, 0.05], TSHED: 2.2, TSHED_SD: 0.2, DOUBLE: 1.8, ESCORT_SHED: 0.6, SCREEN_HOLD: 0.5,
+    TWIN: 1.35, TWIN_SD: 0.25, USER_POCKET: [2.0, 2.2, 1.6, 1.2], USER_POCKET_ADD: [0.7, 0.7, 0.28, 0], USER_POCKET_MIN: [2.6, 2.4, 1.8, 1.4], USER_BLITZ_GO: [1.1, 1.0, 0.64, 0.4], USER_BLITZ_PACE: 0.95, USER_STEM: [0.85, 0.85, 0.963, 1], JUKE_REACT: [0.22, 0.22, 0.13, 0.1], JUKE_REACT_R: 5, USER_SACK_ESC: [0.15, 0.10, 0.07, 0.05], TSHED: 2.7, TSHED_SD: 0.2, DOUBLE: 1.8, ESCORT_SHED: 0.6, SCREEN_HOLD: 0.5,
     POCKET_PUSH: 0.6, RUN_PUSH: 1.0, ENGAGE_PAD: 0.35, REENGAGE_CD: 1.2,
     BRICK_WALL_T: 1.0, ROAD_GRADER_T: 0.5, BUILDER_T: 0.2, BIG_EARS_T: 0.2, HORN_T: 0.15, SACK_MASTER_W: 0.85,
     GREEN_DOG_T: 0.8,
     TRAIL: 1.0, TRAIL_PRESS: 0.5, PRESS_T: 1.5, TRAIL_TIGHT: 0.5, TRAIL_MIN: 0.2, LOCKDOWN_TRAIL: 0.5, SIDESTEP_TRAIL: 0.2, ROUTE_ARTIST_SEP: 0.3,
-    ZONE_DROP_T: 1.0, ZONE_DROP_UNDER: 0.45, ZONE_REACH: 7, ZONE_COVERED: 8, ZONE_SQUEEZE_D: 6, ZONE_CUSHION: 2.5, ZONE_DEPTH_W: 0.25, ZONE_CHECKDOWN: 3,   // zone coverage fix (playtest)
+    ZONE_DROP_T: 1.0, ZONE_DROP_UNDER: 0.3, ZONE_REACH: 9, ZONE_COVERED: 8, ZONE_SQUEEZE_D: 6, ZONE_CUSHION: 2.5, ZONE_DEPTH_W: 0.25, ZONE_CHECKDOWN: 1,   // zone coverage fix (playtest)
     BREAK_R: 10,
-    PURSUIT_DT: 0.1, HUSTLE: 1.10, HUSTLE_R: 15, HUSTLE_PAST: 3, HUSTLE_RET: 18, KCOVER_PACE: 0.96, CONTAIN_GAP: 1.0, CONTAIN_R: 5,
+    PURSUIT_DT: 0.1, HUSTLE: 1.18, HUSTLE_R: 15, HUSTLE_PAST: 3, HUSTLE_RET: 18, KCOVER_PACE: 0.96, CONTAIN_GAP: 2.0, CONTAIN_R: 8, CONTAIN_N: 3, STALK_SHED: 0.5,   // HUNT5 #3 outside-run balance
     REACT_BASE: 0.40, REACT_K: 0.002, REACT_MIN: 0.10, REACT_MAX: 0.50,
-    PA_BITE: 0.60, PA_BITE_SMT: 0.01, PA_BITE_EDGE: 0.10, PA_BITE_RUNCALL: 0.20, PA_BITE_DIST: 1.5, DRAW_FOOL: 0.9, DRAW_ARM: 0.4, DEEP_RUN_READ: 0.7,
+    PA_BITE: 0.60, PA_BITE_SMT: 0.01, PA_BITE_EDGE: 0.10, PA_BITE_RUNCALL: 0.20, PA_BITE_DIST: 1.5, DRAW_FOOL: 0.9, DRAW_ARM: 0.4, DEEP_RUN_READ: 0.2,
 
     // ---------- AI QB & carriers (design 8.14) ----------
     QB_READ_BASE: 0.5, QB_SET: 0.4, QB_READ_K: 0.003, QB_OWL: 0.1,
@@ -117,9 +117,12 @@
     // ---------- clock (design 8.3) ----------
     // 4 × 3:00 quarters (client pass 4): 15 s → ~5.5 drives per team, ~8.5 real minutes. Before (2 × 5:00 halves): 12–13 s;
     // 20 → 24 s. Human games ran 12–13.5 min of real time at 5:00 quarters (target 8–12); fewer snaps per game
-    RUN_INB: 15, RUN_HURRY: 8, RUN_LAST_MIN_FD: 10, RUN_STOP: 6, RUN_SACK: 15, RUN_KNEEL: 40, RUN_SPIKE: 3,
+    // LIVE clock (client pass 6): the clock runs during plays; these are only the dead-ball runoffs after the whistle
+    RUN_INB: 10, RUN_HURRY: 5, RUN_LAST_MIN_FD: 5, RUN_STOP: 0, RUN_SACK: 10, RUN_KNEEL: 40, RUN_SPIKE: 3,
     SUG_HIST: 6, SUG_CALLED: 25, SUG_SHOWN: 14, SUG_FRESH: 6, SUG_TEMP: 7, SUG_REP: 8, SUG_STYLE: 30, TRICK_REACT: 0.25, SUG_DEF: 4, SUG_HOT: 6, SUG_COLD: 4,   // play-card suggestion variety (client pass 4)
     FORM_CHECK: { bunch: 0.7, empty: 0.7 },   // AI zone → man check vs these formations (coverage pass)
+    EASY_HANDS: [0.04, 0.025, 0.01, 0],   // HUNT5 #13: fewer drops on the user's uncontested catches
+    JIT_DEPTH: 0.6, JIT_WIDTH: 0.4, JIT_RELEASE: 0.15, JIT_REACT: 0.12, JIT_READ: 0.15,   // HUNT5 #11 per-snap variety
     TAP_GUARD_T: 0.35,        // HUNT4: STAR / ability taps in the first 0.35 s after the snap are ignored (double-tap leak)
     STAR_MIN_T: 0.6, ONSIDE_WAIT: 6,   // HUNT3: no Star ring right at the snap; onside choice held up to 6 s
     FG_LATE: 8,               // ≤ this many seconds left in Q2/Q4: the FG card leads / the AI kicks on any down
@@ -146,7 +149,7 @@
     AB_MAGNET_REACH: 1.2, AB_MAGNET_WIN: 1.6, AB_TURBO_SPD: 0.15, AB_TURBO_ACC: 0.5, AB_LASER_SIG: 0.4, AB_LASER_SPD: 0.2, AB_LASER_REACT: 0.15,
     AI_AUDIBLE: [0, 0.2, 0.312, 0.35], AI_AUDIBLE_BAD: -0.5, DEF_AUTO_GO: [0, 0, 0, 0],   // client pass 5: never auto-GO for the user's defense (only Auto Defense)
     AB_DOZER_SPD: 0.2, AB_DOZER_TKL: 1.5, AB_LOCK_INT: 1.8, AB_WARN_T: 0.8, AB_AI_USE: 0.8,
-    AI_SKILL: [-4, -0.8, 0.75, 1.5], PCOUNTER: [0.20, 0.40, 0.55, 0.60], STAR_WIN: [0.90, 0.60, 0.487, 0.45],   // decision-time pass: +50%
+    AI_SKILL: [0, 3, 4, 4.6], PCOUNTER: [0.20, 0.40, 0.55, 0.60], STAR_WIN: [0.90, 0.60, 0.487, 0.45],   // decision-time pass: +50%
     USER_FUM: [0.7, 1, 1, 1], USER_INJ: [0.6, 1, 1.15, 1.2],
     STAR_NEAR: 3.0, STAR_AIR: 4.0, STAR_CHASE: 5.0, STAR_CLOSE_V: 2.0, STAR_SUPER_BRK: 0.25, STAR_SUPER_REACH: 1.5, STAR_WHIFF_BRK: 0.20, STAR_JUMP_D: 20, STAR_JUMP_PICK: 0.10,
     STAR_WHIFF_D: 10, STAR_SLOWMO: 0.5,

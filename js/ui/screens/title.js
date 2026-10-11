@@ -108,8 +108,9 @@
             ${save ? K().btn({ label: 'New Game', icon: 'sparkle', action: 'new', kind: 'sec', size: 'l', testid: 'btn-new-game' }) : ''}
             ${K().btn({ label: 'Quick Game', icon: 'bolt', action: 'quick', kind: 'gold', size: 'l', testid: 'btn-quick-game' })}
             ${K().btn({ label: 'Practice', sub: practiceSub(), icon: 'whistle', action: 'practice', kind: 'sec', size: 'l', testid: 'btn-practice' })}
-            ${K().btn({ label: 'Load', icon: 'folder', action: 'load', kind: 'sec', size: 'l', testid: 'btn-load' })}
+            ${save ? K().btn({ label: 'Load', icon: 'folder', action: 'load', kind: 'sec', size: 'l', testid: 'btn-load' }) : ''}
           </div>
+          ${save ? '' : html`<button type="button" class="t-imp" data-action="load" data-testid="btn-import-save">Have a save code? Import it</button>`}
         </div>
         <div class="t-corner">
           ${K().btn({ icon: 'question', action: 'howto', kind: 'ghost', size: 's', testid: 'btn-howto', title: 'How to Play', label: 'How to Play' })}

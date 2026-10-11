@@ -15,6 +15,26 @@
   TeamGen.FAV_DEF = { wall: ['DL', 'LB'], nofly: ['CB', 'S'], wild: ['DL', 'LB'], think: ['S', 'LB'] };
   /** starters per position in the 22-man template (14 field slots + K) */
   TeamGen.STARTERS = { QB: 1, RB: 1, WR: 2, TE: 1, OL: 2, DL: 2, LB: 2, CB: 2, S: 1, K: 1 };
+  /**
+   * Team "windows" (HUNT5-league #2): varied core ages so strong teams don't all age out together. Same OVR targets as
+   * design 15.3 (season-1 strength by tier is unchanged); only ages, Growth and pay differ.
+   * age = [mean, sd, min, max] for starters (s) and bench (b); growth = young upside letters; pay = fairPay × range.
+   */
+  TeamGen.WINDOWS = {
+    young: { s: [24.5, 1.5, 21, 28], b: [23, 2, 21, 27], growth: true, pay: [0.85, 1.05] },     // rising contender
+    prime: { s: [27, 2.5, 22, 32], b: [25, 3, 21, 33], growth: false, pay: [0.85, 1.15] },
+    vet: { s: [30, 1.5, 27, 34], b: [27, 3, 22, 33], growth: false, pay: [1.0, 1.2] },          // win-now, little cap room
+    rebuild: { s: [24, 2, 21, 29], b: [22.5, 1.5, 21, 26], growth: true, pay: [0.85, 1.1] },     // young upside
+    stuck: { s: [29.5, 2, 26, 34], b: [27, 3, 22, 33], growth: false, pay: [0.95, 1.15] }       // old and capped: slow to climb
+  };
+  /** window odds by tier */
+  TeamGen.WINDOW_ODDS = {
+    5: [['young', 40], ['vet', 40], ['prime', 20]], 4: [['young', 40], ['vet', 40], ['prime', 20]],
+    3: [['young', 30], ['prime', 40], ['vet', 30]], 2: [['rebuild', 50], ['stuck', 35], ['prime', 15]],
+    1: [['rebuild', 50], ['stuck', 35], ['prime', 15]]
+  };
+  TeamGen.UPSIDE_LETTERS = [['A+', 6], ['A', 24], ['B', 42], ['C', 22], ['D', 6]];
+
   /** design 17.5 coach stars by AI mode {off, def, grw} */
   TeamGen.AI_STAFF = { contend: { off: 3, def: 3, grw: 2 }, balanced: { off: 2, def: 2, grw: 2 }, rebuild: { off: 2, def: 2, grw: 4 } };
   TeamGen.AI_COINS = 600;
@@ -51,6 +71,8 @@
       for (let i = 0; i < TeamGen.STARTERS[pos]; i++) starSlots.push(pos + i);
     });
     const star = t.tier >= 3 ? rng.pick(starSlots) : null;
+    const win = TeamGen.WINDOWS[t.win] ? t.win : (t.win = rng.weighted(TeamGen.WINDOW_ODDS[t.tier] || TeamGen.WINDOW_ODDS[3]));
+    const W = TeamGen.WINDOWS[win];
     const made = [];
     Object.keys(C.ROSTER.TEMPLATE).forEach((pos) => {
       for (let i = 0; i < C.ROSTER.TEMPLATE[pos]; i++) {
@@ -62,10 +84,12 @@
           if (star === pos + i) target = B + 8 + (fav.indexOf(pos) >= 0 ? 2 : 0);
         } else target = B - 10 + rng.normal(0, 4);
         target = clamp(Math.round(target), 40, 95);
-        const age = Math.round(clamp(rng.normal(starter ? 27 : 25, 3), starter ? 22 : 21, starter ? 34 : 33));
-        const p = PG.create(L, { pos: pos, tid: t.id, ovr: target, age: age, initial: true, rng: rng });
+        const A = starter ? W.s : W.b;
+        const age = Math.round(clamp(rng.normal(A[0], A[1]), A[2], A[3]));
+        const letter = W.growth && age <= 25 && target < 78 ? rng.weighted(TeamGen.UPSIDE_LETTERS) : undefined;   // stars keep normal Growth
+        const p = PG.create(L, { pos: pos, tid: t.id, ovr: target, age: age, letter: letter, initial: true, rng: rng });
         const yrs = rng.int(1, 4);
-        const sal = Math.round(PG.fairPay(L, p, cap) * rng.range(0.85, 1.15) / 100) * 100;
+        const sal = Math.round(PG.fairPay(L, p, cap) * rng.range(W.pay[0], W.pay[1]) / 100) * 100;
         p.con = { sal: clamp(sal, PG.minPay(cap), Math.round(cap * C.CAP.MAX_PCT)), exp: L.season + yrs - 1,
           sgn: L.season - rng.int(0, Math.max(0, 4 - yrs)), rk: age <= 23 && yrs >= 2, gtd: C.CAP.CUT_PCT };
         PT.League.addPlayer(L, p);

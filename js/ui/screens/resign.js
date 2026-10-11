@@ -49,6 +49,8 @@
     try { const H = PT.League.History; const ss = H && H.ss ? H.ss(lg) : null; return (ss && ss.kept && ss.kept[pid]) || memo(lg).tried[pid] || 0; }
     catch (e) { return memo(lg).tried[pid] || 0; }
   }
+  /** the pay that signs him (Contracts.ask need, e.g. mood or wins wants push it above his raw ask): shown and offered everywhere */
+  function price(a) { return a ? (a.need || a.sal) : 0; }
   function statusOf(lg, p, a) {
     if (triesOf(lg, p.id) >= 2 || !a || a.willing === false) return { k: 'no', word: triesOf(lg, p.id) >= 2 ? 'Said no' : "Won't stay", cls: 'red' };
     if (a.verdict === 'more') return { k: 'more', word: 'Wants more', cls: 'gold' };
@@ -68,12 +70,12 @@
   }
 
   const COLS = [{ k: 'name', label: 'Name', cls: 'c-name' }, { k: 'pos', label: 'Pos', cls: 'c-pos' }, { k: 'stars', label: 'Stars', cls: 'c-stars' },
-    { k: 'age', label: 'Age', cls: 'c-age c-c c-hn' }, { k: 'ask', label: 'Asks', cls: 'c-ask' }, { k: 'mood', label: K().ic('ok'), cls: 'c-c c-hs' }, { k: 'st', label: 'Status', cls: 'c-st' }];
+    { k: 'age', label: 'Age', cls: 'c-age c-c c-hn' }, { k: 'ask', label: 'Asks', cls: 'c-ask' }, { k: 'st', label: 'Status', cls: 'c-st' }];
 
   function cells(lg, p, a, tag) {
     return { name: FK().name(p), pos: K().posChip(p.pos), stars: FK().stars(p.ovr), age: html`<span class="num">${p.age}</span>`,
-      ask: a ? html`<span class="fl-ask"><b class="num">${D().money(a.sal)}</b><span class="dim">${a.yrs}y</span></span>` : html`<span class="fl-ask">${K().payYears(p)}</span>`,
-      mood: K().mood(p.mor), st: tag };
+      ask: a ? html`<span class="fl-ask"><b class="num">${D().money(price(a))}</b><span class="dim">${a.yrs}y</span></span>` : html`<span class="fl-ask">${K().payYears(p)}</span>`,
+      st: tag };
   }
 
   function detail(lg, p, kind, inPhase) {
@@ -90,7 +92,7 @@
     const offView = PT.League.Cap && PT.League.Cap.offView ? PT.League.Cap.offView(lg) : !inPhase;
     const cur = p.con && !offView ? p.con.sal : 0;
     const letgo = K().btn({ label: 'Let go', action: 'letgo', data: { pid: p.id }, kind: 'ghost', size: 's', testid: 'btn-letgo-' + p.id, cls: 'fl-letgo' });
-    const offer = FK().offer({ key: 'rs:' + p.id + ':' + tries, ask: a, disabled: s.k === 'no', why: s.word, extra: letgo,
+    const offer = FK().offer({ key: 'rs:' + p.id + ':' + tries, ask: a ? { sal: price(a), yrs: a.yrs } : a, disabled: s.k === 'no', why: s.word, extra: letgo,
       submit: s.k === 'no' ? s.word : tries === 1 ? 'Ask again' : 'Send offer', submitHtml: s.k === 'no' || tries === 1 ? '' : html`Send<span class="fl-nf"> offer</span>`,
       left: (sal) => space(lg) + cur - sal,
       verdict: (sal, yrs) => {
@@ -100,7 +102,7 @@
         return sal >= need ? { face: 'happy', word: 'Will sign', cls: 'good' } : sal >= need * 0.9 ? { face: 'meh', word: 'Maybe', cls: 'warn' } : { face: 'angry', word: 'Too low', cls: 'bad' };
       } });
     return html`<aside class="fl-card fl-side has-offer" data-testid="resign-detail">${who}
-      <p class="fl-note fl-asks">${a ? html`<span>Asks <b class="num">${D().money(a.sal)}</b> × ${D().plural(a.yrs, 'yr')}</span>` : ''}</p>
+      <p class="fl-note fl-asks">${a ? html`<span>Asks <b class="num">${D().money(price(a))}</b> × ${D().plural(a.yrs, 'yr')}</span>` : ''}</p>
       ${tries === 1 ? html`<p class="fl-note fl-warn bad">${K().ic('warn')} Last try: Mood −5</p>` : ''}
       ${offer}
     </aside>`;
@@ -182,8 +184,11 @@
           } catch (e) { /* skip him */ }
         });
         if (PT.Events) PT.Events.emit('league:changed', { what: 'contract' });
-        UI.Toast.show(n ? 'Kept ' + D().plural(n, 'player') : 'Nobody could be kept.', n ? 'good' : 'bad');
-        UI.refresh();
+        const stay = lists(lg).open;
+        const no = stay.map((p) => p.fn.charAt(0) + '. ' + p.ln);
+        UI.Toast.show((n ? 'Kept ' + D().plural(n, 'player') : 'Nobody could be kept') + (no.length ? ' · ' + no.slice(0, 3).join(', ') + (no.length > 3 ? '…' : '') + ' said no' : ''), n ? 'good' : 'bad', 3500);
+        // nothing left to decide: on to Draft Day (no second DONE tap)
+        if (!stay.some((p) => keepable(lg, p))) { if (F) F.next(); } else UI.refresh();
       });
   }
 

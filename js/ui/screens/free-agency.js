@@ -79,7 +79,7 @@
       const swaps = mkToggle('fa');
       return F.head(html`${F.seg(html`<span class="fl-nf">Market </span>Day`, (lg.sub + 1) + '/' + PT.C.FA_DAYS, { icon: 'contract', cls: 'fl-seg-t', testid: 'fa-day' })}${F.seg(html`<span class="fl-nf">Offers today</span><span class="fl-ns">Offers</span>`, used + '/' + MAX_OFFERS_DAY, { cls: used >= MAX_OFFERS_DAY ? 'fl-seg-warn' : '' })}${F.gap()}${F.needSeg(lg)}${F.rosterSeg(lg)}${swaps}`);
     }
-    if (m === 'sign') return F.head(html`${F.seg('', 'Free Agents', { icon: 'contract', cls: 'fl-seg-t' })}${F.gap()}${mkToggle('fa')}`);
+    if (m === 'sign') return F.head(html`${F.gap()}${mkToggle('fa')}`);
     return F.head(html`${F.seg('', 'Market Closed', { icon: 'lock', cls: 'fl-seg-t' })}${F.seg('Opens', 'after Draft Day', { cls: 'fl-seg-dim' })}`);
   }
 
@@ -102,7 +102,7 @@
     const w = K().WANT[p.want];
     const who = html`<div class="fl-who">${K().portrait(p, 56)}<div class="fl-who-t"><b class="fl-pn">${p.fn} ${p.ln}</b>
       <span class="fl-pm">${K().posChip(p.pos)}<span class="fl-hide-s">${K().stars(p.ovr, { noNum: true })}</span><span class="dim">Age ${p.age}</span>${w ? html`<span class="fl-want" title="Wants ${w[1]}">${K().ic(w[0])}<span class="fl-nf">Wants </span>${w[1]}</span>` : ''}</span></div></div>`;
-    const asks = html`<p class="fl-note fl-asks"><span>Asks <b class="num">${D().money(x.ask.sal)}</b> × ${D().plural(x.ask.yrs, 'yr')}</span></p>${rivals(x) ? html`<p class="fl-note fl-warn warn" data-testid="fa-rivals">${K().ic('warn')} Other teams want him</p>` : ''}`;
+    const asks = html`${rivals(x) ? html`<p class="fl-note fl-warn warn" data-testid="fa-rivals">${K().ic('warn')} Other teams want him</p>` : ''}`;
     if (m === 'closed') return html`<aside class="fl-card fl-side" data-testid="fa-detail">${who}${asks}<p class="fl-note dim">${K().ic('lock')} The Market opens after Draft Day.</p></aside>`;
     const key = 'fa:' + p.id + ':' + lg.sub;
     if (mine) FK().offerState(key, { sal: mine.sal, yrs: mine.yrs });
@@ -129,7 +129,7 @@
     const rowsX = list(lg, mk.filter).slice(0, FA_CAP);
     const offered = {};
     myOffers(lg).forEach((o) => { offered[o.pid] = 1; });
-    if (mk.sel == null || !rowsX.concat(list(lg)).some((x) => x.p.id === mk.sel)) mk.sel = rowsX.length ? rowsX[0].p.id : null;
+    if (mk.sel == null || !rowsX.some((x) => x.p.id === mk.sel)) mk.sel = rowsX.length ? rowsX[0].p.id : null;   // never a hidden player
     const selX = mk.sel != null ? (rowsX.find((x) => x.p.id === mk.sel) || list(lg).find((x) => x.p.id === mk.sel)) : null;
     const short = FK().shortPos(lg);
     const filter = FK().filter({ value: mk.filter, title: 'Position',
@@ -194,29 +194,24 @@
     }
     checkOver(lg, F);
   }
-  /** over the Week 1 limit or the Team Cash limit: say so now (who would go + dead money), never as a Week 1 surprise */
+  /** over the Week 1 limit or the Team Cash limit: say so now and show exactly who Auto fix releases (HUNT5 #3) */
   function checkOver(lg, F) {
+    FK().clearHurtList(lg);                      // the rollover clears the Hurt List: count and plan with everyone
     const rc = FK().rosterCount(lg);
     const sp = space(lg);
     if (rc.act <= rc.max && sp >= 0) { runFinish(lg, F); return; }
-    let cuts = [];
-    try { cuts = (PT.League.Cap.fixPlan(lg, lg.userTid, rc.max).cuts || []).map((pid) => PT.League.Q.player(lg, pid)).filter(Boolean); } catch (e) { cuts = []; }
-    const cost = (p) => { try { return PT.League.Roster.cutCost(lg, p.id); } catch (e) { return { perYear: 0, years: 0 }; } };
-    const rows = cuts.map((p) => { const c = cost(p);
-      return html`<div class="fl-lv">${K().posChip(p.pos)}<b class="fl-lv-n">${p.fn.charAt(0)}. ${p.ln}</b><span class="fl-lv-r">${FK().stars(p.ovr)}<b class="num">${p.con ? D().money(p.con.sal) : ''}</b>${c.perYear ? FK().tag('Dead ' + D().money(c.perYear) + (c.years > 1 ? ' ×' + c.years : ''), 'red') : FK().tag('No dead money', 'green')}</span></div>`; });
+    const plan = FK().weekOnePlan(lg);
+    const rows = plan.cuts.map((x) => html`<div class="fl-lv" data-testid="cut-${x.p.id}">${K().posChip(x.p.pos)}<b class="fl-lv-n">${x.p.fn.charAt(0)}. ${x.p.ln}</b><span class="fl-lv-r">${FK().stars(x.p.ovr)}<b class="num">${D().money(x.sal)}</b>${x.perYear ? FK().tag('Dead ' + D().money(x.perYear) + (x.years > 1 ? ' ×' + x.years : ''), 'red') : FK().tag('No dead money', 'green')}</span></div>`);
     const parts = [];
     if (sp < 0) parts.push('Over Team Cash by ' + D().money(-sp));
     if (rc.act > rc.max) parts.push('Week 1 limit ' + rc.max + ' · you have ' + rc.act);
     UI.Modal.open({ title: parts.join(' · '), icon: sp < 0 ? 'cash' : 'players', cls: 'm-list m-leave', dismiss: false,
-      body: html`<p class="fl-note">Auto fix would release:</p>${K().pg('cuts', rows, { cls: 'fl-lv-pg' })}`,
+      body: html`<p class="fl-note">Auto fix releases:</p>${K().pg('cuts', rows, { cls: 'fl-lv-pg' })}`,
       buttons: [{ label: 'Back', value: null, kind: 'cancel', testid: 'cut-back' }, { label: 'Pick myself', value: 'pick', kind: 'sec', testid: 'btn-cut-pick' }, { label: 'Auto fix', value: 'auto', kind: 'go' }] })
       .then((v) => {
         if (v === 'pick') { UI.go('roster'); return; }
         if (v !== 'auto') return;
-        try {
-          if (FK().rosterCount(lg).act > rc.max) PT.League.Roster.fixIt(lg, lg.userTid, { max: rc.max });
-          if (space(lg) < 0) PT.League.Roster.fixCap(lg, lg.userTid);
-        } catch (e) { UI.Toast.show('Could not fix it.', 'bad'); return; }
+        FK().applyPlan(lg, plan);                  // exactly the players listed above
         if (PT.Events) PT.Events.emit('league:changed', { what: 'roster' });
         runFinish(lg, F);
       });

@@ -540,7 +540,7 @@
 .hud-sb-tm .hud-sb-sc { margin-left: auto; padding-left: 8px; }
 .hud-sb-h .hud-sb-sc { margin-left: 0; margin-right: auto; padding-left: 0; padding-right: 8px; }
 /* #3 SURGE title over the ATK/DEF meters */
-.hud-mt-h { display: block; font-family: var(--font-d); font-size: 10px; letter-spacing: 0.08em; color: var(--sun); text-align: center; line-height: 1; }
+.hud-mt-h { display: block; font-family: var(--font-d); font-size: 12px; letter-spacing: 0.08em; color: var(--sun); text-align: center; line-height: 1; }
 /* #5 / #3 small pill under the scorebug: SURGE SET! xN, Surge saved, first-time Surge tip */
 .hud-note { position: absolute; left: 50%; top: calc(112px + var(--sat)); transform: translateX(-50%); display: inline-flex; align-items: center; gap: 6px; max-width: calc(100% - 32px); padding: 4px 14px; background: rgba(14, 18, 42, 0.85); color: #fff; font-family: var(--font-d); font-size: 16px; letter-spacing: 0.03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; z-index: 3; box-shadow: var(--frame-2); }
 .hud-note .hud-px, .hud-note .px-ic { width: 16px; height: 16px; font-size: 16px; color: var(--sun); flex: none; }
@@ -630,3 +630,31 @@ body:has(.hud-ons-on) .pt-onside { display: none !important; }
 .hud-sb-tm .hud-sb-to i.hud-on { background: var(--ink); box-shadow: 0 0 0 1px #fff; }
 .hud-sb-tm.hud-sb-dark .hud-sb-to i { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35); }
 .hud-sb-tm.hud-sb-dark .hud-sb-to i.hud-on { background: #fff; box-shadow: 0 0 0 1px var(--ink); }
+
+/* ======================= HUNT5 (hud) ======================= */
+/* #3 the enemy warning lives top-left under the scorebug (never the top-centre slot); TAP! always wins the z-order */
+.hud-warn { left: calc(8px + var(--sal)); right: auto; top: calc(110px + var(--sat)); transform: none; }
+.hud-star { z-index: 6; }
+.hud-note.hud-note-bad { background: var(--red); color: #fff; }
+/* #2 short landscape: SURGE docks in the right column above the bottom controls; Audible / Sim drive stack under pause.
+   The top centre (line of scrimmage, formation, QB) stays clear. */
+@media (orientation: landscape) and (max-height: 480px) {
+  .hud-warn { top: calc(56px + var(--sat)); }
+  .hud-note { top: calc(98px + var(--sat)); }
+  .hud-ctl2 { top: calc(58px + var(--sat)); bottom: calc(14px + var(--sab)); right: calc(14px + var(--sar)); left: auto; flex-direction: column; align-items: flex-end; gap: 6px; }
+  .hud-ctl2 .hud-ab { position: absolute; right: 0; bottom: 82px; }
+  [data-mode="qb"] .hud-ctl2 .hud-ab, [data-mode="carrier"] .hud-ctl2 .hud-ab { bottom: 0; right: 156px; }
+  :root[data-lefty="1"] .hud-ctl2 { right: auto; left: calc(14px + var(--sal)); align-items: flex-start; }
+  :root[data-lefty="1"] .hud-ctl2 .hud-ab { right: auto; left: 0; }
+  :root[data-lefty="1"] [data-mode="qb"] .hud-ctl2 .hud-ab, :root[data-lefty="1"] [data-mode="carrier"] .hud-ctl2 .hud-ab { left: 156px; }
+  /* #5 the green TAP! disc docks bottom-centre (the GO / HIKE spot), off the Star and his ring */
+  .hud-star.hud-green { top: auto; bottom: calc(26px + var(--sab)); left: 50%; transform: translateX(-50%); width: 110px; height: 110px; }
+  /* #6 the first SURGE tip sits beside the SURGE button */
+  .hud-note.hud-note-tip { top: auto; bottom: calc(96px + var(--sab)); left: auto; right: calc(90px + var(--sar)); max-width: min(300px, 44vw); }
+  :root[data-lefty="1"] .hud-note.hud-note-tip { right: auto; left: calc(90px + var(--sal)); }
+}
+/* #6 larger screens: the tip sits left of the SURGE button (ctl2 column, right side) */
+@media not all and (orientation: landscape) and (max-height: 480px) {
+  .hud-note.hud-note-tip { top: auto; left: auto; transform: none; bottom: calc(214px + var(--sab)); right: calc(100px + var(--sar)); max-width: 320px; white-space: normal; }
+}
+.hud-root:has(.hud-note-tip:not([hidden])) .hud-hint { visibility: hidden; }   /* HUNT5 #6: the one-time tip replaces the hint while it shows */

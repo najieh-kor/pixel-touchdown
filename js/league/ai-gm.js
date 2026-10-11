@@ -138,7 +138,10 @@
       let pos = C.POS.find((x) => (c[x] || 0) < C.ROSTER.NEED[x]);
       if (!pos && act < C.ROSTER.MAX_SEASON) pos = C.POS.find((x) => (c[x] || 0) < target[x]);
       if (!pos) break;
-      const fas = Q().freeAgents(L).filter((p) => p.pos === pos && !p.inj).sort((a, b) => (b.ovr - a.ovr) || (a.id - b.id));
+      // HUNT5 #2: rebuild teams fill the template with young upside players (rise later), others with the best now
+      const young = !inSeason && L.teams[tid].strat === 'rebuild';
+      const rank = (p) => (young ? (p.age <= 25 ? 100 : 0) + p.pot - Math.max(0, p.age - 25) * 2 : p.ovr);
+      const fas = Q().freeAgents(L).filter((p) => p.pos === pos && !p.inj).sort((a, b) => (rank(b) - rank(a)) || (a.id - b.id));
       let pick = null, sal = 0;
       for (const p of fas) {
         const ask = PT.League.FA.ask(L, p.id, tid).sal;

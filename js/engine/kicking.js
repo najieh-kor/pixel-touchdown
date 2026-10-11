@@ -335,7 +335,8 @@
       let near = 99;
       for (let k = 0; k < 7; k++) { const c = G.ents[kt * 7 + k]; near = Math.min(near, Math.hypot(c.x - ret.x, c.y - ret.y)); }
       // HUNT3 #8: an AI returner doesn't catch inside his own 8 — he lets it bounce (touchback or downed at the spot)
-      if (!userRet && (ret.y - og) * dirR < 8) {
+      // HUNT5 #9: a user returner with no input does the same inside his own 10 (TAP = fair catch, steer = return it)
+      if ((!userRet && (ret.y - og) * dirR < 8) || (userRet && !P.retMoved && !P.retCall && (ret.y - og) * dirR < 10)) {
         b.st = 'dead'; ret.ball = false; P.retY0 = null;
         if (rng.chance(0.6)) { PT.Engine.Snapshot.fx(G, 'text', b.x, b.y, 2, 1, G.tids[rt], 'TOUCHBACK'); P.ret = -1; return G.whistle('touchback', rt, og, false); }
         P.retEndY = og + 2 * dirR;

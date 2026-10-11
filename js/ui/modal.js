@@ -61,7 +61,7 @@
           ${o.icon ? D().html`<div class="micon">${UI.comp.ic(o.icon)}</div>` : ''}
           ${o.title ? D().html`<h2 class="mtitle">${o.title}</h2>` : ''}
           ${o.body != null && o.body !== '' ? D().html`<div class="mbody">${D().isRaw(o.body) ? o.body : D().html`<p>${o.body}</p>`}</div>` : ''}
-          <div class="mbtns ${btns.length > 2 ? 'stack' : ''}">${bHtml}</div>
+          <div class="mbtns ${btns.length > 2 && !o.row ? 'stack' : ''}">${bHtml}</div>
         </div>`);
       h.appendChild(wrap);
       h.classList.add('on');

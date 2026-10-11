@@ -339,6 +339,14 @@
         case 'aimMode': if (v === 'sling' || v === 'point') out[k] = v; break;
         case 'muted': case 'haptics': case 'reduceMotion': out[k] = typeof v === 'boolean' ? v : D[k]; break;
         case 'lefty': case 'easyThrow': case 'autoDef': if (typeof v === 'boolean') out[k] = v; break;
+        case 'tips': {                         // dismissed coach tips: { tipId: 1 } (K.tipDone / flow-kit)
+          if (v && typeof v === 'object' && !Array.isArray(v)) {
+            const t = {};
+            for (const id of Object.keys(v)) if (id.length <= 64 && (v[id] === 1 || v[id] === true || typeof v[id] === 'number')) t[id] = 1;
+            out[k] = t;
+          }
+          break;
+        }
         default: if (v === null || ['string', 'number', 'boolean'].indexOf(typeof v) >= 0) out[k] = v;   // other WPs' keys (textSize…)
       }
     }

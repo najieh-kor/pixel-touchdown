@@ -62,7 +62,7 @@
           <input id="ng-coach" class="inp" type="text" maxlength="24" autocomplete="off" spellcheck="false" data-testid="input-coach" value="${st.coach}">
         </div>
         <span class="tiny muted ngx-sp-l">Coach animal</span>
-        <div class="sp-pick ngx-sp-grid" role="radiogroup" aria-label="Coach animal">${COACH_SP.map((s) => html`<button type="button" class="sp-b ${st.sp === s ? 'on' : ''}" role="radio" aria-checked="${st.sp === s}" data-action="sp" data-sp="${s}" data-testid="coach-sp-${s}" title="${K().spName(s)}">${K().sp(s)}</button>`)}</div>
+        <div class="ngx-sp-wrap" role="radiogroup" aria-label="Coach animal">${K().pg('ng-sp', COACH_SP.map((s) => html`<button type="button" class="sp-b ${st.sp === s ? 'on' : ''}" role="radio" aria-checked="${st.sp === s}" data-action="sp" data-sp="${s}" data-testid="coach-sp-${s}" title="${K().spName(s)}">${K().sp(s)}</button>`), { grid: true, cls: 'ngx-sp2 nc-side' })}</div>
       </section>
       <section class="card">
         ${K().h2('Difficulty')}

@@ -37,7 +37,7 @@
     this.noEng = -1; this.noEngT = 0; this.beatT = -1; this.pushed = 0; this.engX = 0; this.engY = 0;
     // routes (field-space waypoints)
     this.wpx = new Float64Array(12); this.wpy = new Float64Array(12); this.wpw = new Float64Array(12);
-    this.wpn = 0; this.wpi = 0; this.wpEnd = 0; this.wpWait = 0; this.turnT = 0; this.hx = 0; this.hy = 1; this.setX = 0; this.setY = 0; this.setOn = false; this.drT = 0; this.drOn = false; this.drRe = 0; this.drX = 0; this.drY = 0; this.drHold = 0; this.jkT = 0;
+    this.wpn = 0; this.wpi = 0; this.wpEnd = 0; this.wpWait = 0; this.turnT = 0; this.hx = 0; this.hy = 1; this.setX = 0; this.setY = 0; this.setOn = false; this.drT = 0; this.drOn = false; this.drRe = 0; this.drX = 0; this.drY = 0; this.drHold = 0; this.jkT = 0; this.reactMul = 1; this.readMul = 1;
     // carrier moves
     this.energy = 100; this.enMax = 100; this.sprint = false; this.jukeCd = 0; this.spinCd = 0; this.jukeT = 0; this.jukeWin = 0;
     this.spinT = 0; this.diveT = 0; this.jvx = 0; this.jvy = 0; this.slowT = 0; this.carT = 0;

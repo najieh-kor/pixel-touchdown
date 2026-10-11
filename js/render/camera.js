@@ -139,7 +139,7 @@
         wantYaw = udir > 0 ? 0 : Math.PI;
         // extra-wide phones (≈ 2.2:1) see less depth per yard of width: widen a touch
         let tx = 0, ty = 60, width = p.width * Math.max(1, Math.sqrt((w / h) / 1.78));
-        let k = 6, qbFit = false;
+        let k = 6, qbFit = false, latBx = null;
         let wantPitch = p.pitch;
         // near the end zone behind the camera, look down steeper so the camera never backs over the end stands
         if (s && s.ball) {
@@ -159,8 +159,15 @@
           const bx = b ? b.px + (b.x - b.px) * alpha : MIDX, by = b ? b.py + (b.y - b.py) * alpha : 60;
           const bz = b ? (b.pz || 0) + ((b.z || 0) - (b.pz || 0)) * alpha : 0;
           const dir = s.dir || udir;
-          const pre = mode === 'presnap' || s.phase === 'PRESNAP' || s.phase === 'CALL';
-          if (pre && !(s.kick && s.kick.on)) {
+          // FG / XP aim (any phase incl. PAT) frames holder + posts
+          const kickAim = !!(s.kick && s.kick.on);
+          const pre = mode === 'presnap' || s.phase === 'PRESNAP' || s.phase === 'CALL' || kickAim;
+          // carrier team direction: on kick/punt returns and INTs the kicking team still "has" possession until the
+          // whistle, so lead toward where the CARRIER is going (engine hint cam.ldir wins when present)
+          const car = b && b.st === 'held' && b.car >= 0 && s.ents ? s.ents[b.car] : null;
+          const userTm = udir === s.dir ? (s.poss || 0) : 1 - (s.poss || 0);
+          const ldir = s.cam && s.cam.ldir ? s.cam.ldir : car ? (car.tm === userTm ? udir : -udir) : dir;
+          if (pre && !kickAim) {
             // frame the formation: ~3 yd behind the deepest player .. ~12–19 yd past the LOS, full width,
             // inside the screen band the HUD leaves free (scoreboard / tray / HIKE button)
             const ents = s.ents;
@@ -196,7 +203,7 @@
             const f0 = fit(tx - MIDX, 60 - (yB + yF) / 2, ya, p, bd, Math.abs(yF - yB), udir, wantPitch);
             ty = 60 - f0.tz;
             fitDist = f0.dist;
-          } else if (pre) {
+          } else if (kickAim) {
             // FG / XP aim: frame the holder + kicker AND the posts, inside the HUD-free band with the holder at
             // least 60 px above the bottom controls (AUTO button), pulling back for long kicks
             const ky = s.kick.y;
@@ -206,7 +213,7 @@
             put(bx - MIDX, by, 1.8);
             put(-3.6, ky, 0); put(3.6, ky, 0); put(-3.6, ky, 8.6); put(3.6, ky, 8.6);
             const bd = readBand(timeNow, w, h);
-            kickBand.top = bd.top; kickBand.bottom = Math.min(bd.bottom - 60, h * 0.86);
+            kickBand.top = bd.top + 24; kickBand.bottom = Math.min(bd.bottom - 60, h * 0.86);
             if (kickBand.bottom < kickBand.top + h * 0.3) kickBand.bottom = kickBand.top + h * 0.3;
             const f0 = fit(0, 60 - (by + ky) / 2, wantYaw, p, kickBand, Math.abs(ky - by) + 6, udir, pitch);
             tx = MIDX; ty = 60 - f0.tz; fitDist = f0.dist;
@@ -244,7 +251,9 @@
           } else {
             // lead toward the attack, scaled to the visible depth so the carrier stays ~28% up from the bottom
             const lead = Math.max(2.5, Math.min(p.lead, width * ratio * 0.13));
-            tx = MIDX + (bx - MIDX) * p.latFollow; ty = by + lead * dir;
+            tx = MIDX + (bx - MIDX) * p.latFollow; ty = by + lead * ldir;
+            // user-controlled carrier near a sideline: follow fully, ~4 yd toward the centre (clamped below)
+            if (car && car.ctl && Math.abs(bx - MIDX) > 10) { tx = bx - 4 * Math.sign(bx - MIDX); latBx = bx; }
             // pass in the air: keep the ball and its landing spot on screen
             if (b && b.st === 'air' && b.tx != null && (b.kind == null || b.kind === 'pass')) {
               const dy = Math.abs(b.ty - by), dx = Math.abs(b.tx - bx);
@@ -270,8 +279,13 @@
           lastMode = mode;
         }
         if (slowT > 0) { slowT -= dt; width *= 0.85; k = Math.max(k, 5); }
-        // keep the view inside the field laterally (sidelines at most ~3 yd off-screen)
-        if (!(fitDist > 0)) {
+        // controlled carrier near a sideline: keep him between 25% (stick side) and 68% (button side) of the width
+        if (latBx != null) {
+          const su = udir;                                   // screen right = field +x when udir = +1
+          const rel = Math.max(-0.25, Math.min(0.18, (latBx - tx) * su / width));
+          tx = latBx - rel * width * su;
+        } else if (!(fitDist > 0)) {
+          // keep the view inside the field laterally (sidelines at most ~3 yd off-screen)
           const maxOff = Math.max(0, (53.333 + 6) / 2 - width / 2);
           tx = Math.max(MIDX - maxOff, Math.min(MIDX + maxOff, tx));
         }

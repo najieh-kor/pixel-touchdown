@@ -105,7 +105,7 @@
     const o = safe(() => PT.League.Q.teamOvr(lg, t.id), { ovr: 60 });
     const r = safe(() => PT.League.Standings.get(lg).find((x) => x.tid === t.id), null) || { w: 0, l: 0, t: 0 };
     const item = (label, val, cls) => html`<span class="tx-si ${cls || ''}"><span class="tx-sl">${label}</span><span class="tx-sv">${val}</span></span>`;
-    const head = html`${item('Team', K().stars(o.ovr, { team: true }), 'tx-rate')}${item('Record', html`<b class="num">${D().rec(r.w, r.l, r.t)}</b>`)}`;
+    const head = html`${item('Team', K().stars(o.ovr, { team: true }), 'tx-rate')}${item('Record', html`<b class="num">${D().rec(r.w, r.l, r.t)}</b>`, 'tx-rec')}`;
     if (!mine) {
       const off = t.style && t.style.off, def = t.style && t.style.def;
       return html`<section class="tx-strip" style="${K().teamVars(t)}">${K().badge(t, 's')}${head}
@@ -117,8 +117,8 @@
     const hype = Math.round((t.fin && t.fin.hype) || 0);
     const capt = t.capt != null ? PT.League.Q.player(lg, t.capt) : null;
     return html`<section class="tx-strip" style="${K().teamVars(t)}">${head}
-      ${item('Spirit', html`${K().ic('heart')}<b>${spLabel}</b>`, spirit <= 25 ? 'tx-bad' : spirit >= 75 ? 'tx-good' : '')}
-      ${item('Hype', html`${K().ic('flame')}<b class="num">${hype}</b>`)}
+      ${item('Spirit', html`${K().ic('heart')}<b>${spLabel}</b>`, 'tx-keep ' + (spirit <= 25 ? 'tx-bad' : spirit >= 75 ? 'tx-good' : ''))}
+      ${item('Hype', html`${K().ic('flame')}<b class="num">${hype}</b>`, 'tx-keep')}
       <span class="grow"></span>
       <button type="button" class="tx-si tx-capt" data-action="tm-capt" data-testid="btn-captain-pick" title="Change Captain">
         <span class="tx-sl">Captain</span><span class="tx-sv"><span class="capt">C</span><b>${capt ? K().pname(capt) : 'Pick one'}</b>${K().ic('pencil')}</span></button>

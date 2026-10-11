@@ -1900,7 +1900,7 @@ button.trophy.badge-t { border: 0; font: inherit; text-align: left; cursor: poin
 .sc-row .q { font-size: 12px; }
 .coach-card .lvl-badge .small, .lvl-badge .small { font-size: 12px; }
 .nc-bye, .nc-bye .chip { font-size: 12px; }
-#hud .hud-surge-title { font-size: 12px; }
+#hud .hud-mt-h { font-size: 12px; }
 /* HUNT4 #13: team identity on the New Game cards */
 .tteam-sty { display: block; font-size: 12px; line-height: 1.15; color: var(--ink-2); white-space: normal; }
 /* New Game team cards grow for the style line (the strength chip already says what the stars say on short screens) */
@@ -1920,4 +1920,60 @@ button.trophy.badge-t { border: 0; font: inherit; text-align: left; cursor: poin
   #screen .ldr-pg .ldr-row .portrait { width: 24px; height: 24px; }
   #screen .ldr-pg .ldr-v { font-size: 16px; }
   #screen .ldr-pg .ldr-rank { width: 14px; font-size: 15px; }
+}
+/* HUNT5 #1: nothing under 12px (overflow.js now fails on it) */
+#screen .nc-bye, #screen .chip.nc-bye { font-size: 12px; }
+#screen .ht-btns i { font-size: 12px; line-height: 16px; padding-left: 3px; padding-right: 3px; }
+/* HUNT5 #2: Roster Issues — one button row, the plan gets the height */
+.m-roster .mbody { min-height: min(200px, calc(var(--app-h, 100dvh) - 170px)); max-height: calc(var(--app-h, 100dvh) - 150px); }
+.m-roster .mbtns { display: grid; grid-template-columns: auto auto minmax(0, 1fr); gap: 8px; }
+.m-roster .mbtns .btn { min-height: 44px; }
+.m-roster .rh-plan li { margin: 1px 0; }
+@media (orientation: landscape) and (max-height: 480px) { .m-roster .mbtns .btn { min-height: 44px; padding-top: 0; padding-bottom: 0; } .m-roster .mtitle { font-size: 18px; } }
+/* HUNT5 #7: initials and small numbers in the display/number font (the body font's Z / 5 read as 2 / S) */
+.fl-ini { font-family: var(--font-d); font-weight: 400; }
+/* HUNT5 #8: top-bar Coins / Team Cash chips are buttons (tap = what it means) */
+.hs-b { border: 0; background: none; padding: 0; margin: 0; font: inherit; color: inherit; cursor: pointer; display: inline-flex; }
+/* HUNT5 #9: no saves → no LOAD button, just a small import link */
+.t-imp { border: 0; background: none; color: #fff; text-shadow: 0 2px 0 var(--ink); font: inherit; font-size: 14px; text-decoration: underline; cursor: pointer; min-height: 36px; padding: 4px 8px; align-self: center; }
+@media (pointer: coarse) { .t-imp { min-height: 44px; } }
+/* HUNT5 #10: the Star Play ring looks like the game's (a green circle) */
+.ht-ring i { border-radius: 50%; border-color: var(--green, #2ecc71); }
+/* HUNT5 #11: the Final = result, top performers (full width), rewards, buttons */
+.pgx-mid { grid-template-columns: minmax(0, 1fr) !important; }
+.pgx-perf { max-width: 760px; width: 100%; justify-self: center; }
+@media (orientation: landscape) and (max-height: 520px) {
+  .pgx-perf .pgx-p { flex: 1 1 0; }
+}
+.todo-goal { font-size: 12px; max-width: 100%; white-space: normal; text-align: left; line-height: 1.15; }
+.hub-todo .card-h { flex-wrap: wrap; row-gap: 2px; }
+/* HUNT5 #14: Coach animals = 40px buttons in a paged grid (side pager), never smaller than a finger */
+.ngx-coach > .card:first-child { display: flex; flex-direction: column; min-height: 0; }
+.ngx-sp-wrap { flex: 1 1 auto; min-height: 92px; display: flex; flex-direction: column; }
+.ngx-sp-wrap > .pg { flex: 1 1 auto; min-height: 0; }
+.ngx-sp2 > .pg-list.pg-grid { grid-template-columns: repeat(auto-fill, 44px); gap: 4px; justify-content: start; align-content: start; }
+.ngx-sp2 .sp-b { width: 44px; height: 44px; min-height: 0; padding: 2px; display: grid; place-items: center; border: 0; background: var(--paper); box-shadow: var(--frame-2); }
+.ngx-sp2 .sp-b.on { background: #fff3c4; outline: 3px solid var(--sun); outline-offset: -1px; }
+.ngx-sp2 .sp-b .sp-img, .ngx-sp2 .sp-b img { width: 32px; height: 32px; }
+@media (orientation: landscape) and (max-height: 480px) {
+  #screen .ngx-coach .ngx-picked { padding: 2px 6px; gap: 6px; }
+  #screen .ngx-coach .ngx-picked .badge-m { width: 36px; height: 36px; }
+  #screen .ngx-coach .ngx-picked .badge-m .badge-ab { display: none; }
+  #screen .ngx-coach .ngx-picked .tiny { display: none; }
+  #screen .ngx-coach .ngx-picked .big { font-size: 18px; line-height: 1.1; }
+  #screen .ngx-coach .ngx-picked .btn { min-height: 40px; }
+  #screen .ngx-coach .ngx-name { margin: 4px 0; }
+  #screen .ngx-coach .ngx-name .inp { min-height: 40px; }
+  #screen .ngx-coach .ngx-sp-l { display: none; }
+  .ngx-sp2.nc-side > .pg-ctl { gap: 0; padding-left: 6px; }
+  .ngx-sp2.nc-side .pg-b { min-height: 40px; height: 40px; min-width: 40px; }
+  .ngx-sp2 > .pg-list.pg-grid { grid-template-columns: repeat(auto-fill, 42px); }
+  .ngx-sp2 .sp-b { width: 42px; height: 42px; }
+}
+.ngx-sp2.nc-side > .pg-ctl { justify-content: flex-start; }
+/* release: at 667x375 the seed / clinch marks drop under a long team name instead of pushing the T column out */
+@media (orientation: landscape) and (max-height: 400px) {
+  #screen .nc-tbl .tcell { flex-wrap: wrap; row-gap: 0; column-gap: 4px; }
+  #screen .nc-tbl .tcell .seed-m, #screen .nc-tbl .tcell .clinch { font-size: 12px; line-height: 1; }
+  #screen .nc-tbl th.n, #screen .nc-tbl td.n { padding-left: 4px; padding-right: 4px; }
 }

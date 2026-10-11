@@ -223,18 +223,25 @@
     return { kept: kept, skipped: skipped };
   };
 
-  /** OVR of the current starter at pos (ignoring exclude pid); 0 if none. */
+  /**
+   * The bar to clear at pos: the WEAKEST current starter there (HUNT5 #1: comparing to the best one let CB2/QB starters
+   * walk). If `exclude` is himself a starter he always clears it (returns 0). Used by Auto Keep, AI keeps, draft needs,
+   * Market "would start" and AI bids. 0 when nobody starts there (then the best player at pos, as a fallback).
+   */
   function starterOvr(L, tid, pos, exclude) {
     const t = L.teams[tid];
-    let best = 0;
+    if (exclude != null) for (const s of C.SLOTS) if (s !== 'KR' && t.dc[s] && t.dc[s][0] === exclude) return 0;
+    let low = Infinity;
     for (const s of C.SLOTS) {
       if (C.SLOT_POS[s] !== pos || !t.dc[s]) continue;
       const pid = t.dc[s][0];
       if (pid == null || pid === exclude) continue;
       const p = Q().player(L, pid);
-      if (p) best = Math.max(best, p.ovr);
+      if (p) low = Math.min(low, p.ovr);
     }
-    if (!best) for (const p of Q().roster(L, tid)) if (p.pos === pos && p.id !== exclude) best = Math.max(best, p.ovr);
+    if (low !== Infinity) return low;
+    let best = 0;
+    for (const p of Q().roster(L, tid)) if (p.pos === pos && p.id !== exclude) best = Math.max(best, p.ovr);
     return best;
   }
   Con.starterOvr = starterOvr;

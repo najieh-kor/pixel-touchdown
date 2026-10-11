@@ -49,6 +49,8 @@ button.fl-seg-btn .fl-sv { color: #fff; }
 @keyframes flPulse { 50% { background: #ffe68a; } }
 
 /* full / short names and labels: never cut — narrow layouts swap in the short form */
+.fl-wide { display: none; }
+@media (min-width: 1101px) { .fl-wide { display: inline; } }
 .fl-ns { display: none; }
 
 /* one small coach line, first visit only */
@@ -138,6 +140,11 @@ button.fl-seg-btn .fl-sv { color: #fff; }
 .fl-tag.green { background: var(--green); }
 .fl-tag.ink { background: var(--navy); color: #fff; }
 .fl-tag.blue { background: #cfe3ff; }
+.fl-tag-swap { height: auto; min-height: 22px; padding: 1px 5px 2px; gap: 4px; }
+.fl-tag-swap .pos { margin: 0; height: 17px; min-width: 24px; font-size: 13px; }
+.fl-tag-swap .stars .px-ic { width: 10px; height: 10px; }
+.fl-tag-swap .stars-num { font-size: 14px; color: inherit; opacity: 0.85; margin-left: 2px; }
+.fl-tag-swap .star-tag { height: 16px; margin: 0 0 0 2px; }
 .fl-tag.risk { background: #ffe7b8; color: #7a4a00; box-shadow: none; outline: 2px dashed #c98a00; outline-offset: -2px; }
 .fl-meter { display: inline-flex; gap: 2px; align-items: center; }
 .fl-meter i { width: 8px; height: 12px; background: #ddd6c2; box-shadow: 0 0 0 1px rgba(27, 31, 58, 0.35); }
@@ -224,7 +231,7 @@ button.fl-seg-btn .fl-sv { color: #fff; }
 .fl-ftip > .px-ic { width: 18px; height: 18px; flex: none; }
 .fl-ftip > span { min-width: 0; }
 .fl-ftip .fl-tip-x { flex: none; }
-.fl-tick { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; height: 32px; overflow: hidden; font-size: 14px; font-weight: 600; }
+.fl-tick { display: flex; flex-wrap: wrap; align-content: flex-start; align-items: center; gap: 4px 12px; height: 32px; overflow: hidden; font-size: 14px; font-weight: 600; }
 .fl-tick-l { font-family: var(--font-d); font-size: 16px; color: #9fa6dd; letter-spacing: 0.06em; text-transform: uppercase; }
 .fl-ti { display: inline-flex; align-items: center; gap: 4px; height: 32px; white-space: nowrap; }
 .fl-ti .badge { margin: 0; width: 22px; height: 22px; }
@@ -257,11 +264,11 @@ button.fl-seg-btn .fl-sv { color: #fff; }
 .fl-want .px-ic { width: 15px; height: 15px; }
 
 /* ---------------- per-screen tables ---------------- */
-.fl-t-draft { --cols: minmax(0, 1fr) 36px 132px 34px 44px 52px; }
+.fl-t-draft { --cols: minmax(0, 1fr) 36px 132px 34px 44px; }
 .fl-t-draft.done { --cols: minmax(0, 1fr) 36px 132px 34px 44px 74px; }
 .fl-t-star { --cols: minmax(0, 1fr) 36px 118px 34px 40px 38px; }
 .fl-t-fa { --cols: minmax(0, 1fr) 36px 118px 34px 112px 76px; }
-.fl-t-keep { --cols: minmax(0, 1fr) 36px 118px 34px 112px 34px 92px; }
+.fl-t-keep { --cols: minmax(0, 1fr) 36px 118px 34px 112px 92px; }
 .fl-t-swap { --cols: 30px minmax(0, 1fr) 36px 96px 30px; }
 
 /* ---------------- Swaps: two columns + fair meter ---------------- */
@@ -280,7 +287,7 @@ button.fl-seg-btn .fl-sv { color: #fff; }
 .fl-hero { padding: 10px 12px 8px; gap: 6px; overflow: hidden; align-items: stretch; }
 .fl-hero-k { display: flex; align-items: center; gap: 6px; font-family: var(--font-d); font-size: 18px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-2); }
 .fl-hero-k .px-ic { width: 18px; height: 18px; }
-.fl-hero-n { font-family: var(--font-d); font-weight: 400; font-size: 26px; line-height: 1; letter-spacing: 0.02em; overflow-wrap: break-word; }
+.fl-hero-n { font-family: var(--font-d); font-weight: 400; font-size: 26px; line-height: 1; letter-spacing: 0.02em; overflow-wrap: normal; word-break: keep-all; }
 .fl-hero-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .fl-hero-row .portrait, .fl-hero-row .badge { margin: 3px; flex: none; }
 .fl-hero-m { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 auto; }
@@ -412,10 +419,10 @@ button.fl-seg-btn .fl-sv { color: #fff; }
   .fl-pay, .fl-yrs { justify-content: space-between; }
   .fl-yr { flex: 1 1 0; }
   .fl-l2 > span { font-size: 15px; }
-  .fl-t-draft { --cols: minmax(0, 1fr) 40px 150px 40px 52px 60px; }
+  .fl-t-draft { --cols: minmax(0, 1fr) 40px 150px 40px 52px; }
   .fl-t-draft.done { --cols: minmax(0, 1fr) 40px 150px 40px 52px 84px; }
   .fl-t-fa { --cols: minmax(0, 1fr) 40px 140px 40px 130px 90px; }
-  .fl-t-keep { --cols: minmax(0, 1fr) 40px 140px 40px 130px 40px 110px; }
+  .fl-t-keep { --cols: minmax(0, 1fr) 40px 140px 40px 130px 110px; }
   .fl-t-star { --cols: minmax(0, 1fr) 40px 140px 40px 46px 44px; }
 }
 @media (min-width: 1600px) and (min-height: 900px) {
@@ -427,7 +434,7 @@ button.fl-seg-btn .fl-sv { color: #fff; }
   .lay.flow { --fl-side: 250px; }
   .fl-sum { --fl-hero: 240px; }
   .fl-swap .fl-nf { display: none; } .fl-swap .fl-ns { display: inline; }
-  .fl-t-keep { --cols: minmax(0, 1fr) 36px 118px 112px 40px 100px; }
+  .fl-t-keep { --cols: minmax(0, 1fr) 36px 118px 112px 100px; }
   .fl-t-keep .c-hn { display: none; }
   .fl-of-act .fl-letgo ~ .fl-send .btn-ic { display: none; }
 }
@@ -481,16 +488,19 @@ button.fl-seg-btn .fl-sv { color: #fff; }
 @media (orientation: landscape) and (max-height: 400px) { .lay.flow { --fl-row: 26px; } }
 @media (max-width: 960px) {
   .lay.flow { --fl-side: 216px; }
+  .fl-hero-row { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .fl-hero-n { font-size: 20px; }
+  .fl-aw-sw .fl-seg-btn { padding: 2px 7px 3px; }
   .fl-ol { display: none; }
   .fl-of-row { justify-content: center; }
   .fl-sum { --fl-hero: 190px; }
   .fl-t-two { --fl-two-min: 220px; }
   .fl-of-act .fl-letgo ~ .fl-send .btn-ic, .fl-of-act .fl-letgo ~ .fl-send .fl-nf { display: none; }
   .fl-letgo { padding: 0 6px 2px; font-size: 15px; }
-  .fl-t-draft { --cols: minmax(0, 1fr) 32px 104px 26px 38px 44px; }
+  .fl-t-draft { --cols: minmax(0, 1fr) 32px 104px 26px 38px; }
   .fl-t-draft.done { --cols: minmax(0, 1fr) 32px 104px 26px 38px 62px; }
   .fl-t-fa { --cols: minmax(0, 1fr) 32px 82px 26px 76px 56px; }
-  .fl-t-keep { --cols: minmax(0, 1fr) 30px 80px 74px 24px 80px; }
+  .fl-t-keep { --cols: minmax(0, 1fr) 30px 80px 74px 80px; }
   .fl-t-keep .c-hn { display: none; }
   .fl-swap .fl-nf { display: none; }
   .fl-swap .fl-ns { display: inline; }
@@ -534,7 +544,7 @@ button.fl-seg-btn .fl-sv { color: #fff; }
   .fl-st { gap: 3px; }
   .fl-tr { padding: 0 6px; column-gap: 4px; }
   .fl-th .fl-c { letter-spacing: 0; }
-  .fl-t-draft { --cols: minmax(0, 1fr) 30px 90px 22px 32px 38px; }
+  .fl-t-draft { --cols: minmax(0, 1fr) 30px 90px 22px 32px; }
   .fl-t-draft.done { --cols: minmax(0, 1fr) 30px 66px 22px 28px 50px; }
   .fl-t-fa { --cols: minmax(0, 1fr) 30px 76px 70px 56px; }
   .fl-t-keep { --cols: minmax(0, 1fr) 30px 54px 64px 70px; }
@@ -578,3 +588,21 @@ button.fl-seg-btn .fl-sv { color: #fff; }
 @container flside (max-height: 230px) { .fl-asks { display: none !important; } .fl-pm .stars, .fl-pm .mood-w { display: none; } }
 @container flside (max-height: 205px) { .fl-pm { display: none; } }
 @container flside (max-height: 175px) { .fl-who { display: none; } }
+
+/* ======================= HUNT5-ui-core #13 / #14 (Team-UX agent, for the idle Flow owner) ======================= */
+/* #13: the position filter is one "Pos" dropdown at every width; the sheet marks needs as "QB (need)" */
+.fl-chips { display: none; }
+.fl-posbtn { display: inline-flex; gap: 6px; padding: 0 10px 2px; }
+.fl-posbtn b { background: var(--paper); padding: 1px 6px; box-shadow: var(--frame-2); min-width: 30px; text-align: center; }
+.fl-posbtn.on b { background: #fff6c8; }
+.fl-sheet .fl-chip { gap: 4px; }
+.fl-sheet .fl-chip.need { background: #ffe2e2; }
+.fl-sheet .fl-chip.need.on { background: var(--sun); }
+.fl-need { font-family: var(--font); font-size: 12px; color: var(--red-d); }
+/* #14: touch targets on landscape phones — rows ≥ 32px, filter ≥ 36px, pager buttons 40×36 */
+@media (orientation: landscape) and (max-height: 480px) {
+  .lay.flow { --fl-row: 32px; --fl-bar: 40px; }
+  .fl-chip, .fl-posbtn { height: 36px; }
+  .fl-bar { padding-right: 150px; }
+  .fl-tcard .pg-ctl .pg-b { min-height: 36px; min-width: 40px; margin-bottom: 2px; }
+}

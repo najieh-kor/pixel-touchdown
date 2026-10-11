@@ -136,7 +136,7 @@
         kind: kind, off: off, def: 1 - off, dir: RU.dirOf(G, off), los0: G.los, down0: G.down, togo0: G.togo, fdY0: G.fdY,
         play: null, call: null, flip: 1, edge: 0, t: 0, st: 0, stage: '',
         qb: -1, thrown: false, windT: 0, windSafe: true, thTx: 0, thTy: 0, thLob: false, thEasy: false, relT: 0, breakT: 0, tgt: -1, compl: false,
-        catcher: -1, picked: false, pickBy: -1, defHad: false, abQ: false, turnY: null, batted: false, batPick: -1, lob: false, sig: 0, passDist: 0, undercut: 0, roughT: 0,
+        catcher: -1, picked: false, pickBy: -1, defHad: false, abQ: false, liveT: 0, clk0: -1, turnY: null, batted: false, batPick: -1, lob: false, sig: 0, passDist: 0, undercut: 0, roughT: 0,
         run: false, runT: 0, crossed: false, handDone: false, handT: 0, faked: false, fakeT: 0, meshDone: false, giveNow: false,
         tossBack: false, qbBack: false, qbMode: '', readStart: 0, waitHandEnt: -1, sneakY: 0, sneakDive: false,
         rusher: -1, sack: false, sackBy: -1, tkBy: -1, pdBy: -1, fumBy: -1, ffBy: -1, frBy: -1, carrierEnd: -1, offEndY: null,
@@ -182,7 +182,7 @@
           if (d === 'punt') return startPunt();
           if (d === 'fg') return startFG('fg', null);
         }
-        if (!G.selO && RU.halfEndQ(G) && left <= 25 && G.pend >= 20 && G.down < 4 && G.tos[G.poss] === 0 && (G.q === 2 || lead < 0)) {
+        if (!G.selO && RU.halfEndQ(G) && left <= 25 && G.pend >= 6 && G.down < 4 && G.tos[G.poss] === 0 && (G.q === 2 || lead < 0)) {
           G.selO = PT.Data.Playbook.byId('spike');
         }
       }
@@ -316,7 +316,13 @@
         if (a === 'pb') e.role = R.PBLK;
         else if (a === 'block') e.role = R.BLOCK;
         else if (!a) { e.role = isRun ? R.RBLK : R.BLOCK; e.tsel = 'near'; }
-        else if (a.rt) { e.role = R.ROUTE; E.Routes.load(G, e, a.rt, a.wait, a.end); e.blkT = typeof a.blk === 'number' ? a.blk : 0; }
+        else if (a.rt) {
+          e.role = R.ROUTE; E.Routes.load(G, e, a.rt, a.wait, a.end); e.blkT = typeof a.blk === 'number' ? a.blk : 0;
+          // HUNT5 #11: seeded per-snap variety — route depth ±0.6 / width ±0.4 yd, release delay 0–0.15 s
+          const jr = G.rng;
+          for (let w = 1; w < e.wpn; w++) { e.wpy[w] += G.dir * jr.range(-T.JIT_DEPTH, T.JIT_DEPTH); e.wpx[w] += jr.range(-T.JIT_WIDTH, T.JIT_WIDTH); }
+          e.wpWait += jr.range(0, T.JIT_RELEASE);
+        }
         else if (a.lane) { e.role = R.LANE; E.Routes.load(G, e, a.lane, null, a.end); if (a.waitHand) P.waitHandEnt = e.id; }
         else if (a.fake) { e.role = R.FAKE; E.Routes.load(G, e, a.fake, null, 'BLOCK'); }
         else if (a.pull) { e.role = R.RBLK; E.Routes.load(G, e, a.pull, null, ''); e.tsel = a.blk || 'near'; }
@@ -341,6 +347,7 @@
       for (let k = 0; k < 7; k++) {
         const e = G.ents[d * 7 + k], slot = C.DEF_SLOTS[k], a = call.as[slot] || { k: 'rush' };
         e.asg = a; e.tgt = -1; e.thinkT = 0; e.ptx = 0; e.pty = 0; e.rt0 = 0; e.ar = 0; e.ar2 = 0; e.deep = false; e.readDone = false;
+        e.reactMul = PT.Util.clamp(G.rng.normal(1, T.JIT_REACT), 0.75, 1.25);   // HUNT5 #11
         e.goBallT = 1e9;
         const setArea = (id, second) => {
           const ar = D.AREAS[id];
@@ -450,10 +457,11 @@
       const P = G.P;
       G.rescue = false;
       if (P.kind === 'scrim' && presnapFlag()) return;
-      if (P.kind === 'spike') G.pend = 0;       // the spike stops the clock right away (its own runoff is 3 s)
+      if (P.kind === 'spike') G.pend = Math.min(G.pend, G.deadEl || 0);   // the spike stops the clock where it shows (own runoff 3 s)
       if (!G.untimed) {
         if (RU.applyPending(G) && RU.periodEnd(G)) return;
       } else G.untimed = false;
+      P.clk0 = G.clk;                           // clock at the snap (one-minute warning crossing check)
       assignRoles();
       if (P.hotStar) hotRoute();
       const qb = G.ents[G.poss * 7];
@@ -762,6 +770,9 @@
     function stepLive(a, dt) {
       const P = G.P, b = G.ball;
       P.t += dt;
+      // LIVE game clock (client): the clock runs during the play in engine time (0.8× speed slows it too); a play that
+      // reaches 0:00 finishes, then the period ends. Untimed tries (2-pt) and practice drills don't run it.
+      if (!G.drill && P.kind !== 'two' && G.clk > 0) { const d = Math.min(dt, G.clk); G.clk -= d; P.liveT += d; }
       if (P.t > T.MAX_PLAY_T) {           // safety net (ARCHITECTURE 7.2)
         if (b.st === 'held') return E.Contact.downAt(G, b.car, G.ents[b.car].y, false, true);
         return whistle('inc', P.off, P.los0, false);
@@ -777,6 +788,15 @@
       }
       if (P.kind === 'spike') { if (P.t >= 0.5) { b.st = 'dead'; whistle('inc', P.off, P.los0, false); } return; }
       userControl(a, dt);
+      // HUNT5 #14: the user-steered player animates like the AI ones (a scrambling QB no longer glides in his stance)
+      if (G.ctl >= 0 && G.phase === 'LIVE') {
+        const ce = G.ents[G.ctl];
+        if (ce.an !== 'throw' && ce.an !== 'juke' && ce.an !== 'spin' && ce.an !== 'dive' && ce.an !== 'catch' && ce.an !== 'tackled' && ce.an !== 'down' && ce.an !== 'celebrate') {
+          const qbBack = P.kind === 'scrim' && G.ctl === P.qb && !P.crossed && (ce.y - P.los0) * G.dir < 0;
+          const want = ce.spd > 0.6 ? (qbBack ? 'scramble' : ce.ball ? 'carry' : 'run') : (qbBack ? 'stance' : ce.an === 'scramble' || ce.an === 'carry' || ce.an === 'run' ? 'idle' : ce.an);
+          if (want !== ce.an) { ce.an = want; ce.at = 0; }
+        }
+      }
       if (G.phase !== 'LIVE') return;
       E.AI.update(G, dt);
       E.Stars.update(G, dt);

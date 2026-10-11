@@ -28,7 +28,13 @@
 
   /** Type weights for an offense style + situation. */
   PC.typeMix = function (style, s) {
-    const key = PC.overrideKey(s), base = PB().STYLE_MIX[style] || PB().STYLE_MIX.west;
+    const key = PC.overrideKey(s), base0 = PB().STYLE_MIX[style] || PB().STYLE_MIX.west;
+    // HUNT5 #12: 3rd & 7+ → runs ×0.35 (draws/screens are SCREEN and stay); 3rd & ≤2 → runs ×1.3 for Ground / West Coast
+    let base = base0;
+    if (s && s.down >= 3 && (s.togo >= 7 || (s.togo <= 2 && (style === 'ground' || style === 'west')))) {
+      const k = s.togo >= 7 ? 0.35 : 1.3;
+      base = Object.assign({}, base0); base.IRUN = (base.IRUN || 0) * k; base.ORUN = (base.ORUN || 0) * k;
+    }
     if (!key) return base;
     // situation overrides blend with the style (HUNT4 #2): a Ground & Pound team still runs more on 3rd & long
     const ov = PB().OVERRIDES[key], out = {};
@@ -191,11 +197,13 @@
   function suggRng(G, side) { return PT.RNG.create(PT.RNG.hash(G.cfg.seed, G.playNo, side, 'sugg')); }
 
   function deepest(p) {
+    if (p._deep != null) return p._deep;     // cached (plays are static data)
     let m = -99;
     for (const slot in p.as) {
       const a = p.as[slot];
       if (a && a.rt) for (let i = 0; i < a.rt.length; i++) if (a.rt[i][1] > m) m = a.rt[i][1];
     }
+    p._deep = m;
     return m;
   }
 
@@ -534,6 +542,12 @@
     return v / 100;
   };
   PC.lookLabel = function (G) { const m = PC.lookMix(G); return (m.IRUN || 0) + (m.ORUN || 0) >= 50 ? 'RUN' : 'PASS'; };
+  /** What the defense's look says (offense audible tray): blitz / run front / man / zone. */
+  PC.lookLabelD = function (G) {
+    const c = G.P && G.P.call, D = DF();
+    if (!c) return 'a look';
+    return D.has(c, 'blitz') ? 'BLITZ' : D.has(c, 'run') || D.has(c, 'goal') ? 'RUN FRONT' : D.has(c, 'man') ? 'MAN' : 'ZONE';
+  };
 
   /** 4 audible cards for the user's side while lined up. */
   PC.audibleOptions = function (G, side) {
@@ -561,7 +575,8 @@
     const card = (p) => ({ id: p.id, name: p.name, k: p.k, type: p.type, icon: p.icon || B.TYPE_ICONS[p.type], desc: p.desc || '', tag: B.TYPE_NAMES[p.type],
       sug: true, best: false, hint: null, tip: false, form: p.form, lv: p.lv || 1, art: art(p), audible: true });
     const cards = out.map(card);
-    if (P.starEnt && P.starEnt[G.poss] >= 0) {
+    // HUNT5 #7: the Star hot route only on pass plays (on a run he'd leave his block for a route nobody throws to)
+    if (P.starEnt && P.starEnt[G.poss] >= 0 && cur.k !== 'run') {
       const se = G.ents[P.starEnt[G.poss]];
       cards.push({ id: 'hot_star', name: 'Star Hot Route', k: 'pass', type: 'SHORT', icon: 'flame', desc: 'Quick route for ' + (se.info ? se.info.n : 'your Star') + '. He is the first read.',
         tag: 'Hot route', sug: true, best: false, hint: null, tip: false, form: cur.form, audible: true });
@@ -570,7 +585,11 @@
       const p = i < same.length ? same[i] : pool.slice().sort((a, b) => vs(a) - vs(b))[i - same.length];
       if (p && !cards.some((c) => c.id === p.id)) cards.push(card(p));
     }
-    if (cards.length) cards[0].best = true;
-    return cards.slice(0, 4);
+    // best = lowest counter value vs the look the defense shows; sorted, with a "They show …" hint like the defense tray
+    const vt = (c) => PC.matrix(P.call.id, c.type, G.togo);
+    const top4 = cards.slice(0, 4).sort((x, y) => vt(x) - vt(y));
+    const label = 'They show ' + (PC.lookLabelD ? PC.lookLabelD(G) : 'a ' + (P.call.grp || 'look'));
+    top4.forEach((c, i) => { c.best = i === 0; c.hint = label; });
+    return top4;
   };
 })(globalThis.PT = globalThis.PT || {});

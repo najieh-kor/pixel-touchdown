@@ -195,6 +195,9 @@
       if (p.tr.indexOf('late_bloomer') >= 0 && p.age <= 27) d += 2;
       if (t && t.id === L.userTid && ctx.firstYear) d += PT.League.Coach.mods(L).rookieProg;
       if (p.ovr + d > p.pot) d = p.ovr < p.pot ? Math.max(0.5, p.pot - p.ovr) : Math.min(d, 0.5);
+      // HUNT5 #2: diminishing returns near the top, and kickers (who age slower) grow at most +2 (+1 above 90)
+      if (p.ovr >= K().PROG_TOP_FROM) d *= Math.max(0.15, (99 - p.ovr) / K().PROG_TOP_SPAN);
+      if (p.pos === 'K') d = Math.min(d, p.ovr >= 90 ? 1 : 2);
     } else {
       d = base + roll * 0.5;
       if (p.tr.indexOf('early_peak') >= 0 && p.age >= 27) d -= 1;
@@ -259,6 +262,26 @@
 
   // ---------------- Goodbyes ----------------
 
+  /**
+   * Career length in seasons (HUNT5 #4): seasons played in this league + p.exp0 (years played before the league began,
+   * set for generated veterans; estimated from age for older saves / later generated veterans; 0 for drafted rookies).
+   */
+  Prog.careerYears = function (L, p) {
+    const set = {};
+    for (const c of p.cs || []) set[c.s] = 1;
+    if (p.st && p.st.gp) set[L.season] = 1;
+    const played = Object.keys(set).length;
+    let pre = p.exp0;
+    if (pre == null) {
+      if (p.dr || p.yr1 != null) pre = 0;
+      else {
+        const first = played ? Math.min.apply(null, Object.keys(set).map(Number)) : L.season;
+        pre = Math.max(0, p.age - (L.season - first) - 22 - (PT.RNG.hash(L.seed, p.id, 'exp0') % 2));
+      }
+    }
+    return Math.max(1, pre + played);
+  };
+
   /** Seasons a player spent with a team (career entries + this season). */
   function seasonsWith(p, tid, curTid, season) {
     const s = {};
@@ -297,7 +320,7 @@
       p.con = null;
       p.inj = null; p.ir = false;
       out.retired.push(p.id);
-      const yrs = Object.keys(p.cs.reduce((o, c) => { o[c.s] = 1; return o; }, {})).length + (p.st && p.st.gp ? 1 : 0);
+      const yrs = Prog.careerYears(L, p);
       if (tid === L.userTid || p.ovr >= 80 || (p.hp || 0) >= 15) {
         N.add(L, 'retire', N.tpl('retire', { P: N.pname(p), N: Math.max(1, yrs) === 1 ? '1 season' : Math.max(1, yrs) + ' seasons', first: p.fn }), tid >= 0 ? tid : undefined);
       }

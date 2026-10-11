@@ -51,8 +51,8 @@
       ['Pick a defense, then click GO.', 'Watch your Star’s gold ring. Click TAP! when it turns GREEN.'],
       ['Pick a defense (1–3), then press Enter.', 'Watch your Star’s gold ring. Press Space when it turns GREEN.'],
       ['Pick a defense, then press A.', 'Watch your Star’s gold ring. Press A when it turns GREEN.']],
-    kick: [['It is 4th down: tap Field Goal.', 'Pull BACK from the kicker to aim between the posts. Let go in the green.'],
-      ['It is 4th down: click Field Goal.', 'Drag BACK from the kicker to aim between the posts. Let go in the green.'],
+    kick: [['It is 4th down: tap Field Goal.', 'Drag from anywhere, pull back, let go in the green.'],
+      ['It is 4th down: click Field Goal.', 'Drag from anywhere, pull back, let go in the green.'],
       ['It is 4th down: press K for Field Goal.', '←/→ aim. Hold Space, let go when the bar is in the green.'],
       ['It is 4th down: pick Field Goal.', 'Left stick aims. Hold A, let go in the green.']]
   };
@@ -80,7 +80,7 @@
     run: { nocatch: 'Catch it first, then dodge.', nomove: 'Caught! Now tap JUKE, SPIN or DIVE while you run.', quick: 'Tackled right away. Throw to the open catcher, then dodge.' },
     handoff: { short: 'Short of 5 yards. Look for a gap.', none: 'Hike it and run.' },
     defense: { whiff: 'Too early. Wait for the GREEN ring.', none: 'No Star Play. Tap TAP! the moment the ring turns GREEN.' },
-    kick: { miss: 'No good. Aim between the posts.', wrong: 'On 4th down, pick Field Goal.' }
+    kick: { miss: 'No good. Aim between the posts.', short: 'Too short. Pull back further.', wide: 'Wide. Aim between the posts.', wrong: 'On 4th down, pick Field Goal.' }
   };
   const SETTLE = 0.9;              // game seconds the play runs on after a verdict before the card (or the whistle)
 
@@ -269,7 +269,12 @@
         if (id === 'defense' && (q.user || q.tid === (PT.Session.state() || {}).userTid) && q.perfect) verdict(true, 'Perfect Surge!', 1.0);
         break;
       case 'fieldGoal':
-        if (id === 'kick' && q.user !== false) verdict(!!q.good, q.good ? 'It’s good! ' + (q.yds ? q.yds + ' yards.' : '') : MISS.kick.miss, q.good ? 1.2 : 0.9);
+        if (id === 'kick' && q.user !== false) {
+          // HUNT5-practice: say WHY it missed — the kick's power vs the power the distance needed (Session input:action)
+          const lk = P && P.lastKick;
+          const why = !q.good && lk ? (lk.minPow > 0 && lk.pow < lk.minPow ? MISS.kick.short : MISS.kick.wide) : MISS.kick.miss;
+          verdict(!!q.good, q.good ? 'It’s good! ' + (q.yds ? q.yds + ' yards.' : '') : why, q.good ? 1.2 : 0.9);
+        }
         break;
       case 'punt':
         if (id === 'kick') verdict(false, MISS.kick.wrong, 0);
@@ -457,6 +462,11 @@
     ['catch', 'handoff', 'juke', 'spin', 'dive', 'brokenTackle', 'starPlay', 'ability', 'fieldGoal', 'punt', 'playEnd']
       .forEach((n) => P.unsubs.push(PT.Events.on('game:' + n, (q) => onGame(n, q))));
     P.unsubs.push(PT.Events.on('game:pause', onPauseEvt));
+    P.unsubs.push(PT.Events.on('input:action', (a) => {        // remember the manual kick's power for the miss verdict
+      if (!P || !a || a.k !== 'kick') return;
+      const g = game(), sk = g && g.snapshot ? g.snapshot().kick : null;
+      P.lastKick = { pow: +a.pow || 0, minPow: sk && sk.minPow != null ? sk.minPow : 0 };
+    }));
     P.unsubs.push(PT.Events.on('input:device', () => { if (P) { P.devSeen = true; render(true); } }));
     P.unsubs.push(PT.Events.on('practice:leave', () => leave(false)));
     const doc = globalThis.document;

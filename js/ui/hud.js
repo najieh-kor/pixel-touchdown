@@ -20,7 +20,7 @@
 
   let host = null, on = false, cfg = null, userIdx = 0, els = {}, last = {}, subs = [];
   let mode = 'none', paused = false, quitReq = false, ffOn = false, lastBan = { t: '', at: 0 }, banTimer = 0;
-  let lastSnap = null, audUsed = false, kickPlay = false, comboSeen = {}, armedFlag = false, armedPlay = false, halfFlag = false, otFlag = false, endFlag = false, xpPending = false, koLatch = false, twoPending = false, ctlOpts = null, pendMove = null;
+  let lastSnap = null, audUsed = false, kickPlay = false, comboSeen = {}, armedFlag = false, armedPlay = false, halfFlag = false, otFlag = false, endFlag = false, xpPending = false, koLatch = false, koArm = false, twoPending = false, ctlOpts = null, pendMove = null;
 
   // ---------------- pixel icons (no emoji) ----------------
   // PT.UI.Icons.get(name) (UI art system) when present, else these tiny 8×8 pixel SVGs.
@@ -182,6 +182,7 @@
     userIdx = cfg.away && cfg.away.tid === ut ? 1 : 0;
     unsub();
     last = {}; els = {}; paused = false; quitReq = false; ffOn = false; mode = 'none'; lastSnap = null; comboSeen = {}; halfFlag = false; otFlag = false; endFlag = false; xpPending = false; koLatch = false; twoPending = false; pendMove = null; armedFlag = false;
+    koArm = (cfg && cfg.mode) !== 'practice';   // HUNT5 #1: the game opens with a kickoff (never in Practice drills)
     // a new game starts from its own settings (cfg.settings, else L.settings), never the last game's controls opts
     ctlOpts = null;
     if (cfg && cfg.settings) { ctlOpts = {}; ['easyThrow', 'aimMode'].forEach((k) => { if (cfg.settings[k] != null) ctlOpts[k] = cfg.settings[k]; }); }
@@ -198,11 +199,7 @@
         <button type="button" class="hud-pause-btn" data-hact="pause" data-testid="btn-pause" aria-label="Pause">${ic('pause')}</button>
       </div>
       <div class="hud-dd" data-h="ddrow"><span class="hud-dd-chip" data-h="dd"></span><span class="hud-dd-bo"><span data-h="bo"></span><span class="hud-dd-wx" data-h="wx"></span></span></div>
-      <div class="hud-meters" data-h="meters" hidden>
-        <span class="hud-mt-h" data-testid="hud-surge-title">SURGE</span>
-        <div class="hud-mt" data-h="mtoff"><span class="hud-mt-l">ATK</span><span class="hud-mt-bar"><i data-h="mtoffbar"></i></span></div>
-        <div class="hud-mt" data-h="mtdef"><span class="hud-mt-l">DEF</span><span class="hud-mt-bar"><i data-h="mtdefbar"></i></span></div>
-      </div>
+      <!-- HUNT5 #4: no separate ATK/DEF panel; the SURGE button's ring shows the current side's fill -->
       <div class="hud-hint" data-h="hint"></div>
       <div class="hud-aimt" data-h="aimt" data-testid="hud-aim-target" hidden></div>
       <div class="hud-ret" data-h="ret" data-testid="hud-ret" hidden></div>
@@ -278,6 +275,7 @@
     const hf = host && host.querySelector('.hud-half');
     if (hf) hf.remove();
     halfFlag = false;
+    if (cfg.mode !== 'practice') koArm = true;   // HUNT5 #1: the second half opens with a kickoff
     if (halfPaused) { halfPaused = false; try { if (PT.Session && PT.Session.resume && !paused) PT.Session.resume(); } catch (e) { /* ignore */ } }
     Hud.flushBanners();
   }
@@ -376,8 +374,9 @@
     const ph = snap ? snap.phase : '';
     if (ph === 'CALL' || ph === 'PRESNAP' || ph === 'PAT') koLatch = false;
     const sb = snap && snap.ball;
-    if (ph === 'KICK' && sb && (sb.kind === 'ko' || sb.kind === 'onside' || (sb.st === 'spot' && sb.z >= 0.25)) && !koLatch) {
-      koLatch = true;
+    // HUNT5 #1: KICKOFF only for a real kickoff (armed by the events that lead to one, or a ko/onside ball), never an FG
+    if (ph === 'KICK' && sb && sb.kind !== 'fg' && (sb.kind === 'ko' || sb.kind === 'onside' || koArm) && !koLatch) {
+      koLatch = true; koArm = false;
       for (let i = banQ.length - 1; i >= 0; i--) if (banQ[i].style !== 'td' && banQ[i].style !== 'record') banQ.splice(i, 1);   // stale result banners never land on the kickoff
     }
     const noRow = halfFlag || otFlag || endFlag || ph === 'BREAK' || ph === 'FINAL';
@@ -402,6 +401,7 @@
     else if (koLatch) dd = 'KICKOFF';
     else if (two) dd = '2-PT TRY';   // HUNT2 #11: not "1st & Goal" on a 2-point try
     else if (ph === 'PAT' || xpPending) dd = 'EXTRA POINT';   // HUNT4 #4 (PAT choice, then the XP aim in phase CALL/KICK)
+    else if ((snap && snap.kick && snap.kick.on) || (sb && sb.kind === 'fg') || mode === 'kick') dd = 'FIELD GOAL';   // HUNT5 #1
     else if (hud.down >= 1 && hud.down <= 4) {
       const goal = snap ? (snap.dir > 0 ? snap.los + hud.togo >= 110 : snap.los - hud.togo <= 10) : false;
       dd = PT.Util.ordinal(hud.down) + ' & ' + (goal ? 'Goal' : hud.togo < 0.5 ? 'inches' : Math.max(1, Math.round(hud.togo)));
@@ -410,7 +410,7 @@
     setText('dd', dd);
     // HUNT2 #6: "Ball on" from the USER's side with team abbreviations (BLZ 29 / FLP 35), never OWN/OPP
     const boY = snap && snap.los != null ? yardFor(snap.los) : hud.ballOn;
-    setText('bo', halfFlag || koLatch || two || ph === 'PAT' || xpPending || !boY ? '' : 'Ball on ' + boY);
+    setText('bo', halfFlag || koLatch || two || ph === 'PAT' || xpPending || dd === 'FIELD GOAL' || !boY ? '' : 'Ball on ' + boY);
     if (setKey('wxk', hud.wx || '') && els.wx) { els.wx.innerHTML = hud.wx ? String(ic(WX_ICON[hud.wx] || 'sun')) : ''; els.wx.title = (K().WX[hud.wx] || ['', ''])[1]; }
     if (snap && setKey('phase', snap.phase)) host.setAttribute('data-phase', snap.phase);
     // Star Play ring (R9)
@@ -577,10 +577,11 @@
     (snap.ents || []).forEach((e) => { if (e && e.tm === userIdx && (e.star === 1 || e.star === 3)) n++; });
     if (setKey('abN', n) && els.abn) { els.abn.textContent = n ? 'x' + n : ''; els.abn.hidden = !n; }
     // HUNT2 #3: one-time tip the first time a meter fills (what SURGE and xN mean)
-    if (show && n > 0 && (off >= 100 || def >= 100) && !surgeTipSeen() && !choiceOpen()) {
+    // HUNT5 #6: the one-time tip waits for a calm moment (pre-snap, SURGE ready on this side) and sits beside the button
+    if (show && n > 0 && st === 'full' && snap.phase === 'PRESNAP' && (mode === 'presnap' || mode === 'defense') && !surgeTipSeen() && !choiceOpen()) {
       surgeTip = true;
       try { if (PT.Save && PT.Save.setPrefs) PT.Save.setPrefs({ surgeTip: 1 }); } catch (e) { /* ignore */ }
-      note('SURGE full! x' + n + ' = your Stars on the field get a boost.', 4200, 'hud-note-tip');
+      note('SURGE ready! Tap it: your Stars on the field power up.', 4200, 'hud-note-tip');
     }
   }
   let surgeTip = null;
@@ -620,9 +621,9 @@
       { id: 'dive', label: 'Dive', icon: 'dive', testid: 'btn-dive', key: 'E' },
       { id: 'sprint', label: 'Sprint', icon: 'bolt', testid: 'btn-sprint', hold: true, key: 'Shift' }], hint: '' },
     defense: { big: true, aud: true, btns: [{ id: 'snap', label: 'GO!', icon: 'shield', testid: 'btn-go', key: 'Enter' }], hint: 'Tap a defender to control him.' },
+    // HUNT5 #4: ONE speed button: first tap 2×, second tap END (jump to the result). Sim drive stays top-right.
     watch: { row: true, btns: [
-      { id: 'ff', label: '2×', icon: 'ff', testid: 'btn-ff', toggle: true, key: 'F', title: 'Fast (2×)' },
-      { id: 'skip', label: 'End play', icon: 'skip', testid: 'btn-skip', key: 'X', title: 'Jump to the end of this play' }], hint: '' },
+      { id: 'ff', label: '2×', icon: 'ff', testid: 'btn-ff', toggle: true, key: 'F', title: 'Fast (2×), tap again to end the play' }], hint: '' },
     // HUNT3-render: AUTO is a corner chip (never over the holder); a ghost finger + ball marks the start point
     kick: { chip: true, btns: [{ id: 'autokick', label: 'Auto', icon: 'boot', testid: 'btn-auto-kick', key: 'A' }], hint: 'Drag from anywhere, let go to kick' }
   };
@@ -641,7 +642,9 @@
     if (mode === 'qb') hint = qbHintCount(0) > QB_HINTS ? '' : throwHint();
     if (els.hint) els.hint.classList.toggle('hud-hint-top', mode === 'qb');
     e.innerHTML = String(html`${m.btns.map((b) => {
-      const label = b.id === 'autokick' && pct != null ? 'Auto (' + pct + '%)' : b.label;
+      // HUNT5 #7: the FG % is on the kick card; the corner chip just says AUTO KICK. HUNT5 #4: » turns into END.
+      const label = b.id === 'autokick' ? 'Auto kick' : b.id === 'ff' && ffOn ? 'End' : b.label;
+      if (b.id === 'ff' && ffOn) b = Object.assign({}, b, { icon: 'skip', title: 'Jump to the end of this play' });
       const holdA = b.hold ? D().raw(' data-hold="' + b.id + '"') : '';
       const onCls = b.toggle && b.id === 'ff' && ffOn ? ' hud-on' : '';
       return html`<button type="button" class="hud-btn hud-btn-${b.id}${onCls}" data-hact="${b.hold ? 'noop' : b.id}" data-testid="${b.testid}"${holdA} ${b.title ? D().raw('title="' + D().esc(b.title) + '"') : ''}>${b.icon ? html`<span class="hud-btn-ic" aria-hidden="true">${ic(b.icon)}</span>` : ''}<span class="hud-btn-t">${label}</span>${b.key ? html`<span class="hud-kbd">${b.key}</span>` : ''}</button>`;
@@ -711,8 +714,9 @@
         break;
       }
       case 'ff': {
-        ffOn = !ffOn; press('ff');
-        t.classList.toggle('hud-on', ffOn);
+        if (ffOn) { if (!sess('skipPlay')) press('skip'); break; }   // HUNT5 #4: second tap = END
+        ffOn = true; press('ff');
+        renderControls();
         break;
       }
       case 'skip': if (!sess('skipPlay')) press('skip'); break;
@@ -885,6 +889,9 @@
       if (isUser(p.tid) && p.kind !== 'downs' && lastSnap && lastSnap.phase === 'LIVE') Hud.setControls('carrier');
     });
     on_('game:firstDown', () => Hud.banner('FIRST DOWN!', 'firstDown', 1100));
+    const armKO = () => { if (cfg.mode !== 'practice') koArm = true; };   // HUNT5 #1: these lead to a kickoff
+    on_('game:fieldGoal', (p) => { if (p.good) armKO(); });
+    on_('game:safety', armKO);
     on_('game:fieldGoal', (p) => Hud.banner(p.good ? 'FIELD GOAL!' : 'NO GOOD!', p.good ? (isUser(p.tid) ? 'td' : 'info') : 'bad', 1800));
     on_('game:pat', (p) => {
       if (p.kind === 'two') Hud.banner(p.good ? 'TWO POINTS!' : 'NO GOOD!', p.good ? 'good' : 'bad');
@@ -909,8 +916,16 @@
     on_('game:halftime', () => Hud.halftime());
     // one-minute warning (3:00 quarters): engine emits 'minuteWarning' ('twoMinute' kept as an alias);
     // both can arrive for the same moment, the banner's 400 ms de-dupe shows it once
-    on_('game:minuteWarning', () => Hud.banner('1:00 WARNING', 'info', 1500));
-    on_('game:twoMinute', () => Hud.banner('1:00 WARNING', 'info', 1500));
+    // CLIENT (live clock): exactly once per quarter, whichever alias arrives first and whenever it arrives
+    let warnQ = {};
+    const minuteWarn = (p) => {
+      const q = (p && p.q) || (lastSnap && lastSnap.hud && lastSnap.hud.q) || 0;
+      if (warnQ[q]) return;
+      warnQ[q] = 1;
+      Hud.banner('1:00 WARNING', 'info', 1500);
+    };
+    on_('game:minuteWarning', minuteWarn);
+    on_('game:twoMinute', minuteWarn);
     on_('game:dive', () => { if (mode === 'watch' || (lastSnap && lastSnap.star && lastSnap.star.ring === 'used')) Hud.banner('SUPER!', 'super', 1000); });
     on_('game:star', () => Hud.banner('SUPER!', 'super', 1000));
     on_('game:record', () => Hud.banner('NEW RECORD!', 'record', 2200));
@@ -930,11 +945,17 @@
       // replaces a banner on screen
       const half = lastSnap && lastSnap.hud && lastSnap.hud.q > 2 ? 2 : 1;
       const key = half + ':' + nm;
-      if (comboSeen[key]) { Hud.pop(nm, 'bad'); return; }
+      // HUNT5 #3: short 'THEIR SURGE ×N!' pill in the top band (not a field-wide list across the line), warn chip off
+      hideWarn();
       comboSeen[key] = 1;
-      Hud.pop('THEIR ' + nm, 'bad');
+      const cnt = p.count > 1 ? ' ×' + p.count : '';
+      note('THEIR SURGE' + cnt + '!', 1300, 'hud-note-bad');
     });
-    on_('game:abilityWarn', () => warn('Their Surge is ready!'));
+    on_('game:abilityWarn', () => warn('Their Surge is coming!'));
+    // HUNT5 #3: the warning goes away the moment their Surge fires, or when the user's Star play / TAP happens
+    on_('game:star', hideWarn);
+    on_('game:starRing', (p) => { if (p && p.on) hideWarn(); });
+    on_('game:playEnd', hideWarn);
     // INT2: an offense Star armed pre-snap fires on the catch / handoff / throw — say so (it was silent before)
     on_('game:abilityArmed', (p) => {
       if (!(p.user || isUser(p.tid))) return;
@@ -947,12 +968,12 @@
     on_('game:audibleCall', () => { audUsed = true; if (els.aud) els.aud.hidden = true; });
     // one audible per play (INT2): reset only when a new play is called / the old one ends. Resetting on a mode
     // change brought the button back after the audible's re-lineup, and the engine then refused the 2nd audible.
-    on_('game:call', () => { audUsed = false; armedFlag = false; armedPlay = false; halfFlag = false; otFlag = false; });
+    on_('game:call', () => { audUsed = false; armedFlag = false; armedPlay = false; halfFlag = false; otFlag = false; koArm = false; });
     on_('game:kickoff', () => { halfFlag = false; otFlag = false; twoPending = false; xpPending = false; });
-    on_('game:pat', () => { twoPending = false; xpPending = false; });
+    on_('game:pat', () => { twoPending = false; xpPending = false; armKO(); });
     // HUNT3 #1: overtime gets a banner + who receives; the stale down row is hidden until the kickoff
     on_('game:overtime', (p) => {
-      otFlag = true;
+      otFlag = true; armKO();
       breakCleanup();
       const gt = p && p.recvTid != null ? teamOf(p.recvTid) : null;
       Hud.banner('OVERTIME', 'record', 2400, gt ? abbrOf(gt) + ' gets the ball' : '');
@@ -975,7 +996,7 @@
     on_('game:snap', () => { const PC = UI.PlayCall; if (PC && PC.isOpen && PC.isOpen() && PC.kind && PC.kind() === 'audible') PC.close(); });
     on_('game:playEnd', () => {
       // HUNT4-input #6: Session resets 2x at every playEnd; the HUD's » button state follows
-      if (ffOn) { ffOn = false; const b = els.ctl && els.ctl.querySelector('[data-testid="btn-ff"]'); if (b) b.classList.remove('hud-on'); }
+      if (ffOn) { ffOn = false; if (mode === 'watch' || mode === 'defensePlay') renderControls(); }
     });
     on_('game:playEnd', () => { if (armedPlay) refundNote(); audUsed = false; armedFlag = false; armedPlay = false; pendMove = null; });
     // Yards / incomplete text is drawn in the 3D world by the renderer (engine fx 'text' = play desc), so the HUD
@@ -1002,6 +1023,7 @@
     warnT = setTimeout(() => { if (els.warn) els.warn.hidden = true; }, 2600);
   }
   Hud.warn = warn;
+  function hideWarn() { clearTimeout(warnT); if (els.warn) els.warn.hidden = true; }
   function unsub() { subs.forEach((f) => { try { f(); } catch (e) { /* ignore */ } }); subs = []; }
 
   // ---------------- keyboard ----------------

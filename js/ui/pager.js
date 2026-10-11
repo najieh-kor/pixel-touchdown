@@ -53,7 +53,7 @@
     const extra = 2 + (parseFloat(getComputedStyle(rows[0]).marginBottom) || 0);
     const grid = list.classList.contains('pg-grid');
     const count = (H) => {
-      const fits = (r) => r.offsetTop - top0 + r.offsetHeight + extra <= H + 1;
+      const fits = (r) => r.offsetTop - top0 + r.offsetHeight + extra <= H + 4;   // HUNT5 #5: 4px tolerance (frame shadow room)
       if (grid) return rows.filter(fits).length;          // a grid fills row by row: every child whose bottom fits
       let k = 0; for (const r of rows) { if (fits(r)) k++; else break; }
       return k;

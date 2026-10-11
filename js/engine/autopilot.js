@@ -55,7 +55,7 @@
     if (P.kind === 'scrim' && ci === P.qb && e.ball && !P.thrown && !P.crossed) {
       if (P.qbMode === 'mesh') { if (E.AIQB.optionRead(G, e)) out.snap = P.t > 0.5; return out; }
       if (P.qbMode !== 'pass' || P.windT > 0) return out;
-      const dec = E.AIQB.think(G, e, T.DT || PT.C.DT, tmpDec);
+      const dec = E.AIQB.think(G, e, PT.C.DT, tmpDec);
       if (dec.act === 'throw' || dec.act === 'away') {
         out.aim.on = true; out.aim.tx = dec.tx; out.aim.ty = dec.ty; out.aim.pow = 1; out.throw = true; out.lob = dec.lob;
       } else if (dec.act === 'scramble') {

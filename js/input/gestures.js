@@ -13,7 +13,7 @@
   'use strict';
   const Input = PT.Input = PT.Input || {};
   const NS = 'http://www.w3.org/2000/svg';
-  const POW_K = 0.40, CANCEL_K = 0.06, KICK_SLOW = 1.4;
+  const POW_K = 0.40, CANCEL_K = 0.06, KICK_SLOW = 1.4, KICK_SHORT = (0.36 - 0.06) / 0.34;   // short screens: full at 0.36·ss
   let svg = null, band = null, arrow = null, head = null, ring = null, label = null, meter = null, meterFill = null, meterZone = null;
   let zone = null;                       // kick "enough power" band {lo, hi}
   const K = () => Input._k;
@@ -37,7 +37,9 @@
     // playtest: power counts from the edge of the cancel ring (a dead zone), not from the touch point. Before, the
     // shortest possible throw was 15% of max (~8 yd) and RB dump-offs / screens sat right on the cancel edge.
     // kicks: ~40% less power per pixel than throws (client: relaxed kick timing) → full power at ~0.54 × short side
-    const span = (POW_K - CANCEL_K) * (kick ? KICK_SLOW : 1);
+    // short phones (short side ≤ 480 px, e.g. 667×375): full kick power at ~0.36 × short side so a 52-yd FG is a
+    // reachable pull (HUNT5-input #1); desktop / tall screens keep the relaxed 0.54 × (KICK_SLOW)
+    const span = (POW_K - CANCEL_K) * (kick ? (ss <= 480 ? KICK_SHORT : KICK_SLOW) : 1);
     s.pow = Math.max(0, Math.min(1, (len - CANCEL_K * ss) / (span * ss)));
     s.cancel = len < CANCEL_K * ss;
   }

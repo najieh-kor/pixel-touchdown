@@ -95,7 +95,15 @@
    * stops at the warning during the dead ball (the tray then shows 1:00 and nothing jumps back up at the snap).
    */
   RU.warnAtWhistle = function (G) {
-    const W = RU.warnT(G);
+    const W = RU.warnT(G), P = G.P;
+    // the live clock passed the warning DURING the play: the clock stops at the end of the play (NFL two-minute warning)
+    if ((G.q === 2 || G.q === 4) && P && P.clk0 > W && G.clk <= W && G.clk > 0) {
+      G.pend = 0;
+      G.em.emit('minuteWarning', { q: G.q, t: W });
+      G.em.emit('twoMinute', { q: G.q, t: W });
+      P.clk0 = -1;
+      return;
+    }
     if ((G.q === 2 || G.q === 4) && G.clk > W && G.clk - G.pend <= W) {
       PT.Box.team(G.box, G.tids[G.pendTeam], 'top', Math.round(G.clk - W));
       G.clk = W; G.pend = 0;
@@ -121,11 +129,15 @@
   RU.aiTimeout = function (G, R, nextPoss) {
     if (R <= G.T.RUN_STOP) return R;
     const left = G.clk - R;
+    const W = RU.warnT(G), P = G.P;
+    // HUNT5 #5: the one-minute warning will stop this clock anyway — don't waste a timeout on it
+    if ((G.q === 2 || G.q === 4) && ((G.clk > W && left <= W) || (P && P.clk0 > W && G.clk <= W))) return R;
     for (let ti = 0; ti < 2; ti++) {
       if (ti === G.userIdx || G.tos[ti] <= 0) continue;
       const diff = G.score[ti] - G.score[1 - ti];
-      const W = RU.warnT(G);
-      const want = (G.q >= 4 && left <= W * 1.5 && diff < 0) || (G.q === 2 && left <= W && nextPoss === ti && G.clk > 5);
+      const tg = nextPoss === ti && G.poss === ti ? RU.toGoal(G) : 99;
+      const want = (G.q >= 4 && diff < 0 && (left <= W || (diff <= -9 && left <= W * 1.5))) ||
+        (G.q === 2 && left <= W && nextPoss === ti && G.clk > 5 && (tg <= 60 || left <= 40));
       if (want) {
         G.tos[ti]--;
         G.em.emit('timeout', { tid: G.tids[ti], auto: true, left: G.tos[ti] });
@@ -298,7 +310,10 @@
         // offense keeps it (or incomplete)
         let spot = P.los0;
         if (res.k === 'inc') { result = 'inc'; desc = P.incDesc || 'Incomplete'; }
-        else { spot = res.y; desc = (yds >= 0 ? 'Gain of ' : 'Loss of ') + Math.abs(yds); if (P.sack) desc = 'Sacked! ' + desc; }
+        else {
+          spot = res.y; desc = (yds >= 0 ? 'Gain of ' : 'Loss of ') + Math.abs(yds); if (P.sack) desc = 'Sacked! ' + desc;
+          if (!P.sack && yds < 0 && P.play && P.play.k === 'run' && P.carrierEnd === P.qb && !P.handDone) desc = 'Stuffed! ' + desc;   // HUNT5 #10
+        }
         G.los = PT.Util.clamp(spot, GL + 0.5, GH - 0.5);
         if ((G.los - G.fdY) * dirO >= -0.01) {
           firstDown = true;
@@ -328,7 +343,7 @@
         R = T.RUN_INB;
         if (G.hurry[off] || G.aiHurry[off]) {
           R = T.RUN_HURRY;
-          if (off === G.userIdx) { if (G.sk.twominutedrill) R = 10; else if ((G.sk.clockmaster || 0) >= 2) R = 12; }
+          if (off === G.userIdx) { if (G.sk.twominutedrill) R = Math.max(2, T.RUN_HURRY - 2); else if ((G.sk.clockmaster || 0) >= 2) R = Math.max(2, T.RUN_HURRY - 1); }
         }
         if (firstDown && RU.halfEndQ(G) && G.clk <= RU.warnT(G)) R = Math.min(R, T.RUN_LAST_MIN_FD);
       }
@@ -416,6 +431,7 @@
     // pending runoff is applied at the next snap/kick; untimed tries (XP / 2-pt) keep the score's runoff pending
     if (G.drill) R = 0;                        // practice drills: no clock runoff
     G.pend += R; if (R > 0) G.pendTeam = off;
+    if (P.liveT > 0) { const tt = P.kind === 'kickoff' || P.kind === 'punt' || P.kind === 'onside' ? 1 - P.off : P.off; PT.Box.team(G.box, G.tids[tt], 'top', Math.round(P.liveT)); P.liveT = 0; }
     if (G.untimedNext) { G.untimed = true; G.untimedNext = false; }
 
     // ----- OT sudden death -----
@@ -478,7 +494,8 @@
     // next scrimmage call
     G.rescue = false;
     if (G.clk - G.pend <= 0 && !G.untimed) {
-      if (!RU.userCanRescue(G)) { if (RU.applyPending(G) && RU.periodEnd(G)) return; }
+      // expired during the play (live clock) → the period is over; a pending runoff → only a timeout/spike can help
+      if (G.clk <= 0 || !RU.userCanRescue(G)) { if (RU.applyPending(G) && RU.periodEnd(G)) return; }
       else G.rescue = true;                     // the tray opens only to call TIMEOUT (or SPIKE)
     }
     game._toCall();

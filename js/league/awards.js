@@ -154,7 +154,10 @@
     PT.League.Boss.evaluate(L);
     seasonRecords(L, ur);
     PT.League.Achievements.check(L, 'season', { sum: sum });
-    if (champ != null) PT.League.News.add(L, 'award', PT.League.News.tpl('champ', { T: 'The ' + L.teams[champ].name }), champ);
+    if (champ != null) {                     // HUNT5 #3: the calendar may already have posted the same headline
+      const txt = PT.League.News.tpl('champ', { T: 'The ' + L.teams[champ].name });
+      if (!L.news.some((x) => x.s === L.season && x.txt === txt)) PT.League.News.add(L, 'award', txt, champ);
+    }
     if (coy != null) PT.League.News.add(L, 'award', PT.League.News.tpl('coy', { T: 'The ' + L.teams[coy].name }), coy);
     PT.League.AIGM.setModes(L, true);
     ss.sum = sum;

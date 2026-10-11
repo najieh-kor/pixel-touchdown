@@ -84,8 +84,9 @@
     return [
       { k: 'name', label: 'Name', cls: 'c-name' }, { k: 'pos', label: 'Pos', cls: 'c-pos' }, { k: 'stars', label: 'Stars', cls: 'c-stars' },
       { k: 'age', label: 'Age', cls: 'c-age c-c' }, { k: 'gr', label: K().ic('sprout'), cls: 'c-gr c-c' },
-      done ? { k: 'pk', label: 'Pick', cls: 'c-tag' } : { k: 'need', label: 'Need', cls: 'c-tag' }
-    ];
+      // HUNT5-ui-core #13: needs show in the Pos dropdown ("QB (need)") and the header, so no Need column
+      done ? { k: 'pk', label: 'Pick', cls: 'c-tag' } : null
+    ].filter(Boolean);
   }
 
   function rowOf(lg, x, nd, sel) {
@@ -141,8 +142,7 @@
         ui.auto = suggest(lg);
         if (ui.auto != null && (!ui.filter || list.some((x) => x.p.id === ui.auto))) ui.sel = ui.auto;
       }
-      const all = board(lg);
-      if (ui.sel == null || !all.some((x) => x.p.id === ui.sel)) ui.sel = list.length ? list[0].p.id : null;
+      if (ui.sel == null || !list.some((x) => x.p.id === ui.sel)) ui.sel = list.length ? list[0].p.id : null;   // never a hidden rookie
       rows = list.map((x) => rowOf(lg, x, nd, ui.sel));
     }
     const selP = ui.sel != null ? PT.League.Q.player(lg, ui.sel) : null;
@@ -158,7 +158,7 @@
     const body = html`${header(lg, st)}${tipLine}<div class="fl-main">${table}${detail(lg, selP, selX, st, nd)}</div>`;
     let sec = '', pri = '';
     if (live) {
-      sec = FK().sec({ label: 'Auto draft', icon: 'robot', action: 'auto', testid: 'btn-draft-auto' });
+      sec = FK().sec({ label: html`Auto draft<span class="fl-wide"> the rest</span>`, icon: 'robot', action: 'auto', testid: 'btn-draft-auto', title: 'Auto draft the rest' });
       pri = st.userOnClock
         ? FK().pri({ label: selP ? 'Draft ' + K().short(selP) : 'Draft', icon: 'grad', action: 'pick', testid: 'btn-draft-pick', disabled: !selP || !selP.pr })
         : FK().pri({ label: st.next ? 'Sim to my pick' : 'Finish draft', sub: st.next ? 'Pick #' + st.next : '', icon: 'ff', action: 'simme', testid: 'btn-draft-sim-to-me' });
@@ -174,7 +174,7 @@
     }
   }
 
-  function setFilter(v) { ui.filter = v || ''; if (UI.pgPage) UI.pgPage('board', 0); UI.refresh(); }
+  function setFilter(v) { ui.filter = v || ''; ui.sel = null; if (UI.pgPage) UI.pgPage('board', 0); UI.refresh(); }
   function changed(what) { if (PT.Events) PT.Events.emit('league:changed', { what: what || 'draft' }); UI.refresh(); }
 
   function doScout(pid) {
@@ -224,7 +224,8 @@
         return r;
       },
       auto: () => {
-        UI.Modal.confirm('Auto draft the rest?', { body: 'Your scouts make your picks.', icon: 'robot', yes: 'Auto draft', no: 'Cancel' }).then((ok) => {
+        // HUNT5 #9: no confirm; the results list (with NEXT) is the review
+        Promise.resolve(true).then((ok) => {
           if (!ok) return;
           try { Dr().autoRest(L()); } catch (e) { UI.Toast.show('Auto draft failed.', 'bad'); }
           ui.sel = null;

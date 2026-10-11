@@ -3,8 +3,8 @@
  * params.pid. Shows voxel portrait (PT.Render.portrait), Stars + number, Growth letter, 10 skill bars (main skills
  * highlighted), Perks/Quirks, Wants, Mood, Pay/Years, Cut Cost, season & career stats, awards.
  * TEAM-UX: ID panel + tabs Overview (key skills, Surge, traits) · Skills · Stats · Contract; one action row:
- * Cut (btn-release, left) … Swap (btn-swap), Captain (btn-captain), Hurt List (btn-ir), Play Hurt (btn-play-hurt),
- * Keep (btn-keep) / Extend (btn-extend), Make/Remove Star (btn-toggle-star, right). Other teams: Ask for Swap; FA: Make Offer.
+ * More (btn-more, left: sheet with Captain btn-captain, Swap btn-swap, Hurt List btn-ir, Play Hurt btn-play-hurt, Cut btn-release)
+ * … Keep (btn-keep) / Extend (btn-extend), Make/Remove Star (btn-toggle-star, right = the one primary). Other teams: Ask for Swap; FA: Make Offer.
  */
 (function (PT) {
   'use strict';
@@ -114,16 +114,11 @@
     const slot0 = mine && t ? K().startSlot(t, p.id) || (t.dc && t.dc.K && t.dc.K[0] === p.id ? 'K' : '') : '';
     const kit = UI.parts || {};
     if (mine) {
-      left.push(K().btn({ label: 'Cut', icon: 'scissors', action: 'release', kind: 'bad', size: 's', testid: 'btn-release' }));
-      right.push(K().btn({ label: 'Swap', icon: 'swap', action: 'swap', kind: 'sec', size: 's', testid: 'btn-swap' }));
-      if (!capt) right.push(K().btn({ label: 'Captain', icon: 'crown', action: 'captain', kind: 'sec', size: 's', testid: 'btn-captain' }));
-      if (p.inj && p.inj.w >= PT.C.ROSTER.IR_MIN_WEEKS && !p.ir) right.push(K().btn({ label: 'Hurt List', icon: 'cross', action: 'ir', data: { on: 1 }, kind: 'sec', size: 's', testid: 'btn-ir' }));
-      if (p.ir) right.push(K().btn({ label: 'Off Hurt List', icon: 'dumbbell', action: 'ir', data: { on: 0 }, kind: 'sec', size: 's', testid: 'btn-ir' }));
-      // QA1: league severity is 1 Sprain · 2 Hurt · 3 Bad Hurt · 4 Season Over; only Sprain/Hurt may play hurt
-      if (p.inj && p.inj.sev >= 1 && p.inj.sev <= 2 && !p.ir) right.push(K().btn({ label: p.ph || p.inj.ph ? 'Rest him' : 'Play Hurt', icon: 'cross', action: 'play-hurt', kind: 'sec', size: 's', testid: 'btn-play-hurt', title: 'He wants to help!' }));
+      // HUNT5 #2: one primary action (Make / Remove Star, far right), one secondary (Extend / Keep), the rest behind "More"
+      left.push(K().btn({ label: 'More', icon: 'clipboard', action: 'more', kind: 'sec', size: 's', testid: 'btn-more', title: 'Captain, Swap, Hurt List, Cut' }));
       const ca = kit.contractAct ? kit.contractAct(p) : null;
-      if (ca === 'keep') right.push(K().btn({ label: 'Keep', icon: 'contract', action: 'keep', kind: 'go', size: 's', testid: 'btn-keep' }));
-      if (ca === 'extend') right.push(K().btn({ label: 'Extend', icon: 'contract', action: 'extend', kind: 'go', size: 's', testid: 'btn-extend' }));
+      if (ca === 'keep') right.push(K().btn({ label: 'Keep', icon: 'contract', action: 'keep', kind: 'sec', size: 's', testid: 'btn-keep' }));
+      if (ca === 'extend') right.push(K().btn({ label: 'Extend', icon: 'contract', action: 'extend', kind: 'sec', size: 's', testid: 'btn-extend' }));
       // HUNT #36: no Make Star for kickers / long-term hurt; at 8/8 it is a disabled grey button ("8/8 full")
       const sInfo = PT.League.Roster && PT.League.Roster.starInfo ? PT.League.Roster.starInfo(L, L.userTid) : null;
       const longHurt = p.ir || (p.inj && p.inj.w >= PT.C.ROSTER.IR_MIN_WEEKS);
@@ -142,13 +137,13 @@
     const hero = html`<section class="card pc2-hero" style="${t ? K().teamVars(t) : ''}">
       <div class="pc2-por">${K().portrait(p, 88, col)}${p.num != null && !prospect ? html`<span class="pc2-num num">#${p.num}</span>` : ''}</div>
       <h2 class="pc2-name">${K().pname(p)}</h2>
-      <div class="pc2-tags">${K().posChip(p.pos)}<b class="pc2-pos">${K().posLabel(p.pos)}</b>${capt ? html`<span class="capt" title="Captain">C</span>` : ''}${si ? K().starTag('Star Player') : ''}</div>
+      <div class="pc2-tags">${K().posChip(p.pos)}${capt ? html`<span class="capt" title="Captain">C</span>` : ''}${si ? K().starTag('Star Player') : ''}</div>
       <div class="pc2-rate">${ovrHtml}</div>
       <div class="pc2-meta"><span class="pc2-gl" title="Growth">Growth ${K().growth(fog && shown ? '?' : gl)}</span><span>Age <b class="num">${p.age}</b></span></div>
       <div class="pc2-meta">${K().sp(p.sp)}<span>${sp ? sp.name : K().spName(p.sp)} · ${sizeWord(p.sp)}</span></div>
       ${mine ? '' : html`<div class="pc2-meta">${t ? K().badge(t, 's') : ''}<span>${where}</span></div>`}
-      ${p.con ? html`<div class="pc2-meta pc2-con" data-testid="pc-contract">${K().ic('contract')}<span><b class="num">${D().money(p.con.sal)}</b> · ${K().yrsLeft(p, L) ? D().plural(K().yrsLeft(p, L), 'yr') + ' left' : 'ends now'}${mine && UI.parts.cutCost && UI.parts.cutCost(p).per ? html` · Cut cost <b class="num">${D().money(UI.parts.cutCost(p).per)}</b>` : ''}${p.con.rk ? ' · Rookie' : ''}</span></div>` : ''}
-      ${mine ? html`<div class="pc2-meta pc2-role">${K().ic(slot0 ? 'clipboard' : 'zzz')}<span>${slot0 ? 'Starts: ' + (K().SLOT_LABEL[slot0] || slot0) : 'Bench'}</span></div>` : ''}
+      ${p.con ? html`<div class="pc2-meta pc2-con" data-testid="pc-contract">${K().ic('contract')}<span><b class="num">${D().money(p.con.sal)}</b> · ${K().yrsLeft(p, L) ? D().plural(K().yrsLeft(p, L), 'yr') : 'ends now'}${p.con.rk ? ' · Rookie' : ''}</span></div>` : ''}
+      ${mine ? html`<div class="pc2-meta pc2-role">${K().ic(slot0 ? 'clipboard' : 'zzz')}<span>${slot0 ? 'Starts at ' + slot0 : 'Bench'}</span></div>` : ''}
     </section>`;
 
     const tabs = [['overview', 'Overview'], ['skills', 'Skills'], ['stats', 'Stats']];   // HUNT2 #5: contract is one line on the ID card
@@ -232,6 +227,30 @@
       },
       offer: (el, ev, params) => UI.reset('market', { pid: params.pid }),
       release: (el, ev, params) => UI.parts.release(params.pid, () => UI.back()),
+      // HUNT5 #2: the "More" sheet — Captain, Swap, Hurt List / Play Hurt, Cut (Cut shows its cost; the confirm follows)
+      more: (el, ev, params) => {
+        const L = PT.App.L, p = PT.League.Q.player(L, params.pid), t = L.teams[p.tid];
+        const cc = UI.parts.cutCost ? UI.parts.cutCost(p) : { per: 0 };
+        const rows = [];
+        if (t.capt !== p.id) rows.push(K().btn({ label: 'Make Captain', icon: 'crown', action: 'pick', data: { v: 'captain' }, kind: 'sec', testid: 'btn-captain', cls: 'more-b' }));
+        rows.push(K().btn({ label: 'Swap', sub: 'Trade him to a team', icon: 'swap', action: 'pick', data: { v: 'swap' }, kind: 'sec', testid: 'btn-swap', cls: 'more-b' }));
+        if (p.inj && p.inj.w >= PT.C.ROSTER.IR_MIN_WEEKS && !p.ir) rows.push(K().btn({ label: 'Hurt List', icon: 'cross', action: 'pick', data: { v: 'ir1' }, kind: 'sec', testid: 'btn-ir', cls: 'more-b' }));
+        if (p.ir) rows.push(K().btn({ label: 'Off Hurt List', icon: 'dumbbell', action: 'pick', data: { v: 'ir0' }, kind: 'sec', testid: 'btn-ir', cls: 'more-b' }));
+        // QA1: league severity is 1 Sprain · 2 Hurt · 3 Bad Hurt · 4 Season Over; only Sprain/Hurt may play hurt
+        if (p.inj && p.inj.sev >= 1 && p.inj.sev <= 2 && !p.ir) rows.push(K().btn({ label: p.ph || p.inj.ph ? 'Rest him' : 'Play Hurt', icon: 'cross', action: 'pick', data: { v: 'ph' }, kind: 'sec', testid: 'btn-play-hurt', cls: 'more-b' }));
+        rows.push(K().btn({ label: 'Cut', sub: cc.per ? 'Cut Cost ' + D().money(cc.per) + (cc.years > 1 ? ' a year for ' + cc.years + ' years' : ' this year') : 'No Cut Cost', icon: 'scissors', action: 'pick', data: { v: 'cut' }, kind: 'bad', testid: 'btn-release', cls: 'more-b' }));
+        UI.Modal.open({ title: K().pname(p), icon: 'clipboard', cls: 'm-more', body: html`<div class="more-list">${rows}</div>`,
+          actions: { pick: (b, card, entry) => entry.close(b.getAttribute('data-v')) },
+          buttons: [{ label: 'Close', value: null, kind: 'cancel' }] })
+          .then((v) => {
+            const A = UI.screens.player.actions, fake = { getAttribute: (k) => (k === 'data-on' ? (v === 'ir1' ? '1' : '0') : null) };
+            if (v === 'captain') A.captain(null, null, params);
+            else if (v === 'swap') A.swap(null, null, params);
+            else if (v === 'ir1' || v === 'ir0') A.ir(fake, null, params);
+            else if (v === 'ph') A['play-hurt'](null, null, params);
+            else if (v === 'cut') A.release(null, null, params);
+          });
+      },
       extend: (el, ev, params) => UI.parts.extend(params.pid),
       'p-prev': (el, ev, params) => { const n = neighbors(PT.App.L, params.pid); if (n) UI.replace('player', { pid: n.prev }); },
       'p-next': (el, ev, params) => { const n = neighbors(PT.App.L, params.pid); if (n) UI.replace('player', { pid: n.next }); }

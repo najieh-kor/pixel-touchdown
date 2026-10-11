@@ -44,7 +44,22 @@
     return Fk.head(html`${Fk.seg('Round', (st.pick ? st.pick.rd : L.fd.n) + '/' + L.fd.n, { cls: 'fl-seg-t', testid: 'fd-round' })}${clock}${Fk.gap()}${stars}`);
   }
 
+  /** HUNT5 #7: what happened since your last pick, in one line (the other teams' picks are otherwise invisible) */
+  function sinceMine(L) {
+    const fd = L.fd, n = (fd.picks || []).length;
+    let last = -1;
+    for (let j = n - 1; j >= 0; j--) if (F().tidAt(L, j) === L.userTid) { last = j; break; }
+    if (last < 0) return '';
+    const me = PT.League.Q.player(L, fd.picks[last]);
+    const after = fd.picks.slice(last + 1).map((pid) => PT.League.Q.player(L, pid)).filter(Boolean);
+    const c = {};
+    after.forEach((p) => { c[p.pos] = (c[p.pos] || 0) + 1; });
+    const top = Object.keys(c).sort((a, b) => c[b] - c[a]).slice(0, 3).map((pos) => c[pos] + ' ' + pos).join(', ');
+    return html`<p class="fl-ftip fl-since" data-testid="fd-since">${K().ic('star')}<span>You took <b>${me ? K().short(me) : ''}</b> (${me ? me.pos : ''})${after.length ? html` · then ${after.length} picks: ${top}` : ''}</span></p>`;
+  }
   function ticker(L, st) {
+    const s = sinceMine(L);
+    if (s) return s;
     if (!st.recent || !st.recent.length) return '';
     return html`<div class="fl-tick" aria-label="Recent picks"><span class="fl-tick-l">Picks</span>${st.recent.slice(0, 4).map((r) => {
       const p = PT.League.Q.player(L, r.pid), t = L.teams[r.tid];
@@ -52,13 +67,16 @@
     })}</div>`;
   }
 
-  const COLS = [{ k: 'name', label: 'Name', cls: 'c-name' }, { k: 'pos', label: 'Pos', cls: 'c-pos' }, { k: 'stars', label: 'Stars', cls: 'c-stars' },
+  const COLS = [{ k: 'name', label: 'Name', cls: 'c-name' }, { k: 'pos', label: 'Pos', cls: 'c-pos' }, { k: 'stars', label: 'Rating', cls: 'c-stars' },
     { k: 'age', label: 'Age', cls: 'c-age c-c' }, { k: 'gr', label: K().ic('sprout'), cls: 'c-gr c-c' }, { k: 'ab', label: K().ic('bolt'), cls: 'c-ab c-c' }];
 
   function detail(L, p, x, st) {
     if (!p) return html`<aside class="fl-card fl-side fl-side-empty"><p class="fl-empty">Tap a player.</p></aside>`;
     const a = ability(p);
     const why = x && !x.ok ? x.why : (p.pos === 'K' ? 'A Kicker cannot be a Star.' : '');
+    // HUNT5 #7: a 2nd Star at a one-starter spot sits on the bench
+    const ONE = { QB: 1, RB: 1, TE: 1 };
+    const dup = ONE[p.pos] && myStars(L).some((pid) => { const q = PT.League.Q.player(L, pid); return q && q.pos === p.pos; });
     return html`<aside class="fl-card fl-side" data-testid="fd-detail">
       <div class="fl-who">${K().portrait(p, 56, 0x8a8fb3)}<div class="fl-who-t"><b class="fl-pn">${p.fn} ${p.ln}</b>
         <span class="fl-pm">${K().posChip(p.pos)}<span>${K().posLabel(p.pos)}</span><span class="dim">Age ${p.age}</span></span></div></div>
@@ -69,6 +87,7 @@
         ${a ? html`<div><dt>Surge</dt><dd>${K().ic(a.icon)} ${a.name}</dd></div>` : ''}
       </dl>
       ${why ? html`<p class="fl-note bad">${K().ic('no')} ${why}</p>` : a ? html`<p class="fl-note fl-hint dim">${a.txt}</p>` : ''}
+      ${!why && dup ? html`<p class="fl-note bad" data-testid="fd-dup">${K().ic('warn')} Only 1 ${p.pos} starts. He would sit.</p>` : ''}
       ${!why && st.userOnClock && ui.auto === p.id ? html`<p class="fl-note fl-hint good">${K().ic('check')} Best pick for you.</p>` : ''}
       <div class="fl-more">${K().traits(p)}</div>
     </aside>`;
@@ -98,14 +117,17 @@
     if (L.fd.done) { D().set(el, doneView(L)); return; }
     const st = F().status(L);
     const ss = starState(L);
-    if (ui.at !== st.made) {                               // a new pick: select the best allowed player
-      ui.at = st.made;
-      ui.auto = st.userOnClock ? F().choose(L, L.userTid) : null;
-      ui.sel = ui.auto;
-    }
     const all = F().board(L, {});
     const list = (ui.filter ? all.filter((x) => x.p.pos === ui.filter) : all.filter((x) => x.p.pos !== 'K')).slice(0, POOL_CAP);
-    if (ui.sel == null || !all.some((x) => x.p.id === ui.sel)) ui.sel = list.length ? list[0].p.id : null;
+    const visible = (pid) => pid != null && list.some((x) => x.p.id === pid);
+    const bestVisible = () => { const ok = list.find((x) => x.ok); return ok ? ok.p.id : list.length ? list[0].p.id : null; };
+    if (ui.at !== st.made) {                               // a new pick: select the best allowed player you can SEE
+      ui.at = st.made;
+      ui.auto = st.userOnClock ? F().choose(L, L.userTid) : null;
+      ui.sel = visible(ui.auto) ? ui.auto : bestVisible();
+    }
+    // HUNT5 #1: the selection (detail card + PICK button) is always a row in the filtered list, never a hidden player
+    if (!visible(ui.sel)) ui.sel = bestVisible();
     const rows = list.map((x) => { const a = ability(x.p);
       return { id: x.p.id, testid: 'fd-row-' + x.p.id, sel: ui.sel === x.p.id, cls: x.ok ? '' : 'dim',
         cells: { name: FK().name(x.p), pos: K().posChip(x.p.pos), stars: FK().stars(x.p.ovr), age: html`<span class="num">${x.p.age}</span>`, gr: K().growth(x.p.gl),
@@ -132,7 +154,7 @@
     }
   }
 
-  function setFilter(v) { ui.filter = v || ''; if (UI.pgPage) UI.pgPage('fdpool', 0); UI.refresh(); }
+  function setFilter(v) { ui.filter = v || ''; ui.sel = null; if (UI.pgPage) UI.pgPage('fdpool', 0); UI.refresh(); }
 
   function doPick(pid) {
     const L = PT.App.L, p = PT.League.Q.player(L, pid);

@@ -2,7 +2,7 @@
  * Owner: WP5 (TEAM-UX redesign). Team › Roster: who is on the team. One paged table that fills the height:
  * portrait · full name · pos · rating (stars + small number) · age (hurt: weeks out, red) · tags (STAR, mood only when low).
  * Sort = tap a column head. Tap a row → player card. params.tid → any team (read-only for AI teams; strip has Swap).
- * testids: player-row-{pid}, roster-filter-{id}, roster-sort-{stars|pos|age}, btn-captain-pick (strip), btn-team-swap.
+ * testids: player-row-{pid}, roster-filter-menu (Pos dropdown) → sheet roster-filter-{id}, roster-sort (phones) / roster-sort-{stars|pos|age}, btn-captain-pick (strip), btn-team-swap.
  */
 (function (PT) {
   'use strict';
@@ -61,13 +61,16 @@
     const active = sorted(all.filter((p) => !p.ir && keep(p))), ir = sorted(all.filter((p) => p.ir && keep(p)));
     const rows = active.concat(ir).map((p) => row(L, t, p, mine));
     const nHurt = all.filter((p) => p.inj || p.ir).length;
-    const chip = (f) => html`<button type="button" class="tx-f ${st.filter === f[0] ? 'on' : ''}" data-action="r-filter" data-id="${f[0]}" data-testid="roster-filter-${f[0]}" aria-pressed="${st.filter === f[0]}">${f[1]}${f[0] === 'hurt' && nHurt ? html`<b class="tx-fn num">${nHurt}</b>` : ''}</button>`;
+    // HUNT5-ui-core #13: one "Pos" dropdown at every width (the sheet lists All · QB … K · Hurt)
+    const curF = FILTERS.find((f) => f[0] === st.filter) || FILTERS[0];
+    const menu = html`<button type="button" class="tx-f tx-posbtn ${st.filter !== 'all' ? 'on' : ''}" data-action="r-menu" data-testid="roster-filter-menu" aria-haspopup="dialog">Pos<b>${curF[1]}</b><i class="tx-caret" aria-hidden="true"></i></button>`;
     const head = (id, label, cls) => html`<button type="button" class="tx-sort ${cls} ${st.sort === id ? 'on' : ''}" data-action="r-sort" data-id="${id}" data-testid="roster-sort-${id}" title="Sort by ${label}">${label}${st.sort === id ? K().ic('down') : ''}</button>`;
     const SORTS = [['stars', 'Rating'], ['pos', 'Pos'], ['age', 'Age']];
     const sNow = SORTS.find((x) => x[0] === st.sort) || SORTS[0], sNext = SORTS[(SORTS.indexOf(sNow) + 1) % SORTS.length];
     const cycle = html`<button type="button" class="tx-f tx-cyc" data-action="r-sort" data-id="${sNext[0]}" data-testid="roster-sort" title="Sort by ${sNext[1]}">${K().ic('down')}${sNow[1]}</button>`;
-    return html`<div class="tx-filters" role="toolbar" aria-label="Show">${FILTERS.map(chip)}${cycle}</div>
-      ${K().card(html`<div class="tx-thead tx-rrow"><span class="tx-c-por"></span><span class="tx-nm">Player <span class="muted num">${UI.parts.rosterCount(tid)}</span></span>
+    UI.parts._rosterSheet = { nHurt: nHurt };
+    return html`<div class="tx-filters" role="toolbar" aria-label="Show">${menu}${cycle}<span class="grow"></span>${nHurt ? html`<span class="tx-hurtn">${K().ic('cross')}<b class="num">${nHurt}</b> hurt</span>` : ''}<span class="tx-count"><b class="num">${UI.parts.rosterCount(tid)}</b> players</span></div>
+      ${K().card(html`<div class="tx-thead tx-rrow"><span class="tx-c-por"></span><span class="tx-nm">Player</span>
         ${head('pos', 'Pos', 'tx-c-pos')}${head('stars', 'Rating', 'tx-c-rate')}${head('age', 'Age', 'tx-c-age')}<span class="tx-c-tags"></span></div>
         ${K().pg('roster', rows, { cls: 'tx-pg tx-side-pg', empty: html`<p class="muted tx-empty">No players here.</p>` })}`, 'fill tx-list tx-roster')}`;
   };
@@ -80,6 +83,14 @@
   };
   UI.parts.rosterActions = {
     'r-filter': (el) => { st.filter = el.getAttribute('data-id'); UI.pgPage('roster', 0); UI.refresh(); },
+    'r-menu': () => {
+      const n = (UI.parts._rosterSheet || {}).nHurt || 0;
+      const chip = (f) => html`<button type="button" class="tx-f ${st.filter === f[0] ? 'on' : ''}" data-action="r-pick" data-id="${f[0]}" data-testid="roster-filter-${f[0]}" aria-pressed="${st.filter === f[0]}">${f[1]}${f[0] === 'hurt' && n ? html`<b class="tx-fn num">${n}</b>` : ''}</button>`;
+      UI.Modal.open({ title: 'Show', cls: 'm-txpos', body: html`<div class="tx-sheet">${FILTERS.map(chip)}</div>`,
+        actions: { 'r-pick': (b, card, entry) => entry.close(b.getAttribute('data-id')) },
+        buttons: [{ label: 'Close', value: null, kind: 'cancel' }] })
+        .then((v) => { if (v == null) return; st.filter = v; UI.pgPage('roster', 0); UI.refresh(); });
+    },
     'r-sort': (el) => { st.sort = el.getAttribute('data-id'); UI.pgPage('roster', 0); UI.refresh(); }
   };
 

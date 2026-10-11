@@ -373,8 +373,8 @@
   .lay.tx .foot { padding-top: 4px; }
   .tx-strip { margin-bottom: 8px; }
   .tx-filters { margin-bottom: 3px; }
-  .tx-f { height: 28px; font-size: 16px; }
-  .tx-row { min-height: 27px; padding-top: 1px; padding-bottom: 0; border-bottom-width: 1px; }
+  .tx-f { height: 36px; font-size: 16px; }
+  .tx-row { min-height: 32px; padding-top: 1px; padding-bottom: 0; border-bottom-width: 1px; }   /* HUNT5-ui-core #14: rows ≥ 32px */
   .tx-c-por .portrait { width: 24px !important; height: 24px !important; }
   .lay.tx > .scroll { padding-bottom: 2px; }
   .lay.tx .card.fill { margin-bottom: 10px; }
@@ -394,7 +394,10 @@
 }
 /* ---------- short phones (≤ 400 tall): the strip drops its labels (icons say it) ---------- */
 @media (orientation: landscape) and (max-height: 400px) {
+  /* HUNT5 #1: Team / Record / Captain read from their icons; Spirit and Hype keep a small label before the value */
   .tx-strip .tx-sl { display: none; }
+  .tx-strip .tx-keep { flex-direction: row; align-items: center; gap: 5px; }
+  .tx-strip .tx-keep .tx-sl { display: inline; font-size: 12px; }
   .tx-strip { padding: 3px 4px 3px 0; }
   .tx-sv { margin-top: 0; }
   .tx-si { padding-top: 2px; padding-bottom: 2px; }
@@ -571,3 +574,31 @@
 .ln-sp-1 .stars .px-ic { width: 10px; height: 10px; }
 .ln-sp-1 .stars-num { font-size: 13px; margin-left: 2px; }
 .ln-sp-2 .chip { margin: 0; }
+
+/* ======================= HUNT5 ======================= */
+/* #2 player card "More" sheet */
+.m-more .more-list { display: flex; flex-direction: column; gap: 2px; }
+.m-more .more-b { width: calc(100% - 6px); justify-content: flex-start; text-align: left; min-height: 44px; }
+.m-more .more-b .btn-sub { flex-basis: auto; margin: 0 0 0 10px; }
+/* #3 Lineup tiles: position chip first, friendly name small + grey; Stars on the bench get a red BENCH tag */
+.ln-sl { display: flex; align-items: center; gap: 4px; min-width: 0; padding-right: 16px; }
+.ln-sl .pos { min-width: 26px; height: 18px; font-size: 14px; margin: 0; flex: none; }
+.ln-fr { font-size: 12px; color: var(--ink-soft); white-space: nowrap; }
+.ln-bench { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; background: var(--red); color: #fff; box-shadow: var(--frame-2); font-family: var(--font-d); font-size: 13px; letter-spacing: 0.04em; line-height: 1; }
+@media (max-width: 700px) { .ln-fr { display: none; } }
+
+/* ======================= HUNT5-ui-core #13 / #14 ======================= */
+/* Roster: one "Pos" dropdown + sort, then the counts; ≥ 36px tall controls, ≥ 32px rows, 40×36 pager buttons */
+.tx-filters { align-items: center; }
+.tx-filters .tx-posbtn, .tx-filters .tx-cyc { flex: none; height: 36px; padding: 0 12px 2px; gap: 6px; }
+.tx-posbtn b { font-weight: 400; background: var(--paper); padding: 1px 6px; box-shadow: var(--frame-2); min-width: 32px; text-align: center; }
+.tx-posbtn.on b { background: #fff6c8; }
+.tx-caret { width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid var(--ink); }
+.tx-count, .tx-hurtn { font-size: 14px; white-space: nowrap; margin: 0 6px; }
+.tx-count b, .tx-hurtn b { font-weight: 400; font-size: 17px; }
+.tx-hurtn { color: var(--red-d); display: inline-flex; align-items: center; gap: 3px; }
+.tx-hurtn .px-ic { width: 13px; height: 13px; }
+.m-txpos .tx-sheet { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 4px; }
+.m-txpos .tx-f { height: 44px; font-size: 20px; margin: 0 0 4px; }
+.lay.tx .pg-ctl .pg-b { min-width: 40px; min-height: 36px; }
+.pg.tx-side-pg > .pg-ctl { width: 52px; }

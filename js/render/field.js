@@ -442,8 +442,17 @@
       const k = s.kick;
       if (!k || !k.on) return;
       const x0 = s.ball.x, y0 = s.ball.y;
-      const pct = k.pct != null ? k.pct : 50;
-      const col = pct >= 70 ? C.green : pct >= 40 ? C.yel : C.red;
+      // colour by the PREDICTED result of the current aim: k.x already includes wind drift (engine K.preview);
+      // lateral miss ≤ 2.0 yd green, ≤ 3.08 yd (goal half-width) yellow, else red; too short / out of range → red
+      let col;
+      if (k.outRange || (k.pow > 0 && k.minPow != null && k.pow < k.minPow)) col = C.red;
+      else if (k.x != null) {
+        const miss = Math.abs(k.x - MIDX);
+        col = miss <= 2.0 ? C.green : miss <= 3.08 ? C.yel : C.red;
+      } else {
+        const pct = k.pct != null ? k.pct : 50;
+        col = pct >= 70 ? C.green : pct >= 40 ? C.yel : C.red;
+      }
       const N = 30, off = (time * 1.2) % 1;
       const dist = Math.hypot(k.x - x0, k.y - y0);
       const apex = 3 + dist * 0.12;

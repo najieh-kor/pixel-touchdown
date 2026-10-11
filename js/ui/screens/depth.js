@@ -83,14 +83,14 @@
     if (!p) {
       return html`<div class="ln-tile empty ${sel ? 'sel' : ''}" style="${place}">
         <button type="button" class="ln-tb" data-action="d-slot" data-slot="${slot}" data-i="0" data-testid="depth-slot-${slot}-0">
-          <span class="ln-sl">${label(slot)}</span><span class="ln-nm">${K().ic('plus')} Pick</span></button></div>`;
+          <span class="ln-sl">${slotChip(slot)}<span class="ln-fr">${label(slot)}</span></span><span class="ln-nm">${K().ic('plus')} Pick</span></button></div>`;
     }
     const star = stars.indexOf(p.id) >= 0;
     const ns = newSpot(p, slot);
     const canStar = slot !== 'K' && p.pos !== 'K';
     return html`<div class="ln-tile ${sel ? 'sel' : ''} ${star ? 'is-star' : ''} ${p.inj ? 'hurt' : ''}" style="${place}">
       <button type="button" class="ln-tb" data-action="d-slot" data-slot="${slot}" data-i="0" data-testid="depth-slot-${slot}-0" title="${label(slot)}: ${K().pname(p)}">
-        <span class="ln-sl">${label(slot)}</span>
+        <span class="ln-sl">${slotChip(slot)}<span class="ln-fr">${label(slot)}</span></span>
         <span class="ln-main">${K().portrait(p, 32, t.col.pri)}<span class="ln-nm">${tileName(t, p)}</span></span>
         <span class="ln-rt">${K().stars(slotOvr(p, slot))}${ns ? html`<span class="ln-warn" title="New spot: plays out of position">${K().ic('warn')}</span>` : ''}${p.inj ? html`<span class="ln-hurt" title="${K().injuryText(p)}">${K().ic('cross')}</span>` : ''}</span>
       </button>
@@ -130,7 +130,7 @@
   function pickRow(p, slot, t, o) {
     const where = startsAt(t, p.id);
     const ns = slot && newSpot(p, slot);
-    const sub = o.sub || (where && where !== slot ? 'Starts: ' + label(where) : '');
+    const sub = o.sub || (where && where !== slot ? 'Starts: ' + where : '');
     return html`<button type="button" class="ln-pr ${p.inj ? 'hurt' : ''}" data-action="${o.action}" data-pid="${p.id}" data-testid="${o.testid}">
       ${K().portrait(p, 28, t.col.pri)}
       <span class="ln-pr-m"><b class="ln-pr-n">${K().pname(p)}</b>${K().posChip(p.pos)}${K().stars(o.ovr != null ? o.ovr : p.ovr)}${o.extra || ''}${ns ? html`<span class="chip chip-gold tiny" title="Plays out of position">New spot</span>` : ''}${p.inj ? K().hurtShort(p) : ''}${sub ? html`<span class="ln-pr-w">${sub}</span>` : ''}</span>
@@ -155,7 +155,7 @@
     const list = pn.all || !fits.length ? all : fits;
     const more = !pn.all && fits.length && fits.length < all.length
       ? html`<button type="button" class="ln-more" data-action="d-more" data-testid="depth-pick-more">${K().ic('players')} Other positions… <span class="muted">(${all.length - fits.length})</span></button>` : '';
-    return html`${panelHead(label(slot), i ? 'Pick backup ' + i : 'Pick a starter', { action: 'd-close', testid: 'btn-depth-cancel', title: 'Close', icon: 'x' })}
+    return html`${panelHead(slot, label(slot) + ' · ' + (i ? 'pick backup ' + i : 'pick a starter'), { action: 'd-close', testid: 'btn-depth-cancel', title: 'Close', icon: 'x' })}
       ${nSubs ? html`<div class="ln-bks">${spots}</div>` : ''}
       ${K().pg('lnpick', list.map((x) => pickRow(x.p, slot, t, { action: 'd-pick', testid: 'depth-pick-' + x.p.id, ovr: x.o })).concat(more ? [more] : []), { cls: 'ln-pg tx-side-pg' })}`;
   }
@@ -168,7 +168,7 @@
       const a = K().ABILITY[K().abilityKind(p.pos)];
       return html`<div class="ln-sc" data-testid="star-chip-${p.id}">
         ${K().portrait(p, 28, t.col.pri)}
-        <span class="ln-pr-m"><b class="ln-pr-n">${K().pname(p)}</b>${K().posChip(p.pos)}${a ? html`<span class="ln-ab" title="${a.name}: ${a.txt}">${K().ic(a.icon)}${a.name}</span>` : ''}</span>
+        <span class="ln-pr-m"><b class="ln-pr-n">${K().pname(p)}</b>${K().posChip(p.pos)}${a ? html`<span class="ln-ab" title="${a.name}: ${a.txt}">${K().ic(a.icon)}${a.name}</span>` : ''}${K().startSlot(t, p.id) ? '' : html`<span class="ln-bench" title="Not in the starting lineup: his Surge only helps when he plays" data-testid="star-bench-${p.id}">BENCH</span>`}</span>
         <button type="button" class="ln-x ln-unstar" data-action="d-unstar" data-pid="${p.id}" data-testid="btn-unstar-${p.id}" title="Remove Star" aria-label="Remove Star">${K().ic('x')}</button>
       </div>`;
     });
@@ -190,9 +190,14 @@
         return html`<button type="button" class="ln-pr ln-sp ${x.p.inj ? 'hurt' : ''}" data-action="d-starpick" data-pid="${x.p.id}" data-testid="star-pick-${x.p.id}">
           ${K().portrait(x.p, 28, t.col.pri)}
           <span class="ln-sp-m"><span class="ln-sp-1"><b class="ln-pr-n">${K().pname(x.p)}</b>${K().posChip(x.p.pos)}${K().stars(x.p.ovr)}</span>
-            <span class="ln-sp-2">${a ? html`<span class="ln-ab" title="${a.name}: ${a.txt}">${K().ic(a.icon)}${a.name}</span>` : ''}<span class="ln-pr-w">${x.slot ? 'Starter: ' + label(x.slot) : 'Bench'}</span>${x.p.inj ? K().hurtShort(x.p) : ''}</span></span>
+            <span class="ln-sp-2">${a ? html`<span class="ln-ab" title="${a.name}: ${a.txt}">${K().ic(a.icon)}${a.name}</span>` : ''}<span class="ln-pr-w">${x.slot ? 'Starter: ' + x.slot : 'Bench'}</span>${x.p.inj ? K().hurtShort(x.p) : ''}</span></span>
         </button>`;
       }), { cls: 'ln-pg tx-side-pg' })}`;
+  }
+  /** HUNT5 #3: the spot's position chip (WR / OL / TE / RB…, KR) is the tile label; the friendly name is small grey text */
+  function slotChip(slot) {
+    const pos = PT.C.SLOT_POS[slot];
+    return pos ? K().posChip(pos) : html`<span class="pos pos-spc" title="Returner">KR</span>`;
   }
   /** HUNT2 #2: 8/8 and a new Star tapped → pick the Star he replaces (rows that would break 2 per side are off) */
   function replacePanel(t, pn) {

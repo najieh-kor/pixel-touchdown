@@ -102,6 +102,7 @@
   }
 
   function mount(el, params) {
+    if (params.tid != null) { st.tid = params.tid; params.tid = null; }          // deep link (tests): your team picked
     if (params.step) { st.step = params.step; params.step = null; }
     if (st.step !== 'you' && st.tid == null) st.step = 'you';
     if (st.step === 'opts' && (st.opp == null || st.opp === st.tid)) st.step = 'opp';
