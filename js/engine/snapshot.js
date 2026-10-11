@@ -165,7 +165,8 @@
     // the yard-line string / FG % only change with the spot: recompute on change (no per-tick string allocation)
     const key = G.los * 8 + G.dir * 2 + G.poss + (G.tryTwo ? 4 : 0) + G.q * 1e4;
     if (sit._key !== key) { PT.Engine.Rules.situation(G, sit); sit._key = key; }
-    h.q = G.q; h.half = G.q <= 2 ? 1 : G.q <= 4 ? 2 : 3; h.clk = Math.max(0, Math.ceil(G.clk - Math.min(G.pend, G.deadEl || 0)));   // runs down between plays (HUNT4 #4) h.down = G.down; h.togo = G.togo; h.ballOn = sit.ballOn;
+    h.q = G.q; h.half = G.q <= 2 ? 1 : G.q <= 4 ? 2 : 3; h.clk = Math.max(0, Math.ceil(G.clk - Math.min(G.pend, G.deadEl || 0)));   // runs down between plays (HUNT4 #4)
+    h.down = G.down; h.togo = G.togo; h.ballOn = sit.ballOn;
     h.hs = G.score[0]; h.as = G.score[1]; h.poss = G.poss; h.tos[0] = G.tos[0]; h.tos[1] = G.tos[1];
     h.pc = 0;   // no play clock: the user always snaps (client pass 5)
     h.hurry = G.userIdx >= 0 ? G.hurry[G.userIdx] : false; h.flip = G.flipNext; h.ot = G.q > 4;
