@@ -136,7 +136,7 @@
       list: [{ id: '', label: 'All' }].concat(PT.C.POS.map((pos) => ({ id: pos, label: pos, dot: short.indexOf(pos) >= 0, title: K().posLabel(pos) + (short.indexOf(pos) >= 0 ? ' (need)' : '') }))),
       testid: (id) => 'fa-filter-' + (id || 'all'), pick: (v) => setFilter(v) });
     const table = FK().table({ key: 'fa', cols: COLS, rows: rowsX.map((x) => rowOf(lg, x, !!offered[x.p.id])), tools: filter, cls: 'fl-t-fa', empty: html`<p class="fl-empty">No free agents.</p>` });
-    const tip = m === 'offer' ? FK().tip('fl-market', 'Send offers, then Finish Market. Players answer at day end.') : '';
+    const tip = m === 'offer' ? FK().tip('fl-market', 'Send offers, then Finish Market.') : '';
     const body = html`${header(lg, m)}${tip}<div class="fl-main">${table}${detail(lg, selX, m)}</div>`;
     let foot;
     const res = m === 'offer' ? results(lg) : [];
@@ -194,21 +194,29 @@
     }
     checkOver(lg, F);
   }
-  /** over the Week 1 limit: say so now (with who would go and their dead money), never as a Week 1 surprise */
+  /** over the Week 1 limit or the Team Cash limit: say so now (who would go + dead money), never as a Week 1 surprise */
   function checkOver(lg, F) {
     const rc = FK().rosterCount(lg);
-    if (rc.act <= rc.max) { runFinish(lg, F); return; }
-    let plan = null;
-    try { plan = PT.League.Roster.fixPlan(lg, lg.userTid, { max: rc.max }); } catch (e) { plan = null; }
-    const cuts = plan && plan.cut ? plan.cut : [];
-    const rows = cuts.map((c) => html`<div class="fl-lv">${K().posChip(c.pos)}<b class="fl-lv-n">${c.name}</b><span class="fl-lv-r">${FK().stars(c.ovr)}${c.cost ? FK().tag('Dead ' + D().money(c.perYear) + (c.years > 1 ? ' ×' + c.years : ''), 'red') : FK().tag('No dead money', 'green')}</span></div>`);
-    UI.Modal.open({ title: 'Week 1 limit is ' + rc.max + ' · you have ' + rc.act, icon: 'players', cls: 'm-list m-leave', dismiss: false,
-      body: html`<p class="fl-note">Auto cut would release:</p>${K().pg('cuts', rows, { cls: 'fl-lv-pg' })}`,
-      buttons: [{ label: 'Back', value: null, kind: 'cancel', testid: 'cut-back' }, { label: 'Pick myself', value: 'pick', kind: 'sec', testid: 'btn-cut-pick' }, { label: 'Auto cut', value: 'auto', kind: 'go' }] })
+    const sp = space(lg);
+    if (rc.act <= rc.max && sp >= 0) { runFinish(lg, F); return; }
+    let cuts = [];
+    try { cuts = (PT.League.Cap.fixPlan(lg, lg.userTid, rc.max).cuts || []).map((pid) => PT.League.Q.player(lg, pid)).filter(Boolean); } catch (e) { cuts = []; }
+    const cost = (p) => { try { return PT.League.Roster.cutCost(lg, p.id); } catch (e) { return { perYear: 0, years: 0 }; } };
+    const rows = cuts.map((p) => { const c = cost(p);
+      return html`<div class="fl-lv">${K().posChip(p.pos)}<b class="fl-lv-n">${p.fn.charAt(0)}. ${p.ln}</b><span class="fl-lv-r">${FK().stars(p.ovr)}<b class="num">${p.con ? D().money(p.con.sal) : ''}</b>${c.perYear ? FK().tag('Dead ' + D().money(c.perYear) + (c.years > 1 ? ' ×' + c.years : ''), 'red') : FK().tag('No dead money', 'green')}</span></div>`; });
+    const parts = [];
+    if (sp < 0) parts.push('Over Team Cash by ' + D().money(-sp));
+    if (rc.act > rc.max) parts.push('Week 1 limit ' + rc.max + ' · you have ' + rc.act);
+    UI.Modal.open({ title: parts.join(' · '), icon: sp < 0 ? 'cash' : 'players', cls: 'm-list m-leave', dismiss: false,
+      body: html`<p class="fl-note">Auto fix would release:</p>${K().pg('cuts', rows, { cls: 'fl-lv-pg' })}`,
+      buttons: [{ label: 'Back', value: null, kind: 'cancel', testid: 'cut-back' }, { label: 'Pick myself', value: 'pick', kind: 'sec', testid: 'btn-cut-pick' }, { label: 'Auto fix', value: 'auto', kind: 'go' }] })
       .then((v) => {
         if (v === 'pick') { UI.go('roster'); return; }
         if (v !== 'auto') return;
-        try { PT.League.Roster.fixIt(lg, lg.userTid, { max: rc.max }); } catch (e) { UI.Toast.show('Could not cut.', 'bad'); return; }
+        try {
+          if (FK().rosterCount(lg).act > rc.max) PT.League.Roster.fixIt(lg, lg.userTid, { max: rc.max });
+          if (space(lg) < 0) PT.League.Roster.fixCap(lg, lg.userTid);
+        } catch (e) { UI.Toast.show('Could not fix it.', 'bad'); return; }
         if (PT.Events) PT.Events.emit('league:changed', { what: 'roster' });
         runFinish(lg, F);
       });

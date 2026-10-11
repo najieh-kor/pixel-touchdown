@@ -616,3 +616,17 @@ body:has(.hud-ons-on) .pt-onside { display: none !important; }
 .hud-ret-sub { display: block; font-size: 0.72em; opacity: 0.9; text-align: center; }
 .hud-ret:has(.hud-ret-sub) { flex-direction: column; gap: 0; }
 .hud-ons-on .hud-dd { visibility: hidden; }
+
+/* ======================= HUNT4 (hud) ======================= */
+/* #1 short landscape: the 'Get ready…' Star pill sits under the scorebug centre (it covered the pause button at 667) */
+@media (orientation: landscape) and (max-height: 520px) {
+  .hud-star:not(.hud-green) { top: calc(70px + var(--sat)); left: 50%; right: auto; transform: translateX(-50%); }
+}
+/* #3 the halftime card owns the screen: no pause button behind it; the pause layer sits above it as a backstop */
+.hud-root:has(.hud-half) .hud-pause-btn { visibility: hidden; }
+.hud-pausel { z-index: 8; }
+/* #6 timeout pips read the same on every team colour: remaining = solid ink (white on dark blocks), used = outline */
+.hud-sb-tm .hud-sb-to i { background: transparent; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35); }
+.hud-sb-tm .hud-sb-to i.hud-on { background: var(--ink); box-shadow: 0 0 0 1px #fff; }
+.hud-sb-tm.hud-sb-dark .hud-sb-to i { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35); }
+.hud-sb-tm.hud-sb-dark .hud-sb-to i.hud-on { background: #fff; box-shadow: 0 0 0 1px var(--ink); }

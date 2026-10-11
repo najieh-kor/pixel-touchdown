@@ -438,7 +438,8 @@
     const tf = teamsFor();
     let r;
     try {
-      r = PT.App.tempLeague({ userTid: tf.user, oppTid: tf.opp, diff: 0, seed: 4242, qLen: 900, wx: { k: 'sunny', wx: 0, wy: 0, mph: 0 } });
+      r = PT.App.tempLeague({ userTid: tf.user, oppTid: tf.opp, diff: 0, seed: 4242, qLen: 180,   // drills freeze the clock; the scorebug shows PRACTICE (css/practice.css)
+        wx: { k: 'sunny', wx: 0, wy: 0, mph: 0 } });
       PT.App.borrow(r.L, 'practice');
     } catch (e) {
       if (PT.Log) PT.Log.error('practice', 'start', e);

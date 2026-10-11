@@ -82,7 +82,7 @@
       hist: [[], []], histP: [[], []], dhist: [[], []], typeCount: [{}, {}], offPlays: [0, 0], teamPlays: [0, 0],
       hurry: [false, false], aiHurry: [false, false], flipNext: false, autoDef: !!(cfg.settings && cfg.settings.autoDef),
       ctl: -1, apTick: -9, kickReq: false, kickAimSaved: 0, kickPowSaved: 0, selO: null, selD: null, fourthDone: false, kickWait: null, tryTwo: false, patChosen: false, waitSnap: false,
-      canOnside: false, onsideReq: false, deepReq: false, rescue: false, untimed: false, untimedNext: false, close: false, playNo: 0, driveStart: 0,
+      canOnside: false, onsideReq: false, deepReq: false, deadEl: 0, rescue: false, untimed: false, untimedNext: false, close: false, playNo: 0, driveStart: 0,
       ot: { poss: [0, 0], had: [false, false], done: [false, false] }, star: { idx: -1, ring: 'none', t: 0, win: 0.4, left: 0, superJump: false, whiffD: false },
       dec: { act: 'none', tx: 0, ty: 0, lob: false, mx: 0, my: 0, tgt: -1 }, tmpFl: { t: 0, apex: 0, d: 0 },
       sitCache: { tos: [0, 0] }, res: { k: '', team: 0, y: 0, oob: false, good: false }, apAct: blankAction(), lastAct: blankAction(),
@@ -136,7 +136,7 @@
         kind: kind, off: off, def: 1 - off, dir: RU.dirOf(G, off), los0: G.los, down0: G.down, togo0: G.togo, fdY0: G.fdY,
         play: null, call: null, flip: 1, edge: 0, t: 0, st: 0, stage: '',
         qb: -1, thrown: false, windT: 0, windSafe: true, thTx: 0, thTy: 0, thLob: false, thEasy: false, relT: 0, breakT: 0, tgt: -1, compl: false,
-        catcher: -1, picked: false, pickBy: -1, defHad: false, turnY: null, batted: false, batPick: -1, lob: false, sig: 0, passDist: 0, undercut: 0, roughT: 0,
+        catcher: -1, picked: false, pickBy: -1, defHad: false, abQ: false, turnY: null, batted: false, batPick: -1, lob: false, sig: 0, passDist: 0, undercut: 0, roughT: 0,
         run: false, runT: 0, crossed: false, handDone: false, handT: 0, faked: false, fakeT: 0, meshDone: false, giveNow: false,
         tossBack: false, qbBack: false, qbMode: '', readStart: 0, waitHandEnt: -1, sneakY: 0, sneakDive: false,
         rusher: -1, sack: false, sackBy: -1, tkBy: -1, pdBy: -1, fumBy: -1, ffBy: -1, frBy: -1, carrierEnd: -1, offEndY: null,
@@ -674,6 +674,7 @@
 
     function starUpdate(a, dt) {
       const s = G.star, P = G.P;
+      if (P.t < T.TAP_GUARD_T) a.star = false;            // HUNT4: a double-tap that snapped the ball is not a Star tap
       if (s.idx < 0 || s.ring === 'none' || s.ring === 'used') return;
       const e = G.ents[s.idx], b = G.ball;
       if (s.ring === 'wait') {
@@ -827,9 +828,15 @@
         const e = G.ents[P.dived];
         return E.Contact.downAt(G, P.dived, e.y + T.DIVE_EXTRA * RU.dirOf(G, e.tm), false, true);
       }
-      if (a.ability && userIdx >= 0 && E.Stars.canUse(G, userIdx)) {
-        const st = G.star, perfect = G.poss !== userIdx && st.ring === 'green';   // PERFECT: Surge on the green ring
-        E.Stars.activate(G, userIdx, perfect, false);
+      // HUNT4 backstop: a STAR/G press in the first TAP_GUARD_T s after the snap is QUEUED (this play only) and applied at
+      // TAP_GUARD_T; field taps (a.star) in that window are dropped in starUpdate
+      if (a.ability && P.t < T.TAP_GUARD_T) P.abQ = true;
+      if ((a.ability || P.abQ) && P.t >= T.TAP_GUARD_T && userIdx >= 0) {
+        P.abQ = false;
+        if (E.Stars.canUse(G, userIdx)) {
+          const st = G.star, perfect = G.poss !== userIdx && st.ring === 'green';   // PERFECT: Surge on the green ring
+          E.Stars.activate(G, userIdx, perfect, false);
+        }
       }
       starUpdate(a, dt);
       if (!P.edgeShown && P.t >= 0.3 && P.kind === 'scrim') {
@@ -988,7 +995,8 @@
         if (ti < 0 || G.tos[ti] <= 0 || G.over) return false;
         if (!(G.phase === 'CALL' || G.phase === 'PRESNAP' || G.phase === 'DEAD')) return false;
         G.tos[ti]--;
-        if (G.pend > T.RUN_STOP) G.pend = T.RUN_STOP;
+        // the clock stops where the scoreboard shows it (never jumps up): pending runoff = what has visibly run
+        G.pend = Math.min(G.pend, G.deadEl || 0);
         if (G.clk - G.pend > 0) G.rescue = false;          // time is back on the clock: normal play calling
         em.emit('timeout', { tid: tid, auto: false, left: G.tos[ti] });
         return true;
@@ -1014,6 +1022,8 @@
         if (G.drill) G.drill.t += dt;
         for (let i = 0; i < 14; i++) { const e = G.ents[i]; e.px = e.x; e.py = e.y; e.pz = e.z; }
         G.ball.px = G.ball.x; G.ball.py = G.ball.y; G.ball.pz = G.ball.z; G.ball.tp = false;
+        // HUNT4 #4: the pending runoff visibly runs down between plays (display only; it is applied at the snap)
+        if (G.phase !== 'LIVE' && G.phase !== 'KICK' && G.pend > 0) G.deadEl = Math.min(G.pend, (G.deadEl || 0) + dt); else if (G.pend <= 0) G.deadEl = 0;
         G.pt += dt;
         switch (G.phase) {
           case 'CALL': stepCall(a, dt); break;

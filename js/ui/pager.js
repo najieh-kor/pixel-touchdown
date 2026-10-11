@@ -66,6 +66,8 @@
     // pass 2: reserve the pager row and fill the rest
     ctl.hidden = false;
     let per = count(list.clientHeight);
+    // HUNT4 #2: a grid whose first row is taller than the list still shows a full row (never 1 card a page)
+    if (!per && grid) per = rows.filter((r) => r.offsetTop === top0).length;
     per = Math.max(1, per);
     const n = Math.max(1, Math.ceil(rows.length / per));
     if (n === 1) { ctl.hidden = true; rows.forEach((r) => { r.hidden = false; }); pages[key] = 0; return; }

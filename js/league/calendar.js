@@ -293,6 +293,19 @@
     const H = LG();
     if (!(o && o.keepGoal && L.boss && L.boss.goal)) H.Boss.setGoal(L);
     const camp = autoCamp(L) || [];
+    // HUNT4 #4: late-round rookie deals were not guaranteed until Week 1
+    L.players.forEach((p) => { if (p.con && p.con.rk && p.con.gtd === 0) p.con.gtd = C.CAP.CUT_PCT; });
+    // HUNT4 #1: a manual Lineup gets last draft's rookies in empty slots or where they are clearly better
+    const ut = L.teams[L.userTid];
+    if (!L.settings.autoLineup && ut) {
+      H.Roster.repairDepth(L, ut.id);
+      const placed = H.Roster.placeRookies(L, ut.id);
+      if (placed.length) {
+        H.News.add(L, 'sign', 'Rookies added to your lineup: ' + placed.map((x) => {
+          const p = H.Q.player(L, x.pid); return p.fn.charAt(0) + '. ' + p.ln + ' (' + x.slot + ')';
+        }).join(', '), ut.id);
+      }
+    }
     prepSeason(L);
     L.phase = C.PHASE.REGULAR; L.week = 1; L.sub = 0;
     L.teams.forEach((t) => { if (t.human) H.Roster.updateStars(L, t.id); else H.Roster.autoStars(L, t.id); });
@@ -424,6 +437,12 @@
         break;
       default:
         throw new Error('[Calendar] unknown phase ' + L.phase);
+    }
+    // HUNT4 #1: manual Lineup — remember hurt starters' slots and give them back when healed (if better)
+    const uT = L.teams[L.userTid];
+    if (uT && !L.settings.autoLineup && (L.phase === C.PHASE.REGULAR || L.phase === C.PHASE.PLAYOFFS)) {
+      H.Roster.markHurtStarters(L, uT.id);
+      H.Roster.restoreHealed(L, uT.id);
     }
     // Stars (ROUND6 A): keep every team's Stars valid (players gone / out long-term are replaced by the auto pick)
     L.teams.forEach((t) => H.Roster.updateStars(L, t.id));

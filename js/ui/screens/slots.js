@@ -26,7 +26,8 @@
 
   function slotCard(s, m, mode) {
     const main = m && m.main, auto = m && m.auto;
-    const x = main || auto;
+    // HUNT4 #6: show the copy that loads (the newer one)
+    const x = main && auto ? ((auto.at || 0) > (main.at || 0) ? auto : main) : (main || auto);
     if (!x) {
       // HUNT2 #3: an empty slot in New Game mode is one big NEW GAME button; Import is a small link under it
       if (mode !== 'load') {
@@ -54,12 +55,12 @@
         <span class="grow slot-info">
           <b class="big ellip">${def ? def.name : (x.team || 'Team')}</b>
           <span class="small slot-line"><b class="num">${x.season}</b> · ${ph} · <span class="num">${D().rec(x.w || 0, x.l || 0, x.t || 0)}</span></span>
-          <span class="tiny muted">${when((main || auto).at)}</span>
+          <span class="tiny muted">${when(x.at)}</span>
         </span>
         <span class="slot-go">${K().ic(mode === 'new' ? 'sparkle' : 'play')}</span>
       </button>
       <div class="btn-row slot-tools">
-        ${auto && mode === 'load' ? K().btn({ label: 'Load Autosave', icon: 'save', action: 'backup', data: { slot: s }, kind: 'sec', size: 's', testid: 'slot-' + s + '-backup' }) : ''}
+        ${main && auto && mode === 'load' ? K().btn({ label: 'Older copy', icon: 'save', action: 'older', data: { slot: s }, kind: 'sec', size: 's', testid: 'slot-' + s + '-backup', title: 'Load the older copy of this save' }) : ''}
         ${K().btn({ label: 'Export', icon: 'scroll', action: 'export', data: { slot: s }, kind: 'ghost', size: 's', testid: 'slot-' + s + '-export' })}
         ${K().btn({ label: 'Delete', icon: 'x', action: 'delete', data: { slot: s }, kind: 'ghost', size: 's', testid: 'slot-' + s + '-delete' })}
       </div>
@@ -72,9 +73,30 @@
     const cards = [];
     for (let s = 1; s <= n; s++) cards.push(slotCard(s, m.slots[s], params.mode));
     const avail = PT.Save && PT.Save.available ? PT.Save.available() : true;
+    if (params.impSlot) {           // HUNT4 #7: "Import Code" from the damaged-save prompt
+      const n = params.impSlot; params.impSlot = null;
+      setTimeout(() => UI.screens.slots.actions.import({ getAttribute: () => String(n) }), 60);
+    }
     D().set(el, K().layout(html`
       ${avail ? '' : html`<p class="card card-cream small">${K().ic('warn')} Saving is off in this browser. Use Export to keep your game.</p>`}
       <div class="slots">${cards}</div>`, null, 'fit nsa slotsx'));
+  }
+
+  /**
+   * HUNT4 #1: copy a textarea's text. The clipboard promise is always handled (a refused write used to become an
+   * unhandled rejection → fatal modal + autosave off); falls back to execCommand, else asks the player to copy.
+   */
+  function copyText(t) {
+    if (!t) return;
+    const nav = globalThis.navigator;
+    let p;
+    try { p = nav && nav.clipboard && nav.clipboard.writeText ? nav.clipboard.writeText(t.value) : Promise.reject(new Error('no clipboard')); }
+    catch (e) { p = Promise.reject(e); }
+    Promise.resolve(p).then(() => UI.Toast.show('Copied', 'good'), () => {
+      let ok = false;
+      try { t.focus(); t.select(); ok = globalThis.document.execCommand('copy'); } catch (e) { ok = false; }
+      UI.Toast.show(ok ? 'Copied' : 'Select and copy it.', ok ? 'good' : 'info');
+    });
   }
 
   function hasSave(s) { const m = meta().slots[s]; return !!(m && (m.main || m.auto)); }
@@ -95,6 +117,7 @@
       },
       load: (el) => UI.loadSlot(+el.getAttribute('data-slot'), false),
       backup: (el) => UI.loadSlot(+el.getAttribute('data-slot'), true),
+      older: (el) => { const s = +el.getAttribute('data-slot'); UI.loadSlot(s, PT.Save.newest && PT.Save.newest(s) === 'auto' ? 'main' : 'auto'); },
       delete: (el) => {
         const s = +el.getAttribute('data-slot');
         UI.Modal.confirm('Delete save ' + s + '?', { body: 'This cannot be undone.', icon: 'x', yes: 'Delete', danger: true }).then((ok) => {
@@ -113,9 +136,9 @@
         UI.Modal.open({ title: 'Save code', icon: 'scroll',
           body: html`<p class="small">Keep this code. Paste it into Import to restore the save.</p><textarea class="inp code" readonly rows="5" data-testid="export-code">${str}</textarea>`,
           mount: (card) => { const t = card.querySelector('textarea'); if (t) { t.focus(); t.select(); } },
-          actions: { copy: (b, card) => { const t = card.querySelector('textarea'); t.select(); try { globalThis.navigator.clipboard.writeText(t.value); UI.Toast.show('Copied', 'good'); } catch (e) { UI.Toast.show('Select and copy it.', 'info'); } } },
+          actions: { copy: (b, card) => copyText(card.querySelector('textarea')) },
           buttons: [{ label: 'Copy', value: 'copy', kind: 'go' }, { label: 'Close', value: null, kind: 'cancel' }],
-          collect: (card, v) => { if (v === 'copy') { const t = card.querySelector('textarea'); try { globalThis.navigator.clipboard.writeText(t.value); UI.Toast.show('Copied', 'good'); } catch (e) { /* ignore */ } } return v; } });
+          collect: (card, v) => { if (v === 'copy') copyText(card.querySelector('textarea')); return v; } });
       },
       import: (el) => {
         const s = +el.getAttribute('data-slot');

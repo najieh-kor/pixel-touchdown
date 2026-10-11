@@ -55,6 +55,17 @@
     if (f.k === 'tix') return ['ticket', 'Tickets ×' + f.n, 1];
     if (f.k === 'snowImm') return ['snow', 'Snow-proof', 1];
     if (f.k === 'injMult') return ['cross', 'Fewer owies', 1];
+    if (f.k === 'gym') return ['dumbbell', 'Better camp', 1];
+    if (f.k === 'raise') return ['cash', 'Pay +' + (f.pct || 0) + '%', -1];
+    if (f.k === 'bench') return ['cross', 'Sits next game', -1];
+    if (f.k === 'sign') return ['contract', 'New player · pay', 0];
+    if (f.k === 'loseHype') return ['flame', 'Hype ' + sg(f.n) + ' if you lose', -1];
+    if (f.k === 'oppEdge') return ['eye', 'Foe reads plays', -1];
+    if (f.k === 'pep') return ['heart', 'Spirit +', 1];
+    if (f.k === 'askAdj') return ['contract', f.n < 0 ? 'Asks less' : 'Asks more', 0];
+    if (f.k === 'tradeVal') return ['swap', 'Trade value +', 0];
+    if (f.k === 'swap') return ['swap', 'Swap done', 0];
+    if (f.k === 'tmAck') return ['clock', 'He waits', 0];
     return null;
   }
   /** choice tags from the fx: certain effects green/red, chancy ones one amber "Risk 20%: …" / "50%: …" tag */
@@ -160,6 +171,8 @@
       </section>`, null, 'fit flow fl-ev'));
   }
 
+  UI.EventTags = { fxText: fxText, isRandom: isRandom };
+  UI.screens = UI.screens || {};
   UI.screens.events = {
     title: 'Team News',
     chrome: 'head',

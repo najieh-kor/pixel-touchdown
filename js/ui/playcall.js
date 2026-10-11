@@ -539,12 +539,12 @@
   PC.audible = function (o) {
     o = o || {};
     if (!o.cards || !o.cards.length || o.used) return Promise.resolve(null);
-    const hudMode = UI.Hud && UI.Hud.mode ? UI.Hud.mode() : 'none';
-    return begin('audible', o).then((id) => {
-      if (UI.Hud && UI.Hud.setControls && UI.Hud.active && UI.Hud.active()) { UI.Hud.setControls('none'); UI.Hud.setControls(hudMode); }
-      return id;
-    });
+    // HUNT4-input #4: no setControls(old mode) restore on close; the play may have gone LIVE under the tray. Session
+    // forces the real controls on close (S.ctlKey = ''), and the HUD closes this tray on 'game:snap'.
+    return begin('audible', o);
   };
+  /** 'call' | 'fourth' | 'pat' | 'audible' | 'kick' | null */
+  PC.kind = () => (cur ? cur.kind : null);
   /** Shows the Auto (NN%) kick button. @returns {Promise<'auto'|null>} */
   PC.kick = function (o) {
     if (kickRes) { const r = kickRes; kickRes = null; r(null); }
@@ -595,7 +595,8 @@
         render();
         if (PC.state.autoDef) startAuto(); else clearTimeout(autoTimer);
         break;
-      case 'go': case 'kick': done(a); break;
+      case 'go': done(a); break;
+      case 'kick': if (cur.kind === 'pat' && UI.Hud && UI.Hud.markXP) UI.Hud.markXP(); done(a); break;
       case 'two': if (cur.kind === 'pat' && UI.Hud && UI.Hud.markTwo) UI.Hud.markTwo(); done(a); break;
       case 'punt': done(cur.kind === 'fourth' ? 'punt' : 'PUNT'); break;
       case 'fg': done(cur.kind === 'fourth' ? 'fg' : 'FG'); break;
@@ -619,7 +620,7 @@
       return false;
     }
     if (cur.kind === 'pat') {
-      if (k === '1' || k === 'k') { done('kick'); return true; }
+      if (k === '1' || k === 'k') { if (UI.Hud && UI.Hud.markXP) UI.Hud.markXP(); done('kick'); return true; }
       if (k === '2') { if (UI.Hud && UI.Hud.markTwo) UI.Hud.markTwo(); done('two'); return true; }
       return false;
     }

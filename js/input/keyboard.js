@@ -64,7 +64,9 @@
     k.device('kbd');
     if (PREVENT[code]) e.preventDefault();
     const rep = e.repeat;
-    const edge = (n) => { if (!rep) k.edge(n); };
+    // HUNT4: right after a snap / resume the 2nd press of a double Space must not become a Star tap. HIKE / GO keys are
+    // never dropped (a quick hike right after the play call must work), and G / STAR (ability) is queued by the Session.
+    const edge = (n) => { if (!rep && !(n === 'star' && Input.guardedKeys && Input.guardedKeys())) k.edge(n); };
     if (code === 'Escape' || code === 'KeyP') {
       const H = PT.UI && PT.UI.Hud;
       if (!(H && H.key && (!H.active || H.active()))) edge('pause');

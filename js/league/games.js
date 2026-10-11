@@ -270,7 +270,12 @@
     const t = L.teams[tid];
     if (!t.human) PT.League.Roster.ensurePlayable(L, tid);
     else if (L.settings.autoLineup) PT.League.Roster.autoDepth(L, tid, { silent: true });
-    else { PT.League.Roster.repairDepth(L, tid); PT.League.Roster.autoDepth(L, tid, { onlyEmpty: true, silent: true }); }
+    else {
+      const Ro = PT.League.Roster;
+      Ro.markHurtStarters(L, tid);                                // HUNT4 #1: keep the hurt starter's slot …
+      Ro.restoreHealed(L, tid);                                   // … and give it back when he is healthy and better
+      Ro.repairDepth(L, tid); Ro.autoDepth(L, tid, { onlyEmpty: true, silent: true });
+    }
     PT.League.Roster.updateStars(L, tid);
   };
 

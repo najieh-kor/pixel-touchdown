@@ -220,6 +220,10 @@ button.fl-seg-btn .fl-sv { color: #fff; }
 .fl-foot > .btn { flex: none; }
 .fl-foot > .fl-pri { min-width: min(40%, 380px); }
 .fl-foot > .fl-sec { min-width: 0; }
+.fl-ftip { display: flex; align-items: center; gap: 6px; min-width: 0; margin: 0; color: #fff; font-size: 13px; font-weight: 600; line-height: 1.15; }
+.fl-ftip > .px-ic { width: 18px; height: 18px; flex: none; }
+.fl-ftip > span { min-width: 0; }
+.fl-ftip .fl-tip-x { flex: none; }
 .fl-tick { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; height: 32px; overflow: hidden; font-size: 14px; font-weight: 600; }
 .fl-tick-l { font-family: var(--font-d); font-size: 16px; color: #9fa6dd; letter-spacing: 0.06em; text-transform: uppercase; }
 .fl-ti { display: inline-flex; align-items: center; gap: 4px; height: 32px; white-space: nowrap; }
@@ -287,6 +291,8 @@ button.fl-seg-btn .fl-sv { color: #fff; }
 .fl-hero.me, .fl-hero.champ { background: var(--t-pri, var(--c-pri)); color: var(--t-pri-ink, #fff); }
 .fl-hero.champ .fl-hero-k { color: inherit; opacity: 0.85; }
 .fl-hero .fl-mini { display: flex; flex-direction: column; gap: 4px; margin-top: auto; }
+.fl-hero .fl-mini:has([data-testid="aw-boss"]) .fl-myrec { display: none; }
+.fl-hero .fl-mini .fl-tag { flex: 0 1 auto; min-width: 0; white-space: normal; height: auto; min-height: 20px; padding-top: 2px; padding-bottom: 3px; line-height: 1.1; flex-wrap: wrap; }
 .fl-line { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 14px; font-weight: 600; }
 .fl-line .fl-tag { font-size: 14px; }
 /* two-line rows: line 1 = full name, line 2 = details (never truncated) */
@@ -502,6 +508,9 @@ button.fl-seg-btn .fl-sv { color: #fff; }
   .fl-sum { --fl-hero: 150px; }
   .fl-t-two { --fl-two-min: 180px; }
   .fl-hero .portrait { display: none; }
+  .fl-hero.champ .fl-hero-row { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .fl-hero.champ .fl-hero-n { font-size: 18px; overflow-wrap: normal; }
+  .fl-hero .fl-ru { display: none; }
   .fl-hero .badge-l { width: 44px; height: 44px; }
   .fl-hero .badge-l .badge-ab { display: none; }
   .fl-hero-n { font-size: 20px; }

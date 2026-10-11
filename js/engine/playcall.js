@@ -28,8 +28,13 @@
 
   /** Type weights for an offense style + situation. */
   PC.typeMix = function (style, s) {
-    const key = PC.overrideKey(s);
-    return key ? PB().OVERRIDES[key] : (PB().STYLE_MIX[style] || PB().STYLE_MIX.west);
+    const key = PC.overrideKey(s), base = PB().STYLE_MIX[style] || PB().STYLE_MIX.west;
+    if (!key) return base;
+    // situation overrides blend with the style (HUNT4 #2): a Ground & Pound team still runs more on 3rd & long
+    const ov = PB().OVERRIDES[key], out = {};
+    for (const t in base) out[t] = 0.5 * base[t] + 0.5 * (ov[t] || 0);
+    for (const t in ov) if (!(t in out)) out[t] = 0.5 * ov[t];
+    return out;
   };
 
   function pickPlayOfType(rng, type, s, lastId, allowed) {
@@ -76,7 +81,8 @@
   PC.defWeightsPick = function (s, style, rng, ctx) {
     const D = DF(), base = D.STYLE_W[style] || D.STYLE_W.think, has = D.has;
     const w = {};
-    for (const id in base) w[id] = base[id];
+    const sig = D.STYLE_SIG[style] || [];
+    for (const id in base) w[id] = base[id] * (sig.indexOf(id) >= 0 ? 1.5 : 1);   // style identity (HUNT4 #3)
     const toGoal = s.toGoal != null ? s.toGoal : 99;
     if (s.down >= 3 && s.togo >= 8) {
       D.list.forEach((c) => {
@@ -97,23 +103,20 @@
       let rest = 0; for (const id in w) if (!has(D.byId(id), 'goal')) rest += w[id];
       w.brick_house = Math.max(rest, 1);
     } else w.brick_house = 0;
-    // smart counter vs the most used type over the last 8 plays
+    // smart counter vs the most used type over the last 8 plays (HUNT4 #3): it no longer REPLACES the style roll — the
+    // best counter inside the style's own table gets ×DEF_COUNTER_W, so styles keep their identity
     const hist = ctx.hist || [];
     if (hist.length >= 3 && rng.chance(ctx.pCounter == null ? 0.4 : ctx.pCounter)) {
       const cnt = {};
       let top = null, tc = 0;
       for (let i = 0; i < hist.length; i++) { cnt[hist[i]] = (cnt[hist[i]] || 0) + 1; if (cnt[hist[i]] > tc) { tc = cnt[hist[i]]; top = hist[i]; } }
-      let best = null, bv = -99, bw = -1;
-      for (const id in D.MATRIX) {
-        const c = D.byId(id);
-        if (has(c, 'goal') && toGoal > 5) continue;
-        if (has(c, 'prevent') && !preventTime) continue;
-        // a "smart" counter never leaves the deep part of the field empty against a short-pass habit (tuned)
-        if (D.MATRIX[id].DEEP <= -2 && top !== 'IRUN' && top !== 'ORUN' && toGoal > 20) continue;
-        const v = D.MATRIX[id][top];
-        if (v > bv || (v === bv && base[id] > bw)) { bv = v; best = id; bw = base[id]; }
+      let best = null, bv = -99;
+      for (const id in w) {
+        if (!(w[id] > 0) || !(base[id] > 0)) continue;
+        const v = (D.MATRIX[id] || {})[top] || 0;
+        if (v > bv) { bv = v; best = id; }
       }
-      if (best) return best;
+      if (best && bv > 0) w[best] *= ctx.counterW || 2.5;
     }
     return rng.weighted(Object.keys(w).filter((k) => w[k] > 0).map((k) => [k, w[k]]));
   };
@@ -173,8 +176,15 @@
 
   /** Is play p unlocked for the user? */
   PC.unlocked = function (G, p) {
-    if (G.unlock) return G.unlock[p.id] === true;
-    if (G.coachLvl != null) return (p.lv || 1) <= G.coachLvl;
+    const style = G.userIdx >= 0 ? G.teams[G.userIdx].tend.off : null;
+    const lv = PB().levelFor(p, style);
+    if (G.unlock) {
+      if (G.unlock[p.id] === true) return true;
+      // the league's list is level-based: style signature plays unlock early (HUNT4 #1)
+      if (G.unlockLv == null) { let m = 1; PB().list.forEach((q) => { if (G.unlock[q.id] && (q.lv || 1) > m) m = q.lv || 1; }); G.unlockLv = m; }
+      return lv <= G.unlockLv && lv < (p.lv || 1);
+    }
+    if (G.coachLvl != null) return lv <= G.coachLvl;
     return true;
   };
 
@@ -248,14 +258,25 @@
     const okey = PC.overrideKey(s), ov = okey ? B.OVERRIDES[okey] : null;
     if (s.hail) return B.byId('hail_mary');
     if (okey === 'short' && s.togo <= 1 && rng.chance(0.2)) return B.byId('snout_sneak');
-    const sc = [];
-    let top = -1e9;
+    // two stages (HUNT4 #2): the play TYPE from the style mix (+ situation override), then the play within that type
+    const tmix = PC.typeMix(style, s);
+    const byType = {};
     for (const p of B.list) {
       if (p.clock || p.k === 'special') continue;
       const v = PC.offScore(G, o, p, s, okey, ov, mix, style);
       if (v < -100) continue;
-      sc.push([p, v]); if (v > top) top = v;
+      (byType[p.type] || (byType[p.type] = [])).push([p, v]);
     }
+    const types = Object.keys(tmix).filter((t) => byType[t] && tmix[t] > 0);
+    let type = null;
+    if (types.length) {
+      let tw = 0; for (const t of types) tw += tmix[t];
+      let r0 = rng.next() * tw;
+      for (const t of types) { r0 -= tmix[t]; if (r0 <= 0) { type = t; break; } }
+      type = type || types[0];
+    }
+    const sc = type ? byType[type] : [].concat(...Object.values(byType));
+    let top = -1e9; for (const x of sc) if (x[1] > top) top = x[1];
     let tot = 0; for (const x of sc) { x[1] = Math.exp((x[1] - top) / T.SUG_TEMP); tot += x[1]; }
     let r = rng.next() * tot;
     for (const x of sc) { r -= x[1]; if (r <= 0) return x[0]; }

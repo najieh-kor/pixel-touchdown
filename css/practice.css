@@ -73,3 +73,6 @@ html.pt-practice [data-testid="btn-skip"], html.pt-practice #hud .hud-hint, html
 /* the HUD pause menu lives under #screen: while it is open, step the practice card + dim aside so it stays usable */
 html:has(#hud .hud-paused) .pr-coach { visibility: hidden; }
 html:has(#hud .hud-paused) .pr-host { background: none; }
+/* HUNT4: drills freeze the clock, so the scorebug's quarter/clock slot reads PRACTICE instead of a misleading Q1 clock */
+html.pt-practice #hud .hud-sb-q, html.pt-practice #hud .hud-sb-clk { display: none; }
+html.pt-practice #hud .hud-sb-mid::after { content: 'PRACTICE'; font-family: var(--font-d); font-size: 14px; letter-spacing: 0.06em; line-height: 1.1; color: var(--sun); }

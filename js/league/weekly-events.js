@@ -199,15 +199,22 @@
   }
   WE.vars = vars;
 
-  function costOf(ch) {
+  /** HUNT4-league #3: event coin costs grow with the bank: cost = round10(base × max(1, Coins / 500)). */
+  function coinsFx(L, n) {
+    if (!(n < 0)) return n;
+    const coins = L.teams[L.userTid].fin.coins;
+    return -Math.round(-n * Math.max(1, coins / 500) / 10) * 10;
+  }
+  WE.coinsFx = coinsFx;
+  function costOf(ch, L) {
     let c = 0;
-    for (const f of ch.fx || []) if (f.k === 'coins' && f.n < 0 && f.p == null) c += -f.n;
+    for (const f of ch.fx || []) if (f.k === 'coins' && f.n < 0 && f.p == null) c += -(L ? coinsFx(L, f.n) : f.n);
     return c;
   }
   /** Why a choice is greyed out ('' when OK). */
   function blocked(L, e, ch) {
     const t = L.teams[L.userTid];
-    if (costOf(ch) > t.fin.coins) return 'Not enough Coins.';
+    if (costOf(ch, L) > t.fin.coins) return 'Not enough Coins.';
     for (const f of ch.fx || []) {
       const p = e.pid != null ? Q().player(L, e.pid) : null;
       if (f.k === 'raise' && (!p || !p.con || PT.League.Cap.space(L, L.userTid) < Math.round(p.con.sal * f.pct / 100))) return 'Not enough Team Cash.';
@@ -217,11 +224,12 @@
     return '';
   }
   const WORD = { coins: 'Coins', hype: 'Hype', boss: 'Boss', spirit: 'Spirit', xp: 'Coach XP', scout: 'Scout points', merch: 'Merch' };
-  function hint(ch) {
+  function hint(ch, L) {
     const parts = [];
     for (const f of ch.fx || []) {
       const sg = (n) => (n > 0 ? '+' : '') + n;
-      if (WORD[f.k] && typeof f.n === 'number') parts.push(WORD[f.k] + ' ' + sg(f.n));
+      if (f.k === 'coins' && L) parts.push('Coins ' + sg(coinsFx(L, f.n)));
+      else if (WORD[f.k] && typeof f.n === 'number') parts.push(WORD[f.k] + ' ' + sg(f.n));
       else if (f.k === 'mor') parts.push((f.who === 'p' ? 'Mood ' : f.who === 'team' ? 'Team Mood ' : 'Mood ') + sg(f.n));
       else if (f.k === 'rat') parts.push((C.RATING_NAMES[f.key] || 'Skill') + ' ' + sg(f.n));
       else if (f.k === 'nx') parts.push((f.key === 'all' ? 'Skills ' : (C.RATING_NAMES[f.key] || 'Skill') + ' ') + sg(f.n) + ' next game');
@@ -243,7 +251,7 @@
       const p = e.pid != null ? Q().player(L, e.pid) : null;
       return {
         iid: e.iid, id: e.def, title: d.title, text: N.fill(d.text, v),
-        choices: d.choices.map((c) => { const why = blocked(L, e, c); return { label: N.fill(c.label, v), hint: hint(c), cost: costOf(c), disabled: !!why, can: !why, why: why, odds: c.odds || '' }; }),
+        choices: d.choices.map((c) => { const why = blocked(L, e, c); return { label: N.fill(c.label, v), hint: hint(c, L), cost: costOf(c, L), disabled: !!why, can: !why, why: why, odds: c.odds || '' }; }),
         art: { sp: p ? p.sp : L.teams[e.tid].sp, pid: p ? p.id : null, tid: e.tid }
       };
     });
@@ -256,7 +264,7 @@
     if (!d) return 0;
     if (e.def === 'swap_offer') return 1;
     let best = -1, bc = Infinity;
-    d.choices.forEach((c, i) => { const cost = costOf(c); if (!blocked(L, e, c) && cost < bc) { bc = cost; best = i; } });
+    d.choices.forEach((c, i) => { const cost = costOf(c, L); if (!blocked(L, e, c) && cost < bc) { bc = cost; best = i; } });
     return best < 0 ? d.choices.length - 1 : best;
   };
 
@@ -288,7 +296,7 @@
     if (f.k !== 'roll' && f.p != null && !r.chance(f.p)) return '';
     const S = PT.League.Spirit;
     switch (f.k) {
-      case 'coins': PT.League.Economy.addCoins(L, u, f.n, 'ev'); out.push({ k: 'coins', n: f.n }); break;
+      case 'coins': { const n = coinsFx(L, f.n); PT.League.Economy.addCoins(L, u, n, 'ev'); out.push({ k: 'coins', n: n }); break; }
       case 'hype': { const b = L.teams[u].fin.hype; PT.League.Economy.addHype(L, u, f.n); out.push({ k: 'hype', n: L.teams[u].fin.hype - b }); break; }
       case 'boss': PT.League.Boss.change(L, f.n, 'event'); out.push({ k: 'boss', n: f.n }); break;
       case 'spirit': S.addSpirit(L, u, f.n); out.push({ k: 'spirit', n: f.n }); break;

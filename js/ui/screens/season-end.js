@@ -44,6 +44,16 @@
     { k: 'roy', name: 'Best Newbie', icon: 'sprout' }
   ];
 
+  /** the Boss goal result for the season (History.ss(L).bossEval, set at season end): green Met / red Missed */
+  function bossLine(lg, ur) {
+    let ev = null;
+    try { const H = PT.League.History; ev = H && H.ss ? H.ss(lg).bossEval : null; } catch (e) { ev = null; }
+    if (!ev || ev.met == null) return '';
+    const G = PT.Data && PT.Data.Text && PT.Data.Text.goals;
+    const gt = (G && G[ev.goal]) || '';
+    const rec = ur ? ' (' + D().rec(ur.w || 0, ur.l || 0, ur.t || 0) + ')' : '';
+    return html`<span class="fl-line" data-testid="aw-boss">${FK().tag(html`${K().bossFace(ev.met ? 80 : 30)}<span class="fl-nf">Boss goal${gt ? ': ' + gt : ''} · </span>${ev.met ? 'Met' : 'Missed'}${rec}`, ev.met ? 'green' : 'red')}</span>`;
+  }
   function awardsView(lg) {
     const S = lastSeason(lg);
     const u = lg.userTid;
@@ -62,7 +72,7 @@
     });
     const coy = S.coy != null ? lg.teams[S.coy] : null;
     if (coy) rows.push({ id: 'coy', testid: 'award-coy', static: true, cls: S.coy === u ? 'mine' : '',
-      cells: { main: two(html`<span class="fl-nf">${K().teamFull(coy)}</span><span class="fl-ns">${coy.name}</span>`, html`${K().ic('clipboard')}<b>Coach of the Year</b>`, S.coy === u ? FK().tag('You', 'gold') : K().badge(coy, 's')) } });
+      cells: { main: two(S.coy === u ? 'Your coach (you)' : coy.name + ' coach', html`${K().ic('whistle')}<b>Coach of the Year</b>`, S.coy === u ? FK().tag('You', 'gold') : K().badge(coy, 's')) } });
     // Pixel Pro Team: yours first
     const pro = (S.allLg || []).map((pid) => P(lg, pid)).filter(Boolean).sort((a, b) => isMine(lg, b) - isMine(lg, a));
     pro.forEach((p) => {
@@ -75,8 +85,8 @@
     const hero = champ ? html`<section class="fl-card fl-hero champ" style="${K().teamVars(champ)}">
         <p class="fl-hero-k">${K().ic('carrot')} Pixel Bowl ${S.s}</p>
         <div class="fl-hero-row">${K().badge(champ, 'l')}<div class="fl-hero-m"><b class="fl-hero-n">${won ? 'Champions!' : champ.name}</b><span class="fl-line">${won ? 'You won it all.' : html`${FK().tag(html`${K().ic('trophy')}Champion`, 'gold')}`}</span></div></div>
-        ${ru ? html`<p class="fl-line">Runner-up: <b>${ru.name}</b></p>` : ''}
-        <div class="fl-mini"><span class="fl-line fl-myrec">${K().badge(me, 's')}<b class="fl-nf">${me.name}</b> <b class="num">${D().rec(ur.w || 0, ur.l || 0, ur.t || 0)}</b></span></div>
+        ${ru ? html`<p class="fl-line fl-ru">Runner-up: <b>${ru.name}</b></p>` : ''}
+        <div class="fl-mini">${bossLine(lg, ur)}<span class="fl-line fl-myrec">${K().badge(me, 's')}<b class="fl-nf">${me.name}</b> <b class="num">${D().rec(ur.w || 0, ur.l || 0, ur.t || 0)}</b></span></div>
       </section>` : html`<section class="fl-card fl-hero"><p class="fl-hero-k">${K().ic('trophy')} Awards Night</p></section>`;
     const table = F.table({ key: 'aw', cols: TWO_COLS, rows: rows, noHead: true, grid: true, cls: 'fl-t-two',
       tools: html`<span class="fl-bar-t">Winners</span>${chips([F.tag(html`${K().ic('star')}Pro Team: ${mineN} yours`, mineN ? 'gold' : '')])}` });

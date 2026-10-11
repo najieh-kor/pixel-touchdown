@@ -32,23 +32,43 @@
   UI.newestSave = newestSave;
 
   /** load a slot and go to HQ (shared with the slots screen) */
+  /** backup: true = the autosave copy; or 'main' / 'auto' to pick a copy explicitly (Older copy) */
   UI.loadSlot = function (slot, backup) {
     const busy = UI.Modal.busy('Loading…');
-    return new Promise((resolve) => setTimeout(resolve, 30)).then(() => PT.App.load(slot, { backup: !!backup })).then((r) => {
+    const o = backup === 'main' || backup === 'auto' ? { which: backup } : { backup: !!backup };
+    return new Promise((resolve) => setTimeout(resolve, 30)).then(() => PT.App.load(slot, o)).then((r) => {
       busy.close();
       // QA1: a damaged copy with a good other copy → offer it (was only a toast asking a question with no buttons)
       if (r && r.ok === false && r.canBackup) {
         return UI.Modal.confirm('Damaged save. Load the backup?', { icon: 'cross', yes: 'Load backup', no: 'Not now' }).then((ok) => {
           if (!ok) return r;
           const r2 = PT.App.load(slot, { which: r.backupWhich });
-          if (r2 && r2.ok === false) { UI.Toast.show(r2.msg || 'Could not load that save.', 'bad', 3000); return r2; }
+          if (r2 && r2.ok === false) return damaged(slot, r2);
           return opened(slot, r2);
         });
       }
+      if (r && r.ok === false && r.err !== 'EMPTY' && r.err !== 'VERSION' && r.err !== 'MIGRATE') return damaged(slot, r);
       if (r && r.ok === false) { UI.Toast.show(r.msg || 'Could not load that save.', 'bad', 3000); return r; }
       return opened(slot, r);
     }).catch((e) => { busy.close(); UI.Toast.show('Could not load that save.', 'bad'); if (PT.Log) PT.Log.error('ui', 'load', e); });
   };
+  /** HUNT4 #7: no good copy left — say so and offer Import / Delete instead of a dead-end toast */
+  function damaged(slot, r) {
+    return UI.Modal.open({ title: 'This save is damaged', icon: 'cross', body: 'Neither copy of save ' + slot + ' can be read. Import a save code into this slot, or delete it.',
+      buttons: [{ label: 'Delete Save', value: 'del', kind: 'sec', testid: 'btn-damaged-delete' }, { label: 'Import Code', value: 'imp', kind: 'go', testid: 'btn-damaged-import' }, { label: 'Not now', value: null, kind: 'cancel' }] })
+      .then((v) => {
+        if (v === 'imp') UI.go('slots', { mode: 'load', impSlot: slot });
+        else if (v === 'del') {
+          return UI.Modal.confirm('Delete save ' + slot + '?', { body: 'This cannot be undone.', icon: 'x', yes: 'Delete', danger: true }).then((ok) => {
+            if (!ok) return;
+            try { PT.Save.remove(slot); } catch (e) { /* ignore */ }
+            UI.Toast.show('Save deleted', 'info');
+            if (UI.current() && UI.current().name === 'title') UI.refresh();
+          });
+        }
+        return r;
+      });
+  }
   function opened(slot, r) {
     try { if (PT.Save.setPrefs) PT.Save.setPrefs({ lastSlot: slot }); } catch (e) { /* ignore */ }
     UI.theme(); UI.applyPrefs();

@@ -882,8 +882,8 @@
       const ab = P.ab[ti];
       if (!ab) continue;
       if (!ab.fired) continue;                    // never triggered: refunded below
-      for (const m of ab.mem) stopMember(G, m);
-      ab.on = false;
+      for (const m of ab.mem) { stopMember(G, m); m.armed = false; m.done = true; }   // members that never triggered are spent too
+      ab.on = false; ab.armed = false;
     }
     const add = (ti, side, n) => {
       const g = n * ST.fillMul(G, ti) * T.METER_SCALE;

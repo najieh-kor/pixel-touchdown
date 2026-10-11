@@ -117,7 +117,7 @@
       testid: (id) => 'fd-filter-' + (id || 'all'), pick: (v) => setFilter(v) });
     const table = FK().table({ key: 'fdpool', cols: COLS, rows: rows, tools: filter, cls: 'fl-t-star', empty: html`<p class="fl-empty">No players here.</p>` });
     const rule = st.why ? html`<div class="fl-tip fl-rule" role="status" data-testid="fd-force">${K().ic('warn')}<span class="fl-tip-t">${st.why}</span></div>`
-      : FK().tip('fl-star', 'Every pick is a Star. Take ' + SMIN() + ' on offense and ' + SMIN() + ' on defense.');
+      : FK().tip('fl-star', 'Every pick is a Star. ' + SMIN() + '+ offense, ' + SMIN() + '+ defense.');
     const body = html`${header(L, st, ss)}${rule}<div class="fl-main">${table}${detail(L, selP, selX, st)}</div>`;
     const canPick = !!(selX && selX.ok);
     const pri = st.userOnClock
@@ -138,8 +138,8 @@
     const L = PT.App.L, p = PT.League.Q.player(L, pid);
     const r = F().pick(L, pid);
     if (r && r.ok) {
-      UI.Toast.show((p ? K().short(p) : 'He') + ' is your Star', 'good');
       F().simToUser(L);                           // the other teams pick right away, back to you
+      if (!L.fd.done) UI.Toast.show((p ? K().short(p) : 'He') + ' is your Star', 'good');
     } else UI.Toast.show((r && r.msg) || 'Pick failed.', 'bad');
     changed();
   }
@@ -166,8 +166,7 @@
             try { F().autoRest(PT.App.L); } catch (e) { if (PT.Log) PT.Log.error('ui', 'fantasy auto', e); }
             busy.close();
             PT.App.save({ auto: true });
-            UI.Toast.show('Draft complete', 'good');
-            changed();
+            changed();                      // the summary screen says it (no toast over its note)
           }, 30);
         });
       },

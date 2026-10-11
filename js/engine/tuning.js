@@ -120,6 +120,7 @@
     RUN_INB: 15, RUN_HURRY: 8, RUN_LAST_MIN_FD: 10, RUN_STOP: 6, RUN_SACK: 15, RUN_KNEEL: 40, RUN_SPIKE: 3,
     SUG_HIST: 6, SUG_CALLED: 25, SUG_SHOWN: 14, SUG_FRESH: 6, SUG_TEMP: 7, SUG_REP: 8, SUG_STYLE: 30, TRICK_REACT: 0.25, SUG_DEF: 4, SUG_HOT: 6, SUG_COLD: 4,   // play-card suggestion variety (client pass 4)
     FORM_CHECK: { bunch: 0.7, empty: 0.7 },   // AI zone → man check vs these formations (coverage pass)
+    TAP_GUARD_T: 0.35,        // HUNT4: STAR / ability taps in the first 0.35 s after the snap are ignored (double-tap leak)
     STAR_MIN_T: 0.6, ONSIDE_WAIT: 6,   // HUNT3: no Star ring right at the snap; onside choice held up to 6 s
     FG_LATE: 8,               // ≤ this many seconds left in Q2/Q4: the FG card leads / the AI kicks on any down
     KICK_POW_MAX: 0.95,       // FG card / kick meter: in range only while dist/maxRange ≤ this (the meter green zone)

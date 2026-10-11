@@ -58,14 +58,20 @@
     if (!st || st.done) {
       const n = lg.draft.order.filter((o) => o.tid === lg.userTid && o.pid != null).length;
       void n;
-      return F.head(html`${F.seg('', 'Draft done', { icon: 'check', cls: 'fl-seg-t' })}${F.gap()}${F.rosterSeg(lg)}`);
+      return F.head(html`${F.seg('', 'Draft done', { icon: 'check', cls: 'fl-seg-t' })}${F.gap()}${cashSeg(lg)}${F.rosterSeg(lg)}`);
     }
     const on = lg.teams[st.pick.tid], mine = st.userOnClock;
     const clock = html`<span class="fl-seg fl-clock ${mine ? 'me' : ''}" data-testid="draft-clock"><span class="fl-sl">On the clock</span>${mine ? html`<b class="fl-sv">You</b>` : html`${K().badge(on, 's')}<b class="fl-sv">${FK().team(on)}</b>`}</span>`;
     const nextPk = mine ? '' : st.next ? F.seg('Your next pick', '#' + st.next) : F.seg('Your picks', 'Done', { cls: 'fl-seg-dim' });
-    return F.head(html`${F.seg('Round', String(st.pick.rd), { cls: 'fl-seg-t', testid: 'draft-round' })}${F.seg('Pick', String(st.pick.pk), { cls: 'fl-seg-t' })}${clock}${F.gap()}${F.needSeg(lg)}${nextPk}<span class="fl-hide-n">${F.rosterSeg(lg)}</span>${scouts}`);
+    return F.head(html`${F.seg('Round', String(st.pick.rd), { cls: 'fl-seg-t', testid: 'draft-round' })}${F.seg('Pick', String(st.pick.pk), { cls: 'fl-seg-t' })}${clock}${F.gap()}${F.needSeg(lg)}${cashSeg(lg)}${nextPk}<span class="fl-hide-n">${F.rosterSeg(lg)}</span>${scouts}`);
   }
 
+  function capSpace(lg) { try { return PT.League.Cap.space(lg, lg.userTid); } catch (e) { return 0; } }
+  /** red "Over cash −$3.7M" segment while rookie deals put you over the Team Cash limit (shown only then) */
+  function cashSeg(lg) {
+    const sp = capSpace(lg);
+    return sp < 0 ? FK().seg(html`<span class="fl-nf">Over </span>Cash`, D().money(sp), { icon: 'cash', cls: 'fl-seg-warn', testid: 'draft-cash' }) : '';
+  }
   function ticker(lg, st) {
     if (!st || !st.recent || !st.recent.length) return '';
     return html`<div class="fl-tick" aria-label="Last pick"><span class="fl-tick-l">Last pick</span>${st.recent.slice(0, 1).map((r) => {
@@ -148,7 +154,7 @@
     });
     const table = FK().table({ key: 'board', cols: cols(done), rows: rows, tools: filter, cls: 'fl-t-draft' + (done ? ' done' : ''),
       empty: html`<p class="fl-empty">${done ? 'No picks this year.' : 'No rookies here.'}</p>` });
-    const tipLine = live || !lg.draft ? FK().tip('fl-draft', 'Tap a rookie. Scout him to narrow his Stars.') : '';
+    const tipLine = live || !lg.draft ? FK().tip('fl-draft', 'Tap a rookie. Scout to see more.') : '';
     const body = html`${header(lg, st)}${tipLine}<div class="fl-main">${table}${detail(lg, selP, selX, st, nd)}</div>`;
     let sec = '', pri = '';
     if (live) {
@@ -185,7 +191,9 @@
     const lg = L();
     const p = PT.League.Q.player(lg, pid);
     let r;
+    const sp0 = capSpace(lg);
     try { r = Dr().pick(lg, pid); } catch (e) { r = { ok: false, msg: 'Pick failed.' }; }
+    if (r && r.ok && sp0 >= 0 && capSpace(lg) < 0) setTimeout(() => UI.Toast.show('Rookie deals put you over Team Cash by ' + D().money(-capSpace(lg)) + '. Fix it before Week 1.', 'bad', 4000), 700);
     if (r && r.ok) {
       ui.sel = null;
       // no decision until your next pick: the other teams pick right away (client: fewer Next presses)

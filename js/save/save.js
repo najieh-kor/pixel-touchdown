@@ -190,7 +190,7 @@
     const bytes = packed.length * 2;
     setMeta(slot, auto, slotMeta(env.L, bytes, env.at));
     emit('app:saved', { slot: slot, auto: !!auto, bytes: bytes });
-    return { ok: true, bytes: bytes, chars: packed.length, raw: json.length };
+    return { ok: true, bytes: bytes, chars: packed.length, raw: json.length, at: env.at };
   }
 
   // ---------------- public slot API ----------------
@@ -314,13 +314,41 @@
     if (!st.prefs) {
       let p = null;
       try { p = JSON.parse(get(PREFIX + 'prefs') || 'null'); } catch (e) { p = null; }
-      st.prefs = Object.assign({}, Save.PREFS_DEFAULT, p && typeof p === 'object' ? p : {});
+      st.prefs = sanitizePrefs(p);
     }
     return Object.assign({}, st.prefs);
   };
+  /**
+   * HUNT4 #9: stored prefs are untrusted (hand edits, old builds): keep only known keys with valid types/ranges, unknown
+   * keys pass through only if they are JSON primitives. Anything else falls back to PREFS_DEFAULT.
+   */
+  function sanitizePrefs(p) {
+    const D = Save.PREFS_DEFAULT, out = Object.assign({}, D);
+    if (!p || typeof p !== 'object' || Array.isArray(p)) return out;
+    const num = (v, lo, hi, d) => (typeof v === 'number' && isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d);
+    for (const k of Object.keys(p)) {
+      const v = p[k];
+      switch (k) {
+        case 'sfx': case 'music': out[k] = num(v, 0, 1, D[k]); break;
+        case 'speed': out[k] = num(v, 0.5, 1.5, D[k]); break;
+        case 'watch': out[k] = num(v, 0.5, 3, 0.8); break;
+        case 'lastSlot': out[k] = Math.round(num(v, 1, slots(), D[k])); break;
+        case 'quality': out[k] = ['auto', 'low', 'med', 'high'].indexOf(v) >= 0 ? v : D[k]; break;
+        case 'autoTier': if (['low', 'med', 'high'].indexOf(v) >= 0) out[k] = v; break;
+        case 'kickMode': out[k] = v === 'auto' || v === 'manual' ? v : D[k]; break;
+        case 'aimMode': if (v === 'sling' || v === 'point') out[k] = v; break;
+        case 'muted': case 'haptics': case 'reduceMotion': out[k] = typeof v === 'boolean' ? v : D[k]; break;
+        case 'lefty': case 'easyThrow': case 'autoDef': if (typeof v === 'boolean') out[k] = v; break;
+        default: if (v === null || ['string', 'number', 'boolean'].indexOf(typeof v) >= 0) out[k] = v;   // other WPs' keys (textSize…)
+      }
+    }
+    return out;
+  }
+  Save.sanitizePrefs = sanitizePrefs;
+
   /** Merge, persist and return prefs; emits 'app:prefs'. */
   Save.setPrefs = function (partial) {
-    const p = Object.assign(Save.prefs(), partial || {});
+    const p = sanitizePrefs(Object.assign(Save.prefs(), partial || {}));
     st.prefs = p;
     try { st.storage.setItem(PREFIX + 'prefs', JSON.stringify(p)); } catch (e) { /* non-fatal */ }
     emit('app:prefs', Object.assign({}, p));

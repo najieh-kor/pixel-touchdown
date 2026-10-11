@@ -18,7 +18,7 @@
     'firstDown', 'touchdown', 'fieldGoal', 'pat', 'safety', 'turnover', 'fumble', 'interception', 'bigPlay', 'playEnd', 'quarterEnd',
     'halftime', 'twoMinute', 'gameEnd', 'kickoff', 'punt', 'penalty', 'timeout', 'doink', 'onside', 'edge', 'star', 'superPlay',
     'whiff', 'injury', 'possession', 'returnTd', 'starRing', 'starPlay', 'kick', 'recover', 'batted', 'overtime',
-    'ability', 'abilityArmed', 'abilityWarn', 'audible', 'hitstop'];
+    'ability', 'abilityArmed', 'abilityWarn', 'abilityRefund', 'audible', 'hitstop'];
   Session.autoplay = false;
   /** dev only: force an input mode during the user's LIVE offense (e.g. 'qb' with the engine stub) */
   Session.debugForceMode = null;
@@ -128,6 +128,8 @@
       // slow-mo / hit-stop only for the user's plays (engine marks AI-vs-AI moments user:false)
       case 'bigPlay': if (p.user !== false && !reduceMotion() && !S.fast && !(PT.Flags && PT.Flags.test)) PT.Loop.slowmo(p.slowmo || 0.4, p.dur || 1); break;
       case 'hitstop': if (p.user !== false && !reduceMotion() && !S.fast && !(PT.Flags && PT.Flags.test)) PT.Loop.slowmo(0.02, (p.ms || 60) / 1000); break;
+      case 'snap': PT.Input.guard(350, true); break;  // HUNT4 #1: the 2nd tap/press of a double GO!/HIKE can't become a Star tap
+      case 'playEnd': S.fast = false; S.ctlKey = ''; S.abQ = 0; break;   // HUNT4 #6: » 2× is per play; a queued STAR never carries over
       case 'tackle': haptic(p.big ? 30 : 15); break;
       case 'sack': haptic(30); break;
       case 'touchdown': haptic([60, 40, 60]); break;
@@ -141,8 +143,9 @@
         S.engStar = true;
         if (p.result === 'super') { S.starPlays++; haptic(30); }
         break;
-      case 'ability': if (p.user || p.tid === S.userTid) haptic(p.perfect ? [30, 30, 30] : 30); break;
-      case 'abilityArmed': if (p.user || p.tid === S.userTid) haptic(20); break;
+      case 'ability': if (p.user || p.tid === S.userTid) { S.abQ = 0; haptic(p.perfect ? [30, 30, 30] : 30); } break;
+      case 'abilityArmed': if (p.user || p.tid === S.userTid) { S.abQ = 0; haptic(20); } break;
+      case 'abilityRefund': if (p.user || p.tid === S.userTid) S.abQ = 0; break;
       case 'abilityWarn': haptic(10); break;
       case 'gameEnd': onOver(p.box); break;
     }
@@ -193,6 +196,7 @@
   }
 
   function openPlayCall(n) {
+    S.abQ = 0;                                          // a new play: no STAR press carries over
     const g = S.game, side = n.side, cards = g.options(side) || [];
     const sit = n.sit || g.situation();
     const tos = sit.tos ? sit.tos[S.userIdx] : 0;
@@ -356,7 +360,10 @@
     a.throw = a.snap = a.juke = a.dive = a.spin = a.star = a.kick = a.ability = false;
     a.pass = null; a.starPick = null;
     // Star ability (STAR_ABILITIES 3): STAR button / G / gamepad Y. Offense can arm it pre-snap (receivers) too.
-    if (f.ability && S.mode !== 'kick' && S.mode !== 'off') a.ability = true;
+    // A deliberate press is QUEUED (≤ 0.9 s real) and re-sent until the engine acknowledges it (ability / abilityArmed):
+    // right after the snap the input guard and the engine's 0.35 s post-snap backstop would otherwise drop it.
+    if (f.ability && S.mode !== 'kick' && S.mode !== 'off') S.abQ = now();
+    if (S.abQ) { if (now() - S.abQ > 900 || S.mode === 'kick' || S.mode === 'off') S.abQ = 0; else a.ability = true; }
     if (f.audible) openAudible();
     a.sprint = !!f.sprint; a.lob = !!f.lob;
     a.mx = 0; a.my = 0;
@@ -566,9 +573,12 @@
     if (!opts) return;
     const PC = U().PlayCall, H = U().Hud;
     const ui = PC && typeof PC.audible === 'function' ? PC.audible.bind(PC) : H && typeof H.audible === 'function' ? H.audible.bind(H) : null;
-    if (!ui) { emit('game:audibleOpen', opts); return; }
+    // HUNT4 #4: no Auto-start GO while the audible tray is open; afterwards 1 s grace and push the real controls again
+    S.audibleOpen = true; S.autoDefHold = Infinity; syncAutoDef();
     const g = S.game;
-    Promise.resolve(ui(opts)).then((id) => { if (id && S && S.game === g) Session.audible(id); });
+    const done = () => { if (!S || S.game !== g) return; S.audibleOpen = false; S.autoDefHold = 1.0; S.ctlKey = ''; syncAutoDef(); };
+    if (!ui) { emit('game:audibleOpen', opts); done(); return; }
+    Promise.resolve(ui(opts)).then((id) => { if (id && S && S.game === g) Session.audible(id); done(); }, done);
   }
   /**
    * The 4 audible suggestions for the user's side, valid pre-snap. @returns {{side, cards:PlayCard[], gid}|null}
@@ -662,7 +672,7 @@
       const nk = n ? n.k + (n.side || '') : '';
       if (nk !== S.needKey) { S.needKey = nk; S.tNeed = 0; S.needSeq++; } else S.tNeed += dt;
       S.modeT = (S.modeT || 0) + dt;
-      if (S.autoDefHold > 0) { S.autoDefHold -= dt; if (S.autoDefHold <= 0) syncAutoDef(); }
+      if (S.autoDefHold > 0 && S.autoDefHold !== Infinity) { S.autoDefHold -= dt; if (S.autoDefHold <= 0) syncAutoDef(); }
       if (n && handleNeed(n)) return;
       const f = PT.Input.sample();
       if (f.pause) { Session.pause(); return; }
@@ -875,6 +885,7 @@
     PT.Loop.pause(false);
     PT.Input.setMode(S.mode || 'off');
     PT.Input.flush();
+    PT.Input.guard(350, true);                      // HUNT4 #3: a double tap on RESUME must not snap the ball
     holdAutoDef();
     emit('game:pause', { on: false, gid: S.gid });
   };

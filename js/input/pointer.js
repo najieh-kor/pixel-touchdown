@@ -90,6 +90,7 @@
     const p = { id: e.pointerId, type: type, btn: e.button || 0, x0: x, y0: y, x: x, y: y, t0: now, tLast: now, role: 'none', moved: false, cap: cap };
     ptrs.set(e.pointerId, p);
     const G = Input.Gestures, J = Input.Joystick, m = k.mode;
+    const guarded = Input.guarded && Input.guarded();          // HUNT4: tap-like input right after a mode change / snap
     if (type === 'touch') {
       const moveMode = m === 'qb' || m === 'carrier' || m === 'return';
       // return mode uses the strict stick zone too: the rest of the screen must stay "TAP = fair catch / touchback" (HUNT3 #1)
@@ -99,10 +100,10 @@
         for (const q of Array.from(ptrs.values())) if (q.role === 'joy' && q.id !== p.id) dropPtr(q, 'new thumb on the stick');
         p.role = 'joy'; J.start(x, y);
       }
-      else if (m === 'return') p.role = 'swipe';      // tap = fair catch / touchback
+      else if (m === 'return') p.role = guarded ? 'none' : 'swipe';      // tap = fair catch / touchback
       else if (m === 'qb') { if (!aimBusy()) { p.role = 'aim'; G.aimStart(x, y, false); } }
-      else if (m === 'presnap') p.role = 'swipe';
-      else if (m === 'defense') { k.edge('star'); p.role = 'tap'; }
+      else if (m === 'presnap') p.role = guarded ? 'none' : 'swipe';
+      else if (m === 'defense') { if (!guarded) { k.edge('star'); p.role = 'tap'; } }
       else if (m === 'kick') { if (!aimBusy()) { p.role = 'kick'; G.kickStart(x, y); } }
       return;
     }
@@ -110,7 +111,7 @@
     if (p.btn === 2) {
       if (m === 'qb') { p.role = 'aim'; G.aimStart(x, y, true); }
       else if (m === 'carrier') k.edge('juke');
-      else if (m === 'defense') k.edge('star');
+      else if (m === 'defense' && !guarded) k.edge('star');
     } else if (p.btn === 1) {
       if (m === 'carrier') k.edge('spin');
     } else {
@@ -119,8 +120,8 @@
         if (now - lastClick.t < 320 && Math.hypot(x - lastClick.x, y - lastClick.y) < 24) { k.edge('dive'); lastClick.t = -1e9; }
         else lastClick = { t: now, x: x, y: y };
         p.role = 'seek'; k.seek.on = true; k.seek.sx = x; k.seek.sy = y;
-      } else if (m === 'presnap' || m === 'return') p.role = 'swipe';
-      else if (m === 'defense') { k.edge('star'); p.role = 'tap'; }
+      } else if (m === 'presnap' || m === 'return') p.role = guarded ? 'none' : 'swipe';
+      else if (m === 'defense') { if (!guarded) { k.edge('star'); p.role = 'tap'; } }
       else if (m === 'kick') { p.role = 'kick'; G.kickStart(x, y); }
     }
   }

@@ -60,7 +60,7 @@
   };
 
   /**
-   * Add Coach XP and level up. Level rewards: Lv 2–10 unlock a play, every level from 3 a skill pick (2 at Lv 10/20/30), Lv 20/25/30 +100 Coins.
+   * Add Coach XP and level up. Level rewards: plays unlocking at that level (style-aware), a skill pick every level from 2 (2 at Lv 10/20/30), Lv 20/25/30 +100 Coins.
    * @returns {{lvl:number, levels:number[], plays:string[], picks:number, coins:number}}
    */
   Coach.addXp = function (L, n, why) {
@@ -72,13 +72,15 @@
     while (c.lvl < MAX_LVL && c.xp >= Coach.xpFor(c.lvl + 1)) {
       c.lvl++;
       levels.push(c.lvl);
-      if (c.lvl <= 10 && Coach.UNLOCKS[c.lvl]) plays.push(Coach.UNLOCKS[c.lvl]);
-      if (c.lvl >= 3) { const n = c.lvl % 10 === 0 ? 2 : 1; c.pts += n; picks += n; }
+      const pl = Coach.playsAt(L, c.lvl);
+      if (pl.length) plays.push.apply(plays, pl); else if (c.lvl <= 10 && Coach.UNLOCKS[c.lvl] && !((PT.Data.Playbook && PT.Data.Playbook.list) || []).length) plays.push(Coach.UNLOCKS[c.lvl]);
+      if (c.lvl >= 2) { const n = c.lvl % 10 === 0 ? 2 : 1; c.pts += n; picks += n; }   // HUNT4 #2: first pick at Lv 2 (mid-season 1)
       if (c.lvl === 20 || c.lvl === 25 || c.lvl === 30) { PT.League.Economy.addCoins(L, L.userTid, 100, 'ach'); coins += 100; }
     }
     if (levels.length) {
       if (PT.Events) { PT.Events.emit('league:levelUp', { lvl: c.lvl, levels: levels, plays: plays }); PT.Events.emit('league:changed', { what: 'coach' }); }
-      PT.League.News.add(L, 'award', 'Coach reaches Level ' + c.lvl + '.' + (plays.length ? ' New play: ' + plays.join(', ') + '.' : ''), L.userTid);
+      PT.League.News.add(L, 'award', 'Coach Lv ' + c.lvl + (picks ? ' · pick a skill' : '') +
+        (plays.length ? ' · ' + plays.length + ' new play' + (plays.length > 1 ? 's' : '') : ''), L.userTid);
     }
     const ss = PT.League.History.ss(L);
     ss.led.xp = (ss.led.xp || 0) + n;
@@ -161,30 +163,51 @@
     };
   };
 
-  /** Level a play unlocks at (1 = starter). */
-  Coach.playLevel = function (play) {
+  /**
+   * Coach Level a play unlocks at (1 = starter). With a style, the style's signature plays unlock 4 levels early, using
+   * the engine's own PT.Data.Playbook.levelFor(play, style) when present so league and engine always agree.
+   * @param {Object} play @param {string} [style] offense style id (team.style.off)
+   */
+  Coach.playLevel = function (play, style) {
     if (!play) return 1;
-    if (typeof play.lv === 'number') return play.lv;
-    if (typeof play.lvl === 'number') return play.lvl;
-    const id = String(play.id || '');
-    const code = /^P\d\d/i.test(id) ? id.slice(0, 3).toUpperCase() : null;
-    if (code && Coach.PLAY_LV[code]) return Coach.PLAY_LV[code];
-    if (Coach.PLAY_LV[id]) return Coach.PLAY_LV[id];
-    const nm = String(play.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
-    return Coach.PLAY_LV[nm] || 1;
+    const PB = PT.Data.Playbook;
+    if (PB && typeof PB.levelFor === 'function' && typeof play.lv === 'number') return PB.levelFor(play, style);
+    let lv;
+    if (typeof play.lv === 'number') lv = play.lv;
+    else if (typeof play.lvl === 'number') lv = play.lvl;
+    else {
+      const id = String(play.id || '');
+      const code = /^P\d\d/i.test(id) ? id.slice(0, 3).toUpperCase() : null;
+      const nm = String(play.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+      lv = (code && Coach.PLAY_LV[code]) || Coach.PLAY_LV[id] || Coach.PLAY_LV[nm] || 1;
+    }
+    return style && Array.isArray(play.st) && play.st.indexOf(style) >= 0 ? Math.max(1, lv - 4) : lv;
   };
+
+  /** Names of the plays that unlock exactly at Coach Level lvl for your style. @returns {string[]} */
+  Coach.playsAt = function (L, lvl) {
+    const list = (PT.Data.Playbook && PT.Data.Playbook.list) || [];
+    const st = userStyle(L);
+    return list.filter((p) => Coach.playLevel(p, st) === lvl && (lvl > 1)).map((p) => p.name || p.id);
+  };
+
+  /** Your offense style (signature plays unlock early). */
+  function userStyle(L) { const t = L.teams[L.userTid]; return t && t.style ? t.style.off : null; }
+  Coach.style = userStyle;
 
   /** Play ids the user may call (AI teams always have every play). @returns {string[]} */
   Coach.unlockedPlays = function (L) {
     const list = (PT.Data.Playbook && PT.Data.Playbook.list) || [];
-    const lvl = L.coach.lvl;
-    return list.filter((p) => Coach.playLevel(p) <= lvl).map((p) => p.id);
+    const lvl = L.coach.lvl, st = userStyle(L);
+    return list.filter((p) => Coach.playLevel(p, st) <= lvl).map((p) => p.id);
   };
 
-  /** Locked plays with the level that unlocks them. @returns {{id:string, name:string, lv:number}[]} */
+  /** Locked plays with the level that unlocks them (for the Coach / Plays screens). @returns {{id, name, lv, sig}[]} */
   Coach.lockedPlays = function (L) {
     const list = (PT.Data.Playbook && PT.Data.Playbook.list) || [];
-    return list.filter((p) => Coach.playLevel(p) > L.coach.lvl).map((p) => ({ id: p.id, name: p.name, lv: Coach.playLevel(p) }));
+    const st = userStyle(L);
+    return list.filter((p) => Coach.playLevel(p, st) > L.coach.lvl)
+      .map((p) => ({ id: p.id, name: p.name, lv: Coach.playLevel(p, st), sig: Coach.playLevel(p, st) < Coach.playLevel(p) }));
   };
 
   /**

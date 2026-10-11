@@ -329,7 +329,9 @@
     const s = coachStatus(L);
     const offer = offers(L);
     const canLearn = !!learnFn();
-    const into = Math.max(0, s.xp - s.prev), need = Math.max(1, s.next - s.prev);
+    // HUNT4 #5: League.Coach.status gives the real curve (cur / need); the old 25·l·(l±1) curve is only a fallback
+    const into = s.cur != null && s.need != null ? Math.max(0, s.cur) : Math.max(0, s.xp - s.prev);
+    const need = s.cur != null && s.need != null ? Math.max(1, s.need) : Math.max(1, s.next - s.prev);
     // HUNT #2: offers() returns {id,name,rank,txt}; text comes from the league's skill table (the local one only adds icons)
     const ids = offer ? offer.map((o) => (o && o.id) || o) : null;
     const LS = (PT.League.Coach && PT.League.Coach.SKILLS) || [];

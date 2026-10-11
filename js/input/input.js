@@ -96,11 +96,27 @@
     if (m === K.mode) return;
     const MOVE = { qb: 1, carrier: 1, return: 1 };
     const keepJoy = !!(MOVE[m] && MOVE[K.mode]);   // qb → carrier (scramble / after the throw): the thumb keeps running
+    Input.guard(350);                             // HUNT4: a double tap on GO!/HIKE/RESUME must not leak into the new mode
     K.mode = m;
     if (K.el) K.el.setAttribute('data-mode', m);
     if (Input.Pointer && Input.Pointer.setMode) Input.Pointer.setMode(m);
     Input.flush(keepJoy);
   };
+  /**
+   * Input guard (HUNT4 #1/#3): for `ms` after a mode change / snap / resume, tap-like field input (snap, GO, Star tap,
+   * ability, fair-catch tap) is ignored, so the 2nd tap of a double tap on a button that just disappeared can't leak.
+   * The stick, slingshot and kick drags are never guarded.
+   */
+  Input.guard = function (ms, keys) {
+    const until = K.now() + (ms || 350);
+    K.guardUntil = Math.max(K.guardUntil || 0, until);
+    if (keys) K.guardKeysUntil = Math.max(K.guardKeysUntil || 0, until);
+  };
+  /** field taps (pointer): guarded after any mode change, snap or resume */
+  Input.guarded = function () { return K.now() < (K.guardUntil || 0); };
+  /** keyboard Star-tap edge: guarded only after a snap / resume (a mode change alone must not eat a quick HIKE/GO key) */
+  Input.guardedKeys = function () { return K.now() < (K.guardKeysUntil || 0); };
+
   /** @returns {string} current mode */
   Input.mode = function () { return K.mode; };
 

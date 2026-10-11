@@ -23,12 +23,13 @@
 
   function teamTile(t) {
     const tier = tierOf(t), tg = tag(tier);
-    return html`<button type="button" class="tteam tteamx ${st.tid === t.id ? 'sel' : ''}" data-action="team" data-tid="${t.id}" data-testid="team-card-${t.id}" style="${K().teamVars(t)}">
+    return html`<button type="button" class="tteam tteamx ${st.tid === t.id ? 'sel' : ''}" data-action="team" data-tid="${t.id}" data-testid="team-card-${t.id}" title="${t.city} ${t.name}" style="${K().teamVars(t)}">
       ${K().badge(t, 'm')}
       <span class="tteam-txt">
         <span class="tteam-n ellip">${t.name}</span>
         <span class="stars" title="${tier} Stars" role="img" aria-label="${tier} stars">${K().starRow(tier)}</span>
         <span class="tteam-row"><span class="chip chip-${tg[1]} tiny">${tg[0]}</span><span class="tteam-c tiny ellip">${t.city}</span></span>
+        <span class="tteam-sty tiny" title="Offense · Defense style">${PT.C.OFF_STYLES[t.style && t.style.off] || 'Balanced'} · ${PT.C.DEF_STYLES[t.style && t.style.def] || 'Balanced'}</span>
       </span>
     </button>`;
   }

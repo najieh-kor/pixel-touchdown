@@ -69,12 +69,16 @@
 
   /** one small dismissible coach line (first visit only) */
   FK.tip = function (id, text) {
-    if (K().tipSeen && K().tipSeen(id)) return '';
-    // short phones: the tip would steal a row from the table and the detail card, so it shows once as a toast
+    const sk = 'ftip:' + id;
+    if (D().memo[sk] === 'off') return '';
+    if (K().tipSeen && K().tipSeen(id) && !D().memo[sk]) return '';
+    if (K().tipDone && !D().memo[sk]) { D().memo[sk] = 'on'; K().tipDone(id); }
+    // short phones: the tip would steal a row from the table, and a toast covered rows: it goes into the bottom bar's
+    // left slot (FK.foot) for this session, until dismissed
     const mm = globalThis.matchMedia;
     if (mm && mm('(max-height: 480px)').matches) {
-      if (K().tipDone) K().tipDone(id);
-      setTimeout(() => UI.Toast.show(text, 'info', 4000), 300);
+      FK._ftip = { id: id, text: text };
+      setTimeout(() => { FK._ftip = null; }, 0);
       return '';
     }
     return html`<div class="fl-tip" role="note">${K().ic('cap')}<span class="fl-tip-t">${text}</span><button type="button" class="fl-tip-x" data-action="fl-tip" data-id="${id}" data-testid="tip-ok-${id}" aria-label="Got it">${K().ic('x')}</button></div>`;
@@ -121,7 +125,12 @@
   }
 
   // ---------------- bottom bar ----------------
-  FK.foot = (info, sec, pri) => html`<div class="fl-foot"><div class="fl-info">${info || ''}</div>${sec || ''}${pri || ''}</div>`;
+  FK.foot = function (info, sec, pri) {
+    const t = FK._ftip;
+    FK._ftip = null;
+    const tip = t ? html`<p class="fl-ftip" role="note">${K().ic('cap')}<span>${t.text}</span><button type="button" class="fl-tip-x" data-action="fl-tip" data-id="${t.id}" data-testid="tip-ok-${t.id}" aria-label="Got it">${K().ic('x')}</button></p>` : '';
+    return html`<div class="fl-foot"><div class="fl-info">${tip || info || ''}</div>${sec || ''}${pri || ''}</div>`;
+  };
   /** the primary button (bottom-right) */
   FK.pri = (o) => K().btn(Object.assign({ kind: 'go', size: 'l', icon: 'play' }, o, { cls: 'fl-pri ' + (o.cls || '') }));
   FK.sec = (o) => K().btn(Object.assign({ kind: 'sec', size: 'l' }, o, { cls: 'fl-sec ' + (o.cls || '') }));
@@ -242,7 +251,7 @@
   // ---------------- actions every flow screen merges in ----------------
   FK.actions = function () {
     return {
-      'fl-tip': (t) => { if (K().tipDone) K().tipDone(t.getAttribute('data-id')); UI.refresh(); },
+      'fl-tip': (t) => { const id = t.getAttribute('data-id'); if (K().tipDone) K().tipDone(id); D().memo['ftip:' + id] = 'off'; UI.refresh(); },
       'fl-pos': () => posSheet(),
       'fl-pay': (t) => {
         const d = +t.getAttribute('data-d');

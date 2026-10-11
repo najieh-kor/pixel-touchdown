@@ -205,7 +205,8 @@
       return;
     }
     const item = { key: key, text: text, kind: kind, ms: ms || 2200, n: 1, el: null, timer: 0 };
-    if (holding()) {
+    // HUNT4 #3: while a modal is open, non-badge toasts wait (they were drawn over the modal's buttons)
+    if (holding() || (stack.length && kind !== 'ach')) {
       const h = held.find((x) => x.key === key);
       if (h) h.n++; else held.push(item);
       while (held.length > MAX_Q) held.shift();
@@ -221,6 +222,17 @@
   Toast.clear = function () { queue.length = 0; held.length = 0; vis.slice().forEach(hideT); };
   Toast.held = () => held.length;
   /** clear on every screen change so old toasts never sit over the new screen's tabs (HUNT #15) */
+  function release() {
+    if (!held.length || holding() || stack.length) return;
+    const out = held.splice(0, held.length);
+    setTimeout(() => out.forEach((x) => { if (holding() || stack.length) { held.push(x); return; } if (vis.length < MAX_VIS) showNow(x); else { queue.push(x); while (queue.length > MAX_Q) queue.shift(); } }), 300);
+  }
+  if (PT.Events && PT.Events.on) PT.Events.on('ui:modal', (e) => {
+    const de = globalThis.document && globalThis.document.documentElement;
+    if (de) de.classList.toggle('pt-modal-open', !!(e && e.open));
+    if (e && e.open) vis.filter((x) => x.kind !== 'ach').forEach(hideT);   // one that is already up goes away
+    else release();
+  });
   if (PT.Events && PT.Events.on) PT.Events.on('ui:navigate', (e) => {
     queue.length = 0;
     const name = e && e.name;
@@ -240,9 +252,6 @@
         host.style.setProperty('--tflow-w', Math.max(160, Math.round(fb.getBoundingClientRect().left - left - 24)) + 'px');
       }
     }
-    if (!held.length) return;
-    // left the Fired screen: release what waited (after the new screen has painted)
-    const out = held.splice(0, held.length);
-    setTimeout(() => out.forEach((x) => { if (holding()) { held.push(x); return; } if (vis.length < MAX_VIS) showNow(x); else { queue.push(x); while (queue.length > MAX_Q) queue.shift(); } }), 300);
+    release();                         // left the Fired screen: show what waited (after the new screen has painted)
   });
 })(globalThis.PT = globalThis.PT || {});

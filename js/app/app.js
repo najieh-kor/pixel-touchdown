@@ -49,8 +49,23 @@
     App._inited = true;
     PT.Events.on('league:draftPick', (p) => { if (App.L && p && p.tid === App.L.userTid) App.autosaveSoon(); });
     PT.Events.on('league:phase', () => { App._phaseChanged = true; });
+    // HUNT4 #2: cuts, signings, trades, depth and shop changes between Nexts are saved too (debounced)
+    PT.Events.on('league:changed', () => {
+      if (busy || !App.L || !App.slot || App._stash || App.tainted || (PT.Session && PT.Session.active())) return;
+      App.autosaveSoon(500);
+    });
+    // HUNT4 #5: another tab/window wrote this slot → warn before this tab overwrites it
+    if (globalThis.addEventListener) {
+      globalThis.addEventListener('storage', (e) => {
+        if (!App.L || !App.slot || !e || !e.key) return;
+        if (e.key === 'pt.s' + App.slot || e.key === 'pt.s' + App.slot + '.auto') conflict();
+      });
+      globalThis.addEventListener('pagehide', () => App.flushSaves());
+    }
     PT.Events.on('app:visibility', (p) => {
-      if (p.hidden && App.L && !(PT.Session && PT.Session.active())) App.save({ auto: true });
+      if (!p.hidden) return;
+      App.flushSaves();
+      if (App.L && !(PT.Session && PT.Session.active())) App.save({ auto: true, quiet: true });
     });
     PT.Events.on('app:prefs', (p) => App.applyPrefs(p));
     PT.Events.on('render:contextLost', () => {
@@ -64,10 +79,27 @@
   };
 
   /** debounced auto save (coalesces bursts like draft picks) */
-  App.autosaveSoon = function () {
+  App.autosaveSoon = function (ms) {
     if (autoTimer) return;
-    autoTimer = setTimeout(() => { autoTimer = 0; App.save({ auto: true }); }, 60);
+    autoTimer = setTimeout(() => { autoTimer = 0; if (!busy) App.save({ auto: true, quiet: true }); }, ms == null ? 60 : ms);
   };
+  /** run a scheduled autosave now (tab hidden / page hide / before switching leagues) */
+  App.flushSaves = function () {
+    if (autoTimer) { clearTimeout(autoTimer); autoTimer = 0; if (App.L && App.slot) App.save({ auto: true, quiet: true }); }
+    if (pendingSave) { const p = pendingSave; pendingSave = null; clearTimeout(p.timer); writeNow(p.main); }
+  };
+  /** HUNT4 #8: write after the UI had a frame to update (Next feels instant on long franchises) */
+  let pendingSave = null;
+  function writeNow(main) { if (!App.L || !App.slot) return; App.save({ auto: true }); if (main) App.save({ auto: false }); }
+  function saveDeferred(main) {
+    if (pendingSave) { pendingSave.main = pendingSave.main || main; return; }
+    pendingSave = { main: !!main, timer: setTimeout(() => { const p = pendingSave; pendingSave = null; if (p) writeNow(p.main); }, 0) };
+  }
+  /** HUNT4 #2: before another league replaces this one, save it (unless it's a borrowed temp league or a game is live) */
+  function saveOpenFranchise() {
+    App.flushSaves();
+    if (App.L && App.slot && !App.tainted && !App._stash && !(PT.Session && PT.Session.active())) App.save({ auto: true, quiet: true });
+  }
 
   function newSeed() {
     if (PT.Flags && PT.Flags.seed != null) return PT.Flags.seed;
@@ -98,6 +130,7 @@
   App.newGame = function (slot, o) {
     o = o || {};
     if (PT.Session && PT.Session.active()) PT.Session.quit({ simRest: false });
+    saveOpenFranchise();
     const seed = o.seed != null ? o.seed >>> 0 : newSeed();
     const L = PT.League.create({ seed: seed, userTid: o.userTid || 0, coach: o.coach || 'Coach', coachSp: o.coachSp,
       diff: o.diff == null ? 1 : o.diff, now: Date.now() });
@@ -105,8 +138,9 @@
     L.dv = 2;                                         // created with the 4-level difficulty (ROUND6 B)
     App.seedControls(L, false);                       // a new franchise starts with this device's control settings
     App.L = L; App.slot = slot; App.interrupted = null;
+    App._loadedAt = null;
     onLeagueReady();
-    App.save();
+    App.save({ force: true });
     App.save({ auto: true });
     emit('app:loaded', { slot: slot, isNew: true });
     if (UI().go) UI().go('hub');
@@ -118,6 +152,9 @@
    * @returns {{ok:boolean, interrupted?:Object, canBackup?:boolean, err?:string, msg?:string}}
    */
   App.load = function (slot, o) {
+    // HUNT4 #2: switching to ANOTHER slot must not drop this one's unsaved changes (re-opening the same slot = read disk,
+    // e.g. the damaged-save → backup prompt)
+    if (slot !== App.slot) saveOpenFranchise();
     const backup = !!(o && o.backup);
     // QA1: o.which picks a copy explicitly. The "backup" of a damaged newest AUTO copy is the MAIN copy; before,
     // {backup:false} re-read the newest (damaged) auto copy, so "Load the backup?" always failed in that case.
@@ -126,11 +163,16 @@
     if (!r.ok) {
       const other = which === 'auto' ? 'main' : 'auto';
       const m = PT.Save.meta().slots[slot] || {};
-      const canBackup = r.err !== 'EMPTY' && !!m[other];
-      return fail(r.err, r.err === 'EMPTY' ? r.msg : canBackup ? 'Damaged save, load backup?' : r.msg, { canBackup: canBackup, backupWhich: other });
+      // HUNT4 #7: msg is always the real reason (the UI asks the question); a too-new / unmigratable save offers no backup
+      const canBackup = r.err !== 'EMPTY' && r.err !== 'VERSION' && r.err !== 'MIGRATE' && !!m[other];
+      return fail(r.err, r.msg || (r.err === 'EMPTY' ? 'Nothing saved here.' : 'This save is damaged.'), { canBackup: canBackup, backupWhich: other });
     }
     if (PT.Session && PT.Session.active()) PT.Session.quit({ simRest: false });
     App.L = r.L; App.slot = slot;
+    // HUNT4 #5: every copy already in storage at load time counts as known (loading the older backup must not make our
+    // own next save look like a conflict with the damaged newer copy); only writes AFTER this load are "another tab"
+    const lm = PT.Save.meta().slots[slot] || {};
+    App._loadedAt = Math.max(r.at || 0, lm.main ? lm.main.at || 0 : 0, lm.auto ? lm.auto.at || 0 : 0);
     App.seedControls(App.L, true);                    // older saves without a stored control value: use the device's
     try { App.interrupted = findInterrupted(r.L, r.inGame); } catch (e) { App.interrupted = null; }
     onLeagueReady();
@@ -155,7 +197,11 @@
     let r = App.load(slot);
     if (!r.ok && r.canBackup) {
       const M = UI().Modal;
-      const yes = M && M.confirm ? await M.confirm('Damaged save. Load the backup?') : true;
+      // HUNT4 #7: say how old the backup is before rolling back to it
+      const bm = (PT.Save.meta().slots[slot] || {})[r.backupWhich];
+      const age = bm ? 'Backup: ' + bm.season + ' · ' + (bm.phase === 'REGULAR' ? 'Week ' + bm.week : String(bm.phase || '').toLowerCase().replace(/_/g, ' ')) +
+        ' · ' + (bm.w || 0) + '-' + (bm.l || 0) + (bm.t ? '-' + bm.t : '') : '';
+      const yes = M && M.confirm ? await M.confirm('Damaged save. Load the backup?', age ? { body: age } : undefined) : true;
       if (!yes) return r;
       r = App.load(slot, { which: r.backupWhich });
     }
@@ -222,11 +268,36 @@
     o = o || {};
     if (!App.L || !App.slot) return fail('NO_LEAGUE', 'Nothing to save.');
     if (App.tainted && o.auto) return fail('TAINTED', 'Autosave is off after an error.');
+    // HUNT4 #5: another tab saved this slot after we loaded it → don't silently overwrite (last writer used to win)
+    if (!o.force && App._loadedAt != null) {
+      const m = PT.Save.meta().slots[App.slot] || {};
+      const latest = Math.max(m.main ? m.main.at || 0 : 0, m.auto ? m.auto.at || 0 : 0);
+      if (latest > App._loadedAt) { if (!o.quiet) conflict(); return fail('CONFLICT', 'This franchise was played in another tab.'); }
+    }
     const inGame = o.inGame !== undefined ? o.inGame : (PT.Session && PT.Session.active() ? PT.Session.gid() : null);
     const r = PT.Save.write(App.slot, App.L, { auto: !!o.auto, inGame: inGame });
-    if (!r.ok) toast(r.msg || 'Could not save.', 'bad', 3000);
-    else if (App.tainted && !o.auto) App.tainted = false;
+    if (!r.ok) { if (!o.quiet) toast(r.msg || 'Could not save.', 'bad', 3000); }
+    else {
+      App._loadedAt = Math.max(App._loadedAt || 0, r.at || 0);
+      if (App.tainted && !o.auto) App.tainted = false;
+    }
     return r;
+  };
+
+  /** HUNT4 #5: one modal at a time: reload the other tab's newer copy, or keep this one (overwrite) */
+  function conflict() {
+    if (App._conflictOpen || !App.L || !App.slot) return;
+    const M = UI().Modal;
+    if (!M || !M.open) return;
+    App._conflictOpen = true;
+    const slot = App.slot;
+    M.open({ title: 'Played in another tab', body: 'This franchise was saved in another tab or window. Load the newest copy, or keep this one and overwrite it.',
+      buttons: [{ label: 'Load newest', value: 'reload', kind: 'primary', testid: 'btn-conflict-reload' },
+        { label: 'Keep this one', value: 'keep', testid: 'btn-conflict-keep' }] }).then((v) => {
+      App._conflictOpen = false;
+      if (v === 'reload') { App._loadedAt = null; App.L = null; App.open(slot); }
+      else if (App.L && App.slot === slot) { App._loadedAt = Date.now(); App.save({ auto: true, force: true }); }
+    }, () => { App._conflictOpen = false; });
   };
 
   /**
@@ -242,8 +313,9 @@
       App._phaseChanged = false;
       const r = PT.League.Calendar.advance(App.L);
       if (r.ok) {
-        App.save({ auto: true });
-        if (r.phaseChanged || App._phaseChanged) App.save({ auto: false });
+        // HUNT4 #7/#8: main copy also every 4 regular weeks (a fresher backup); writes run after the UI updated
+        const L = App.L, every4 = L && L.phase === 'REGULAR' && L.week % 4 === 0;
+        saveDeferred(r.phaseChanged || App._phaseChanged || every4);
       } else if (r.msg) toast(r.msg, 'bad');
       return r;
     } finally { busy = false; }
@@ -443,7 +515,7 @@
     if (!App.L) return fail('NO_LEAGUE', 'No league loaded.');
     Object.assign(App.L.settings, partial || {});
     emit('league:changed', { what: 'settings' });
-    App.save({ auto: true });
+    App.autosaveSoon(300);                            // HUNT4 #8: no full synchronous save per toggle
     return ok();
   };
   /** Change a league setting (L.settings[k]) and save. @returns {Result} */
@@ -452,7 +524,7 @@
     if (!App.L) return fail('NO_LEAGUE', 'No league loaded.');
     App.L.settings[k] = v;
     emit('league:changed', { what: 'settings' });
-    App.save({ auto: true });
+    App.autosaveSoon(300);
     return ok();
   };
   /** Vibrate (15 ms tackle, 30 ms sack/big hit, [60,40,60] TD) when supported and enabled. */

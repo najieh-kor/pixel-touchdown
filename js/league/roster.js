@@ -180,6 +180,67 @@
     return ok({ dc: out });
   };
 
+  /**
+   * HUNT4-league #1: remember the starting slot of a starter who cannot play (p.rs = {s}), so a manual Lineup gets him back.
+   * @returns {number} players marked
+   */
+  Roster.markHurtStarters = function (L, tid) {
+    const t = team(L, tid);
+    let n = 0;
+    C.SLOTS.forEach((s) => {
+      if (s === 'KR') return;
+      const pid = (t.dc[s] || [])[0];
+      const p = pid != null ? Q().player(L, pid) : null;
+      if (p && p.tid === tid && !healthy(p) && !p.rs) { p.rs = { s: s }; n++; }
+    });
+    return n;
+  };
+
+  /**
+   * Healed starters go back to their old slot when they are better there than the stand-in (HUNT4-league #1).
+   * @returns {number[]} restored pids
+   */
+  Roster.restoreHealed = function (L, tid) {
+    const t = team(L, tid);
+    const out = [];
+    Q().roster(L, tid).forEach((p) => {
+      if (!p.rs || !healthy(p)) return;
+      const s = p.rs.s;
+      delete p.rs;
+      if (!t.dc[s] || Roster.startsAt(t, p.id) || (s !== 'K' && p.pos === 'K')) return;
+      const holder = t.dc[s][0] != null ? Q().player(L, t.dc[s][0]) : null;
+      if (holder && R().slotOvr(p, s) <= R().slotOvr(holder, s)) return;
+      t.dc[s] = [p.id].concat(t.dc[s].filter((x) => x !== p.id)).slice(0, 1 + C.SUBS_PER_SLOT);
+      out.push(p.id);
+    });
+    return out;
+  };
+
+  /**
+   * Season start for a manual Lineup (HUNT4-league #1): last draft's rookies take empty slots, or slots where they are
+   * 5+ OVR better than the starter (the old starter becomes the 1st sub). @returns {{pid:number, slot:string}[]}
+   */
+  Roster.placeRookies = function (L, tid) {
+    const t = team(L, tid);
+    const placed = [];
+    const rookies = Q().roster(L, tid).filter((p) => p.dr && p.dr.s >= L.season - 1 && !(p.cs && p.cs.length) && healthy(p) && p.pos !== 'K')
+      .sort((a, b) => (b.ovr - a.ovr) || (a.id - b.id));
+    rookies.forEach((p) => {
+      if (Roster.startsAt(t, p.id)) return;
+      let best = null, gain = 4.5;
+      C.SLOTS.forEach((s) => {
+        if (s === 'KR' || s === 'K' || !R().isNatural(p, C.SLOT_POS[s])) return;
+        const h = (t.dc[s] || [])[0] != null ? Q().player(L, t.dc[s][0]) : null;
+        const g = h && healthy(h) ? R().slotOvr(p, s) - R().slotOvr(h, s) : 99;
+        if (g > gain) { gain = g; best = s; }
+      });
+      if (!best) return;
+      t.dc[best] = [p.id].concat((t.dc[best] || []).filter((x) => x !== p.id)).slice(0, 1 + C.SUBS_PER_SLOT);
+      placed.push({ pid: p.id, slot: best });
+    });
+    return placed;
+  };
+
   /** Drop ids not on the roster / on the Hurt List and remove double starts. Keeps the user's order. */
   Roster.repairDepth = function (L, tid) {
     const t = team(L, tid);

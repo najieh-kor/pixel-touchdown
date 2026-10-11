@@ -333,8 +333,14 @@
               PT.League.Spirit.addMood(L, p, 5, 'milestone');
               PT.League.Economy.addHype(L, ln.t, 1);
               if (kind === 'career') p.hp = (p.hp || 0) + 1;
-              if (ln.t === L.userTid || p.ovr >= 80 || kind === 'career') {
+              // HUNT4-league #5: headlines only for your players and the league leader in that stat; the rest merge
+              const top3 = kind === 'season' && Q().leaders(L, k, 1).some((x) => x.pid === p.id);
+              if (ln.t === L.userTid || top3) {
                 N.add(L, 'ms', N.tpl('milestone', { P: N.pname(p), N: thr.toLocaleString ? thr.toLocaleString('en-US') : thr, stat: names[k] || k }), ln.t);
+              } else {
+                const agg = L.news.find((x) => x.k === 'ms' && x.agg && x.s === L.season && x.wk === L.week);
+                if (agg) { agg.agg++; agg.txt = agg.agg + ' more players hit milestones this week'; }
+                else { const it = N.add(L, 'ms', '1 more player hit a milestone this week'); it.agg = 1; }
               }
             }
           }

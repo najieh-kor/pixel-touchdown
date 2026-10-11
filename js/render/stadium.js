@@ -639,10 +639,18 @@
     add(cones);
 
     // ---- static diorama (merged): P() = prop that casts a baked shadow, G() = ground-level piece ----
+    // remove a rebuilt mesh from the scene AND from objs (otherwise its CPU geometry arrays leak per rebuild)
+    const drop = (o) => {
+      if (!o) return;
+      scene.remove(o);
+      const i = objs.indexOf(o);
+      if (i >= 0) objs.splice(i, 1);
+      if (o.geometry && o.geometry !== V.unitBox()) o.geometry.dispose();
+    };
     function buildIsland(bd) {
-      if (island) { scene.remove(island); island.geometry.dispose(); }
-      if (islandShadow) { scene.remove(islandShadow); islandShadow.geometry.dispose(); }
-      if (fans) { scene.remove(fans.batch.mesh); fans.dispose(); fans = null; }
+      drop(island); island = null;
+      drop(islandShadow); islandShadow = null;
+      if (fans) { drop(fans.batch.mesh); fans.dispose(); fans = null; }
       const pri = bd.teamCol != null ? bd.teamCol : 0x3BB273;
       const sec = bd.sec != null ? bd.sec : (V.lum(pri) > 160 ? 0x1b1f3a : 0xffffff);
       const clim = bd.clim || 'mild', mode = MENU_ISL[bd.mode] ? bd.mode : 'title';

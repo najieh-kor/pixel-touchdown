@@ -509,10 +509,19 @@
       'big_bluff', 'fake_bake', 'boot_right', 'tall_tower', 'pistol_zone', 'te_screen', 'snack_time', 'swing_pass', 'stretch_left'],
     west: ['mesh_mash', 'snack_time', 'hitch_party', 'level_up', 'drive', 'texas', 'swing_pass', 'swing_wheel', 'hb_throwback', 'sneaky_screen',
       'snag', 'y_cross', 'inside_zone', 'boot_right', 'rub_route', 'wheel_deal', 'corner_smash', 'dagger', 'quick_slants', 'tunnel_dig'],
-    trick: ['pick_one', 'read_bash', 'spin_cycle', 'boomerang', 'statue', 'end_around', 'triple_option', 'power_read', 'surprise_draw', 'qb_draw',
+    trick: ['pick_one', 'read_bash', 'spin_cycle', 'boomerang', 'statue', 'end_around', 'triple_option', 'power_read', 'speed_option', 'surprise_draw', 'qb_draw',
       'shovel', 'rpo_bubble', 'pistol_shot', 'fake_bake', 'jet_zoom', 'swing_pass', 'sky_rain'],
     speed: ['zoom_zoom', 'stretch_left', 'jet_zoom', 'orbit_sweep', 'sweep_sweep', 'speed_option', 'bubble_pop', 'tunnel_screen', 'jailbreak',
       'rpo_glance', 'rpo_bubble', 'orbit_slant', 'quick_slants', 'bunch_flood', 'bunch_screen', 'split_zone', 'hitch_party', 'now_screen']
+  };
+
+  /**
+   * Coach level a play unlocks at for a team of offensive style `style` (HUNT4 #1): the style's signature plays come
+   * 4 levels early (min 1), so every style has its identity plays from the start. WP2 / UI should use this too.
+   */
+  PB.levelFor = function (p, style) {
+    const lv = p.lv || 1;
+    return style && p.st && p.st.indexOf(style) >= 0 ? Math.max(1, lv - 4) : lv;
   };
 
   const byId = {};

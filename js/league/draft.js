@@ -222,8 +222,19 @@
 
   /** Positions where your starter is < 70 OVR (or missing): the "Need" chip. */
   Draft.needs = function (L, tid) {
+    if (tid == null) tid = L.userTid;
     const out = {};
-    for (const pos of C.POS) if (PT.League.Contracts.starterOvr(L, tid == null ? L.userTid : tid, pos) < 70) out[pos] = true;
+    // HUNT4-league #4: a position stops being a Need once this draft added someone there (rookies are not in the Lineup yet)
+    const picked = {};
+    if (L.draft && L.draft.order) L.draft.order.forEach((o) => {
+      if (o.tid !== tid || o.pid == null) return;
+      const p = Q().player(L, o.pid);
+      if (p) picked[p.pos] = Math.max(picked[p.pos] || 0, p.ovr);
+    });
+    for (const pos of C.POS) {
+      if (picked[pos] != null) continue;
+      if (PT.League.Contracts.starterOvr(L, tid, pos) < 70) out[pos] = true;
+    }
     return out;
   };
 
@@ -275,7 +286,9 @@
     p.dr = { s: L.draft.s, rd: o.rd, pk: o.pk, t: o.tid };
     p.yr1 = L.draft.s;
     p.mor = 70;
-    PT.League.Contracts.attach(L, pid, o.tid, { sal: rs.sal, exp: L.season + rs.yrs, sgn: L.season, rk: true, gtd: C.CAP.CUT_PCT });
+    // HUNT4 #4: rookie deals from round 3 on are not guaranteed until Week 1 (cutting them costs no dead money);
+    // Calendar.startSeason restores the normal guarantee
+    PT.League.Contracts.attach(L, pid, o.tid, { sal: rs.sal, exp: L.season + rs.yrs, sgn: L.season, rk: true, gtd: o.rd >= 3 ? 0 : C.CAP.CUT_PCT });
     o.pid = pid;
     L.sub++;
     if (o.pk === 1) {

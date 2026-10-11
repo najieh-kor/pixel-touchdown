@@ -44,7 +44,8 @@
   /** HUNT #20: at most 3 stats on a top-performer line (no run yards for a QB, no catch yards for a RB) */
   function perfLine(l, pos) {
     const drop = pos === 'QB' ? /run yds/ : pos === 'RB' ? /catch yds/ : null;
-    return K().statLine(l, pos).split(' · ').filter((x) => !drop || !drop.test(x)).slice(0, 3).join(' · ');
+    const max = (globalThis.innerWidth || 1000) < 700 ? 2 : 3;          // 667px wide: 2 stats fit on one line
+    return K().statLine(l, pos).split(' · ').filter((x) => !drop || !drop.test(x)).slice(0, max).join(' · ');
   }
 
   /** the full box score / scoring list as a closable overlay (kept off the main Final screen). ROUND6: tabs, no scrolling */

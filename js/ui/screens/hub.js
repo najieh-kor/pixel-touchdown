@@ -58,6 +58,7 @@
           <h2 class="big">Welcome, ${L.coach && L.coach.n ? L.coach.n : 'Coach'}</h2>
           <p class="small">Boss of the <b>${t.name}</b>: win games, keep fans happy.</p>
           <p class="small">${K().ic('dice')} <b>${tw.name}</b>${goal ? html` · Goal: <b>${goal.txt}</b>` : ''}</p>
+          ${L.newSeasonCard && L.newSeasonCard.tv ? html`<p class="small ns-x">${K().icon('coin')} ${K().numify('TV money +' + D().int(L.newSeasonCard.tv) + ' Coins')}</p>` : ''}
         </div>
       </div>
       <div class="welcome-btns">
@@ -136,7 +137,17 @@
   function scoutRow(L, g) {
     if (!UI.Game || !UI.Game.scout) return '';
     const sc = UI.Game.scout(L, g);
-    return html`<div class="nx-scout" data-testid="hub-scout"><span class="nx-tags">${sc.tags}</span><p>${sc.them}</p><p class="${sc.usCls}">${K().ic('shield')} ${sc.us}</p></div>`;
+    // HUNT4 #8: the opponent's Star split (so you can set your Stars for the matchup)
+    const opp = L.teams[g.h === L.userTid ? g.a : g.h];
+    const ps = K().teamStars(opp).map((pid) => PT.League.Q.player(L, pid)).filter(Boolean);
+    const off = ps.filter((p) => K().starSide(p.pos) === 'off'), def = ps.filter((p) => K().starSide(p.pos) === 'def');
+    const heavy = off.length >= def.length ? off : def;
+    const cnt = {}; heavy.forEach((p) => { cnt[p.pos] = (cnt[p.pos] || 0) + 1; });
+    const posTxt = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a]).slice(0, 3).map((k) => (cnt[k] > 1 ? cnt[k] + ' ' : '') + k).join(', ');
+    const starTxt = ps.length ? 'Their Stars: ' + off.length + ' O · ' + def.length + ' D' + (posTxt ? ' (' + posTxt + ')' : '') : '';
+    const skew = ps.length && Math.abs(off.length - def.length) >= 4;
+    return html`<div class="nx-scout" data-testid="hub-scout"><span class="nx-tags">${sc.tags}${starTxt && !skew ? html`<span class="chip chip-gold">${K().ic('star')} ${off.length} O · ${def.length} D</span>` : ''}</span><p>${sc.them}</p>${skew
+      ? html`<p class="nx-stars" data-testid="hub-opp-stars">${K().ic('star')} ${starTxt}</p>` : html`<p class="${sc.usCls}">${K().ic('shield')} ${sc.us}</p>`}</div>`;
   }
 
   function twistCard(L) {
@@ -220,6 +231,10 @@
     const hurtStarters = PT.League.Q.roster(L, t.id).filter((p) => p.inj && !p.ir && K().startSlot(t, p.id)).length;
     if (lineupErr) out.push({ to: 'depth', icon: 'warn', txt: 'Lineup: fix needed', id: 'lineup' });
     else if (hurtStarters) out.push({ to: 'depth', icon: 'cross', txt: 'Lineup: ' + hurtStarters + ' hurt starter' + (hurtStarters > 1 ? 's' : ''), id: 'lineup' });
+    else if (!(L.settings && L.settings.autoLineup)) {
+      const b = benchGain(L, t);
+      if (b) out.push({ to: 'depth', icon: 'clipboard', txt: 'Lineup: ' + b + ' better player' + (b > 1 ? 's' : '') + ' on the bench', id: 'lineup' });
+    }
     if (L.phase === 'REGULAR' && L.week === 10) out.push({ to: 'swaps', icon: 'swap', txt: 'Swap deadline this week', id: 'swaps' });
     // HUNT2 #5: Keep Players / Draft Day are the NEXT bar's job; the Market item only while the Market is open
     if (L.phase === 'FREE_AGENCY') out.push({ to: 'market', icon: 'contract', txt: 'Market is open', id: 'market' });
@@ -233,6 +248,26 @@
     try { const st = PT.League.Calendar.status(L); nextK = st && st.blockers && st.blockers[0] ? st.blockers[0].k : ''; } catch (e) { nextK = ''; }
     const dup = { EVENT: 'events', ROSTER: 'lineup' }[nextK];
     return out.filter((x) => x.id !== dup && x.to !== UI.Flow.screenFor()).slice(0, 3);
+  }
+  /**
+   * HUNT4-league #1: how many bench players Auto Lineup would start, when that raises team OVR by 1+ (0 otherwise).
+   * Runs Auto Lineup on the real team and puts the old lineup back (nothing is saved or emitted).
+   */
+  function benchGain(L, t) {
+    const R = PT.League.Roster, Q = PT.League.Q;
+    if (!R || !R.autoDepth || !Q.teamOvr) return 0;
+    const before = JSON.stringify(t.dc);
+    let gain = 0, n = 0;
+    try {
+      const o0 = Q.teamOvr(L, t.id).ovr;
+      const slots = PT.C.OFF_SLOTS.concat(PT.C.DEF_SLOTS, ['K']);
+      const st0 = slots.map((sl) => (t.dc[sl] || [])[0]);
+      R.autoDepth(L, t.id, { silent: true });
+      gain = Q.teamOvr(L, t.id).ovr - o0;
+      n = slots.map((sl) => (t.dc[sl] || [])[0]).filter((pid) => pid != null && st0.indexOf(pid) < 0).length;
+    } catch (e) { gain = 0; }
+    t.dc = JSON.parse(before);
+    return gain >= 1 ? Math.max(1, n) : 0;
   }
   /** HUNT2 #5: the Shop item shows once per newly affordable upgrade set (seen when you open the Shop) */
   function shopSig(t) {
@@ -308,7 +343,7 @@
       },
       'welcome-ok': () => { D().memo.welcome = null; dismissSeason(); UI.refresh(); },
       'season-ok': () => { dismissSeason(); UI.refresh(); },
-      practice: () => { D().memo.welcome = null; UI.go('practice', { from: 'hub' }); },
+      practice: () => { D().memo.welcome = null; dismissSeason(); UI.go('practice', { from: 'hub' }); },   // HUNT4 #11
       'sim-game': (el) => { if (UI.Game) UI.Game.sim(+el.getAttribute('data-gid')); }
     }
   };

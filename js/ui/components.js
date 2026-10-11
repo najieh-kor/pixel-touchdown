@@ -339,9 +339,9 @@
       const pass = best('py'), run = best('ry'), rec = best('rcy'), tk = best('tk');
       const nm = (pid) => K.short(PT.League.Q.player(L, pid));
       if (pass) out.push(html`<li>${K.ic('football')} ${nm(pass.pid)}: ${pass.l.pc || 0}/${pass.l.pa || 0}, ${pass.l.py} yds${pass.l.ptd ? ', ' + pass.l.ptd + ' TD' : ''}</li>`);
-      if (run) out.push(html`<li>${K.ic('boot')} ${nm(run.pid)}: ${run.l.ra || 0} runs, ${run.l.ry} yds${run.l.rtd ? ', ' + run.l.rtd + ' TD' : ''}</li>`);
-      if (rec) out.push(html`<li>${K.ic('glove')} ${nm(rec.pid)}: ${rec.l.rc || 0} catches, ${rec.l.rcy} yds${rec.l.rctd ? ', ' + rec.l.rctd + ' TD' : ''}</li>`);
-      if (tk) out.push(html`<li>${K.ic('bolt')} ${nm(tk.pid)}: ${tk.l.tk} tackles${tk.l.dsk ? ', ' + D().plural(tk.l.dsk, 'sack') : ''}</li>`);
+      if (run) out.push(html`<li>${K.ic('boot')} ${nm(run.pid)}: ${D().plural(run.l.ra || 0, 'run')}, ${run.l.ry} yds${run.l.rtd ? ', ' + run.l.rtd + ' TD' : ''}</li>`);
+      if (rec) out.push(html`<li>${K.ic('glove')} ${nm(rec.pid)}: ${(rec.l.rc || 0) + ((rec.l.rc || 0) === 1 ? ' catch' : ' catches')}, ${rec.l.rcy} yds${rec.l.rctd ? ', ' + rec.l.rctd + ' TD' : ''}</li>`);
+      if (tk) out.push(html`<li>${K.ic('bolt')} ${nm(tk.pid)}: ${D().plural(tk.l.tk, 'tackle')}${tk.l.dsk ? ', ' + D().plural(tk.l.dsk, 'sack') : ''}</li>`);
       const t = L.teams[tid];
       if (opts.leadMax && out.length > opts.leadMax) out.length = opts.leadMax;   // HUNT #10: short screens
       return html`<div class="box-lead card-in"><h4>${K.badge(t, 's')} ${t.name}</h4><ul>${out.length ? out : html`<li class="muted">Quiet day.</li>`}</ul></div>`;

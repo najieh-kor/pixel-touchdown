@@ -1876,3 +1876,48 @@ button.trophy.badge-t { border: 0; font: inherit; text-align: left; cursor: poin
   .lay.history .shelf-pg.nc-side .pg-b { min-height: 40px; height: 40px; }
   .lay.history .shelf-pg.nc-side .pg-n { font-size: 13px; line-height: 1; }
 }
+/* HUNT4 #2: Leaders on short screens — a 3-row card fits ~170px (32px rows, name + pos/team on one line) */
+@media (orientation: landscape) and (max-height: 480px) {
+  #screen .ldr-pg .ldr-card { padding: 4px 8px 6px; margin-bottom: 6px; }
+  #screen .ldr-pg .card-h { min-height: 22px; margin-bottom: 4px; }
+  #screen .ldr-pg .card-h h2 { font-size: 16px; }
+  #screen .ldr-pg .ldr-list { gap: 3px; }
+  #screen .ldr-pg .ldr-row, #screen .ldr-pg .ldr-row.first { min-height: 32px; padding: 1px 6px 1px 2px; gap: 6px; }
+  #screen .ldr-pg .ldr-row .portrait { width: 26px; height: 26px; }
+  #screen .ldr-pg .ldr-n { flex-direction: row; align-items: baseline; gap: 6px; }
+  #screen .ldr-pg .ldr-n .small { font-size: 12px; }
+  #screen .ldr-pg .ldr-v { font-size: 17px; }
+}
+/* HUNT4 #4: the two welcome buttons fit a 330px card */
+@media (orientation: landscape) and (max-height: 480px) { #screen .welcome-btns .btn-l { font-size: 16px; padding-left: 8px; padding-right: 8px; } }
+@media (max-width: 700px) { #screen .welcome-btns .btn .px-ic { display: none; } }
+/* HUNT4 #6: the slot meta may take 2 lines (never cut) */
+#screen .slot-line { white-space: normal; line-height: 1.15; }
+/* HUNT4 #10: 12px minimum for small labels (UI_RULES 7) */
+.star-tag { font-size: 12px; height: 20px; padding: 0 5px 0 3px; }
+.star-tag svg, .star-tag .ic, .star-tag .px-ic { width: 13px; height: 13px; }
+.fd-done-t .star-tag { font-size: 12px; }
+.sc-row .q { font-size: 12px; }
+.coach-card .lvl-badge .small, .lvl-badge .small { font-size: 12px; }
+.nc-bye, .nc-bye .chip { font-size: 12px; }
+#hud .hud-surge-title { font-size: 12px; }
+/* HUNT4 #13: team identity on the New Game cards */
+.tteam-sty { display: block; font-size: 12px; line-height: 1.15; color: var(--ink-2); white-space: normal; }
+/* New Game team cards grow for the style line (the strength chip already says what the stars say on short screens) */
+#screen[data-screen="newgame"] .tteamx { height: auto; min-height: 74px; }
+@media (orientation: landscape) and (max-height: 480px) {
+  #screen[data-screen="newgame"] .tteamx { min-height: 62px; }
+  #screen[data-screen="newgame"] .tteamx .stars { display: none; }
+  #screen[data-screen="newgame"] .tteamx .tteam-n { font-size: 16px; line-height: 1.1; }
+}
+#screen[data-screen="newgame"] .tteamx .tteam-c { display: none; }   /* the city shows on the Coach step; the style line is more useful here */
+@media (orientation: landscape) and (max-height: 480px) {
+  #screen[data-screen="stats"] .ldr-pg .pg-list.pg-grid { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 6px 8px; }
+  #screen .ldr-pg .ldr-n .small { display: none; }
+}
+@media (orientation: landscape) and (max-height: 480px) {
+  #screen .ldr-pg .ldr-nm { font-size: 14px; }
+  #screen .ldr-pg .ldr-row .portrait { width: 24px; height: 24px; }
+  #screen .ldr-pg .ldr-v { font-size: 16px; }
+  #screen .ldr-pg .ldr-rank { width: 14px; font-size: 15px; }
+}

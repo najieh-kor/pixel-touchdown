@@ -1,6 +1,7 @@
 /* Pixel Touchdown: js/data/events.js
  * Owner: WP2. Responsibility: PT.Data.WeeklyEvents: between-week event defs (text, choices, effects).
  *
+ * HUNT4: coin costs scale with the bank (WeeklyEvents.coinsFx); coin-for-mood choices also give +1 skills next game.
  * Def: { id, n (design #), tag 'C'|'U'|'R' (weight 3/2/1), po (playoff-safe), off (offseason-only "O"), cd (cooldown seasons),
  *        when: { minWk?, maxWk?, need?: predicate name in js/league/weekly-events.js }, pick?: who {P} is,
  *        title, text, choices: [ { label, fx: [Effect], res, odds? } ] }
@@ -26,7 +27,7 @@
 
   D.list = [
     E({ id: 'fish_fry', n: 1, tag: 'C', title: 'Fish Fry', text: '{P} wants to host a fish fry for the team.',
-      choices: [{ label: 'Pay up', fx: [c(-30), mor('team', 4)], res: 'Full plates all around.' },
+      choices: [{ label: 'Pay up', fx: [c(-30), mor('team', 4), { k: 'nx', who: 'team', key: 'all', n: 1 }], res: 'Full plates all around.' },
         { label: 'Not now', fx: [mor('p', -3)], res: '{P} is bummed.' }] }),
     E({ id: 'mud_pit', n: 2, tag: 'C', when: { need: 'rainLast' }, title: 'Mud Pit', text: 'The practice field is a mud pit.',
       choices: [{ label: 'Practice anyway', fx: [spirit(3), { k: 'inj', who: 'rand', tier: 2, p: 0.10 }], res: 'Muddy, but tougher.' },
@@ -47,7 +48,7 @@
         { label: 'Take the slow bus', fx: [{ k: 'nx', who: 'team', key: 'all', n: -2 }], res: 'A long, bumpy ride.' }] }),
     E({ id: 'snack_thief', n: 8, tag: 'C', title: 'Snack Thief', text: 'Someone keeps eating the team snacks. It was {P}.',
       choices: [{ label: 'He says sorry', fx: [mor('team', 2), mor('p', -2)], res: '{P} said sorry. Hugs all around.' },
-        { label: 'Buy more snacks', fx: [c(-20), mor('team', 1)], res: 'Snacks for everyone.' }] }),
+        { label: 'Buy more snacks', fx: [c(-20), mor('team', 1), { k: 'nx', who: 'team', key: 'all', n: 1 }], res: 'Snacks for everyone.' }] }),
     E({ id: 'weight_sale', n: 9, tag: 'U', title: 'Weight Sale', text: 'Half-price weights at the store.',
       choices: [{ label: 'Buy weights', fx: [c(-100), { k: 'rat', who: 'rand', cnt: 3, key: 'pow', n: 1 }], res: 'Three players gained Power.' },
         { label: 'Skip', fx: [], res: 'No new weights.' }] }),
@@ -97,7 +98,7 @@
       choices: [{ label: 'Order pizza', fx: [c(-40), spirit(5)], res: 'Pizza time!' },
         { label: 'Skip', fx: [mor('team', -1)], res: 'No pizza. Sad faces.' }] }),
     E({ id: 'bad_haircut', n: 25, tag: 'C', title: 'Bad Haircut', text: '{P} got a silly haircut. Everyone laughed.',
-      choices: [{ label: 'Buy a cool hat', fx: [c(-20), mor('p', 3)], res: 'Nice hat.' },
+      choices: [{ label: 'Buy a cool hat', fx: [c(-20), mor('p', 3), { k: 'nx', who: 'p', key: 'all', n: 2 }], res: 'Nice hat.' },
         { label: 'It’ll grow back', fx: [mor('p', -2)], res: '{P} hides under a towel.' }] }),
     E({ id: 'leaky_roof', n: 26, tag: 'U', title: 'Leaky Roof', text: 'The stadium roof leaks.',
       choices: [{ label: 'Fix it', fx: [c(-80)], res: 'All fixed. Nice and dry.' },
@@ -130,7 +131,7 @@
       choices: [{ label: 'Send players', fx: [hype(3), boss(1)], res: 'The kids loved it.' },
         { label: 'Too busy', fx: [], res: 'Not this time.' }] }),
     E({ id: 'bounce_house', n: 36, tag: 'U', when: { need: 'bouncy' }, title: 'Bounce House', text: '{P} wants a bounce house in the locker room.',
-      choices: [{ label: 'Pay up', fx: [c(-35), mor('team', 4), { k: 'inj', who: 'rand', tier: 2, p: 0.05 }], res: 'Boing, boing.' },
+      choices: [{ label: 'Pay up', fx: [c(-35), mor('team', 4), { k: 'nx', who: 'team', key: 'all', n: 1 }, { k: 'inj', who: 'rand', tier: 2, p: 0.05 }], res: 'Boing, boing.' },
         { label: 'No', fx: [mor('p', -2)], res: '{P} is sad. No bouncing.' }] }),
     E({ id: 'water_pipe', n: 37, tag: 'U', title: 'Water Pipe', text: 'A water pipe burst. No practice field.',
       choices: [{ label: 'Rent a field', fx: [c(-50)], res: 'Practice is on.' },
@@ -145,9 +146,9 @@
       choices: [{ label: 'Take the bonus', fx: [c(100)], res: 'Cha-ching!' }] }),
     E({ id: 'losing_streak', n: 41, tag: 'C', when: { need: 'lost3' }, title: 'Losing Streak', text: 'The team is feeling down.',
       choices: [{ label: 'Pep talk', fx: [{ k: 'pep' }], res: 'The team feels a bit better.' },
-        { label: 'Team dinner', fx: [c(-60), mor('team', 6)], res: 'Full tummies, happy hearts.' }] }),
+        { label: 'Team dinner', fx: [c(-60), mor('team', 6), { k: 'nx', who: 'team', key: 'all', n: 1 }], res: 'Full tummies, happy hearts.' }] }),
     E({ id: 'ice_cream_truck', n: 42, tag: 'C', po: true, title: 'Ice Cream Truck', text: 'The ice cream truck is here.',
-      choices: [{ label: 'Treat everyone', fx: [c(-15), mor('team', 2)], res: 'Sprinkles for all.' },
+      choices: [{ label: 'Treat everyone', fx: [c(-15), mor('team', 2), { k: 'nx', who: 'team', key: 'all', n: 1 }], res: 'Sprinkles for all.' },
         { label: 'Skip', fx: [], res: 'Maybe tomorrow.' }] }),
     E({ id: 'superfan_statue', n: 43, tag: 'R', when: { need: 'hype60' }, title: 'Superfan Statue', text: 'A superfan built a giant statue of your logo.',
       choices: [{ label: 'Show it off', fx: [c(-30), hype(7)], res: 'Fans line up for photos.' },
