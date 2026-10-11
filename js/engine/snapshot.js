@@ -24,7 +24,7 @@
       meters: { u: { off: 0, def: 0 }, ai: { off: 0, def: 0 } }, ability: null,
       fx: [], fxSeq: 0,
       hud: { q: 1, half: 1, clk: 0, pc: 0, down: 1, togo: 10, ballOn: 'OWN 25', hs: 0, as: 0, poss: 0, tos: [3, 3], wx: 'sunny', mph: 0,
-        hurry: false, flip: false, ot: false, goal: false, two: false, onside: false, edge: 0, fgPct: 0, retHint: '' },
+        hurry: false, flip: false, ot: false, goal: false, two: false, onside: false, onsidePct: 0, edge: 0, fgPct: 0, retHint: '' },
       dbg: G.debug ? { routes: [], zones: [], targets: [] } : null
     };
     for (let i = 0; i < 14; i++) {
@@ -170,6 +170,7 @@
     h.pc = 0;   // no play clock: the user always snaps (client pass 5)
     h.hurry = G.userIdx >= 0 ? G.hurry[G.userIdx] : false; h.flip = G.flipNext; h.ot = G.q > 4;
     h.goal = sit.goal; h.two = G.tryTwo; h.onside = G.canOnside; h.fgPct = sit.fgPct;
+    h.onsidePct = G.canOnside ? PT.Engine.Kicking.onsidePct(G) : 0;   // HUNT3 #5: shown on the Onside button
     // returner hint for the UI: 'fc' = tap for a fair catch, 'tb' = tap to take a knee (touchback), '' = none
     const P = G.P;
     h.retHint = '';

@@ -101,10 +101,14 @@
       // QA1: a Hurt List player sent away frees no active spot (he never counted); arriving players come off the list
       const n = Q().roster(L, tid).filter((p) => !p.ir && out.indexOf(p.id) < 0).length + inn.length;
       if (n > max) errs.push(who + ' would have too many players.');
-      const c = {};
-      for (const p of Q().roster(L, tid)) if (!p.ir && out.indexOf(p.id) < 0) c[p.pos] = (c[p.pos] || 0) + 1;
+      const c = {}, b0 = {};
+      for (const p of Q().roster(L, tid)) if (!p.ir) { b0[p.pos] = (b0[p.pos] || 0) + 1; if (out.indexOf(p.id) < 0) c[p.pos] = (c[p.pos] || 0) + 1; }
       for (const pid of inn) { const p = Q().player(L, pid); if (p) c[p.pos] = (c[p.pos] || 0) + 1; }
-      for (const pos of C.POS) if ((c[pos] || 0) < C.ROSTER.NEED[pos]) { errs.push(who + ' would not have enough ' + pos + 's.'); break; }
+      // HUNT3-league #4: only a swap that makes a shortage worse is refused; the offseason skips minimums (Week 1 checks them)
+      const offseason = ['SEASON_END', 'RESIGN', 'DRAFT', 'FREE_AGENCY'].indexOf(L.phase) >= 0;
+      if (!offseason) for (const pos of C.POS) {
+        if ((c[pos] || 0) < C.ROSTER.NEED[pos] && (c[pos] || 0) < (b0[pos] || 0)) { errs.push(who + ' would not have enough ' + pos + 's.'); break; }
+      }
     };
     check(a, give.pids, get.pids, a === L.userTid ? 'You' : 'They');
     check(b, get.pids, give.pids, b === L.userTid ? 'You' : 'They');

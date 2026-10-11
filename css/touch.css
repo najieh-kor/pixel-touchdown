@@ -12,7 +12,7 @@
   overflow: hidden;
 }
 #touch[data-mode="presnap"], #touch[data-mode="qb"], #touch[data-mode="carrier"],
-#touch[data-mode="defense"], #touch[data-mode="kick"] { pointer-events: auto; }
+#touch[data-mode="defense"], #touch[data-mode="kick"], #touch[data-mode="return"] { pointer-events: auto; }
 #touch[data-mode="qb"], #touch[data-mode="kick"] { cursor: crosshair; }
 #touch[data-mode="carrier"] { cursor: pointer; }
 
@@ -89,7 +89,7 @@ html.pt-coarse #touch[data-mode="return"] .pt-joy { opacity: 0.32; }
 
 @media (prefers-reduced-motion: reduce) { .pt-joy { transition: none; } }
 
-/* ---- Session overlay: Easy Throw badges (over receivers) + onside kick ---- */
+/* ---- Session overlay: Easy Throw badges (over receivers) ---- */
 .pt-ov { position: absolute; inset: 0; pointer-events: none; }
 .pt-badge {
   position: absolute; left: 0; top: 0; display: none;
@@ -100,14 +100,6 @@ html.pt-coarse #touch[data-mode="return"] .pt-joy { opacity: 0.32; }
 }
 .pt-badge-1 { background: #ffd23f; } .pt-badge-2 { background: #5ec8f2; } .pt-badge-3 { background: #ff7eb6; } .pt-badge-4 { background: #78cf4a; }
 .pt-badge:active { transform: translateY(4px); box-shadow: inset 0 3px 0 0 rgba(255,255,255,0.55), var(--frame, 0 0 0 3px #1b1f3a), 0 3px 0 0 var(--ink, #1b1f3a); }
-.pt-onside {
-  position: absolute; display: none; left: 50%; bottom: calc(110px + env(safe-area-inset-bottom)); transform: translateX(-50%);
-  min-height: 56px; padding: 0 24px 4px; border: 0;
-  box-shadow: inset 0 3px 0 0 rgba(255,255,255,0.45), inset 0 -6px 0 0 rgba(0,0,0,0.18), var(--frame, 0 0 0 3px #1b1f3a), 0 8px 0 0 var(--ink, #1b1f3a);
-  background: var(--orange, #ff9f1c); color: var(--ink, #1b1f3a); letter-spacing: 0.06em; text-transform: uppercase;
-  font: 400 26px var(--font-d, system-ui, sans-serif); pointer-events: auto; touch-action: none; cursor: pointer;
-}
-.pt-onside:active { transform: translate(-50%, 4px); }
 #touch[data-mode="menu"] .pt-ov { display: none; }
 
 /* ---- landscape only: "turn your phone" overlay (touch devices held upright) ---- */

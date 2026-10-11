@@ -954,7 +954,8 @@
     info: function (name) {
       const s = get(name);
       return s ? { bpm: s.bpm, bars: s.bars, secs: s.len * s.stepDur, loopAt: s.loop == null ? null : s.loop * s.stepDur,
-        chain: s.chain, chans: Object.keys(s.chans), secs_: s.secs.map((x) => x.key + ':' + x.bars) } : null;
+        chain: s.chain, chans: Object.keys(s.chans), secs_: s.secs.map((x) => x.key + ':' + x.bars),
+        intro: s.secs.length ? s.secs[0].bars * 16 * s.stepDur : 0 } : null;
     },
     /**
      * Offline render for tests/dev. o: {from (step), intensity, solo (channel), gain, raw (skip master chain), sr}

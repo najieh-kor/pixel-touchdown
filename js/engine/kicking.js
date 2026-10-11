@@ -105,6 +105,14 @@
     }
   };
 
+  /** Onside-kick success chance (%) for the kicking team's kicker. */
+  K.onsidePct = function (G) {
+    const T = G.T, P = G.P, kt = P && (P.kind === 'kickoff' || P.kind === 'onside') ? P.off : G.kickTeam;
+    const ki = G.ents[kt * 7].info, kck = ki ? K.kck(G, ki) : 70;
+    const p = T.ONSIDE_BASE + (kck - 70) * T.ONSIDE_K + (kt === G.userIdx && G.diff === 0 ? T.ONSIDE_ROOKIE : 0);
+    return Math.round(PT.Util.clamp(p, 0.02, 0.6) * 100);
+  };
+
   /** Begin a punt (phase KICK). */
   K.startPunt = function (G) {
     const F = PT.Engine.Formation, P = G.P, R = PT.Engine.Entity.R, o = G.poss;
@@ -144,8 +152,10 @@
       if (P.stage === 'setup') {
         const setT = fast ? T.FAST.KICKOFF_SETUP_T : T.KICKOFF_SETUP_T;
         F.jogStep(G, Math.min(1, P.st / (setT * 0.7)));
-        if (G.onsideReq) { P.onside = true; G.onsideReq = false; }
-        if (P.st >= setT) { P.stage = 'approach'; P.st = 0; G.canOnside = false; }
+        if (G.onsideReq) { P.onside = true; G.onsideReq = false; G.deepReq = true; }
+        // HUNT3 #5: when the user may onside, hold the setup until he picks (kickDeep() / onside()), max ONSIDE_WAIT s
+        const hold = G.canOnside && !G.deepReq && !fast && P.st < T.ONSIDE_WAIT;
+        if (P.st >= setT && !hold) { P.stage = 'approach'; P.st = 0; G.canOnside = false; G.deepReq = false; }
         return;
       }
       if (P.stage === 'approach') {
@@ -156,8 +166,7 @@
           const ki = kick.info;
           const kck = K.kck(G, ki);
           if (P.onside) {
-            let p = T.ONSIDE_BASE + (kck - 70) * T.ONSIDE_K + (kt === G.userIdx && G.diff === 0 ? T.ONSIDE_ROOKIE : 0);
-            P.onsideOk = rng.chance(PT.Util.clamp(p, 0.02, 0.6));
+            P.onsideOk = rng.chance(K.onsidePct(G) / 100);
             P.kind = 'onside';
             launch(G, 'onside', MID, G.ballSpotY, MID + rng.range(-6, 6), G.ballSpotY + 11 * dirK, 0.1, 1.0, 1.5);
             G.em.emit('kickoff', { tid: G.tids[kt], onside: true });
@@ -166,7 +175,7 @@
             let dist = T.KO_DIST + kck * T.KO_KCK + rng.normal(0, T.KO_SD) + K.windMph(G) * ((w.wy || 0) / wl) * dirK * 0.15;
             const landY = G.ballSpotY + dist * dirK;
             const landYard = T.KO_LINE + dist;
-            P.koTB = landYard >= 110 || (landYard >= 100 && rng.chance(T.KO_TB));
+            P.koTB = landYard >= 100;          // HUNT3 #7: a kick caught in the end zone is a touchback (the 35 beats a return)
             const lx = PT.Util.clamp(MID + rng.normal(0, 7), 6, C.FIELD.W - 6);
             const ly = PT.Util.clamp(landY, 1, 119);
             launch(G, 'ko', MID, G.ballSpotY, lx, ly, 1.3, T.KO_HANG * Math.sqrt(Math.max(30, dist) / 65), 20);
@@ -325,7 +334,14 @@
     if (isPunt) {
       let near = 99;
       for (let k = 0; k < 7; k++) { const c = G.ents[kt * 7 + k]; near = Math.min(near, Math.hypot(c.x - ret.x, c.y - ret.y)); }
-      const fc = userRet ? P.retCall === 'fc' : (near < 5.5 || (ret.y - og) * dirR < 8);
+      // HUNT3 #8: an AI returner doesn't catch inside his own 8 — he lets it bounce (touchback or downed at the spot)
+      if (!userRet && (ret.y - og) * dirR < 8) {
+        b.st = 'dead'; ret.ball = false; P.retY0 = null;
+        if (rng.chance(0.6)) { PT.Engine.Snapshot.fx(G, 'text', b.x, b.y, 2, 1, G.tids[rt], 'TOUCHBACK'); P.ret = -1; return G.whistle('touchback', rt, og, false); }
+        P.retEndY = og + 2 * dirR;
+        return G.whistle('down', rt, PT.Util.clamp(og + Math.max(2, (b.y - og) * dirR) * dirR, 10.5, 109.5), false);
+      }
+      const fc = userRet ? P.retCall === 'fc' : (near < 5.5 && (ret.y - og) * dirR < 25);
       if (fc) {
         P.fairCatch = true; b.st = 'dead';
         PT.Engine.Snapshot.fx(G, 'text', ret.x, ret.y, 2, 1, G.tids[rt], 'FAIR CATCH');

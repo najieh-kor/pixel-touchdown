@@ -51,12 +51,14 @@
 
   /** ROUND6: the newest items as one flat paged list (week tag on each row) */
   const NEWS_MAX = 40;
+  // HUNT3 #9: offseason items are tagged by phase (they used to all say 'Pixel Bowl')
+  const PH_TAG = { SEASON_END: 'Recap', RESIGN: 'Keep', DRAFT: 'Draft', FREE_AGENCY: 'Market' };
   function newsFeed(L, top) {
     const all = (L.news || []).slice(0, NEWS_MAX);
     if (!all.length) return K().card(K().empty('news', 'No news yet.'));
     const wkName = (wk) => (wk > PT.C.REG_WEEKS ? PT.C.PLAYOFF_NAMES[wk - PT.C.REG_WEEKS] || 'Playoffs' : wk ? 'Wk ' + wk : 'Pre');
     const rows = all.map((n) => html`<div class="nw-row ${n.tid === L.userTid ? 'me' : ''}"><span class="news-ic">${K().ic(NEWS_IC[n.k] || 'news')}</span>
-      <span class="nw-t">${n.txt}</span><span class="nw-wk small">${wkName(n.wk)}</span>${n.tid != null && L.teams[n.tid] ? K().badge(L.teams[n.tid], 's') : ''}</div>`);
+      <span class="nw-t">${n.txt}</span><span class="nw-wk small">${PH_TAG[n.ph] || wkName(n.wk)}</span>${n.tid != null && L.teams[n.tid] ? K().badge(L.teams[n.tid], 's') : ''}</div>`);
     return K().pg('news', rows, { grid: true, cls: 'nw-pg' });
   }
 

@@ -74,7 +74,7 @@
     const F = FK();
     const hero = champ ? html`<section class="fl-card fl-hero champ" style="${K().teamVars(champ)}">
         <p class="fl-hero-k">${K().ic('carrot')} Pixel Bowl ${S.s}</p>
-        <div class="fl-hero-row">${K().badge(champ, 'l')}<div class="fl-hero-m"><b class="fl-hero-n">${won ? 'Champions!' : champ.name}</b><span class="fl-line">${won ? 'You won it all.' : 'won the Pixel Bowl'}</span></div></div>
+        <div class="fl-hero-row">${K().badge(champ, 'l')}<div class="fl-hero-m"><b class="fl-hero-n">${won ? 'Champions!' : champ.name}</b><span class="fl-line">${won ? 'You won it all.' : html`${FK().tag(html`${K().ic('trophy')}Champion`, 'gold')}`}</span></div></div>
         ${ru ? html`<p class="fl-line">Runner-up: <b>${ru.name}</b></p>` : ''}
         <div class="fl-mini"><span class="fl-line fl-myrec">${K().badge(me, 's')}<b class="fl-nf">${me.name}</b> <b class="num">${D().rec(ur.w || 0, ur.l || 0, ur.t || 0)}</b></span></div>
       </section>` : html`<section class="fl-card fl-hero"><p class="fl-hero-k">${K().ic('trophy')} Awards Night</p></section>`;
@@ -210,8 +210,8 @@
     if (!host || D().memo[mk]) return;
     D().memo[mk] = true;
     const c = aw.champ;
-    K().confetti(host, aw.won ? 120 : 60, c ? [D().hex(c.col.pri), D().hex(c.col.sec), '#ffd23f', '#ff9f1c'] : null);
-    if (!c) return;
+    if (!aw.won || !c) return;            // a rival's title is shown in the Pixel Bowl card, not celebrated over your screen
+    K().confetti(host, 120, [D().hex(c.col.pri), D().hex(c.col.sec), '#ffd23f', '#ff9f1c']);
     const b = globalThis.document.createElement('div');
     b.className = 'fl-cele';
     b.setAttribute('aria-hidden', 'true');
@@ -276,6 +276,7 @@
     if (!parts.length) return '';
     return html`<p class="fi-why" data-testid="fired-why">${K().ic('warn')} ${parts.map((x, i) => (i ? html` · ${x}` : x))}</p>`;
   }
+  function jobSpace(lg, tid) { try { return PT.League.Cap.space(lg, tid); } catch (e) { return 0; } }
   function mountFired(el) {
     const lg = L();
     if (!lg) { UI.replace('title'); return; }
@@ -285,11 +286,12 @@
     const body = html`<section class="card card-cream fi-card">
         <div class="fi-face" aria-hidden="true">${K().sp('bear', 76)}<span>${K().ic('drop')}</span></div>
         <div class="grow"><h2 class="hero-t">The Boss wants a new coach.</h2>
-        ${firedWhy(lg)}<p>Take a new job or retire.</p></div>
+        ${firedWhy(lg)}<p class="fi-sub">Take a new job or retire.</p></div>
       </section>
       <h2 class="sec-title on-grass">Job Offers</h2>
       <div class="grid3">${list.map((o) => { const t = lg.teams[o.tid]; return html`<section class="card fi-job" style="${K().teamVars(t)}">
-        <div class="row">${K().badge(t, 'l')}<div class="grow"><b class="big ellip">${t.name}</b><div>${K().stars(K().teamOvr(t.id), { team: true })}</div></div></div>
+        <div class="row">${K().badge(t, 'l')}<div class="grow"><b class="big ellip">${t.name}</b><div>${K().stars(K().teamOvr(t.id), { team: true })}</div>
+          <div class="fi-bank" title="Team bank: Coins · Team Cash"><span>${K().ic('coin')}<b class="num">${D().coins(t.fin.coins)}</b></span><span>${K().ic('cash')}<b class="num">${D().money(jobSpace(lg, t.id))}</b></span></div></div></div>
         ${K().btn({ label: 'Take Job', icon: 'contract', action: 'take', data: { tid: t.id }, kind: 'go', size: 'm', testid: 'btn-job-' + t.id, cls: 'btn-wide', disabled: !canTake })}
       </section>`; })}</div>
       ${!canTake ? html`<p class="center small fi-note">No jobs open yet. You can retire.</p>` : ''}`;
@@ -304,7 +306,7 @@
         let r = null;
         try { r = PT.League.Boss.takeJob(lg, tid); } catch (e) { r = { ok: false, msg: 'Could not take the job.' }; }
         if (r && r.ok === false) { UI.Toast.show(r.msg || 'Could not take the job.', 'bad'); return; }
-        UI.Toast.show('You now coach the ' + lg.teams[tid].name, 'good', 3000);
+        UI.Toast.show('You now coach the ' + lg.teams[tid].name + ' · team bank ' + D().coins(lg.teams[tid].fin.coins) + ' Coins', 'good', 3500);
         if (PT.Events) PT.Events.emit('league:changed', { what: 'job' });
         UI.theme();
         if (PT.App.applyTheme) PT.App.applyTheme();

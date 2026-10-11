@@ -740,7 +740,7 @@
   R.cue = function (kind, o) {
     o = o || {};
     if (!G) return;
-    if (kind === 'slowmo') { G.slow = o.dur || 1.2; G.camera.cue('slowmo', o.dur || 1.2); }
+    if (kind === 'slowmo') { if (o.user === false) return; G.slow = o.dur || 1.2; G.camera.cue('slowmo', o.dur || 1.2); }
     else if (kind === 'shake') G.camera.shake(o.amt || 0.2);
     else if (kind === 'cheer') G.stadium.cheer(o.amt || 0.6);
   };
@@ -749,7 +749,11 @@
   function busHooks() {
     if (!PT.Events || !PT.Events.on || busHooks.done) return;
     busHooks.done = true;
-    PT.Events.on('game:bigPlay', (p) => { if (G) { G.camera.cue('slowmo', (p && p.dur) || 1.2); } });
+    // slow-mo camera framing on big plays; when the engine says the play isn't the user's (p.user === false) skip it.
+    // Feature-detected: events without a `user` field keep the old behaviour.
+    const userPlay = (p) => !(p && p.user === false);
+    PT.Events.on('game:bigPlay', (p) => { if (G && userPlay(p)) { G.camera.cue('slowmo', (p && p.dur) || 1.2); } });
+    PT.Events.on('game:hitstop', (p) => { if (G && userPlay(p)) { G.camera.cue('slowmo', (p && p.dur) || 0.3); } });
     PT.Events.on('game:tackle', (p) => { if (G && p) G.camera.shake(p.big ? 0.2 : 0.08); });
     PT.Events.on('game:firstDown', () => { if (G) G.stadium.cheer(0.4); });
     PT.Events.on('game:turnover', () => { if (G) G.stadium.cheer(0.8); });

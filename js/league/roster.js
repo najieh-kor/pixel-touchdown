@@ -579,7 +579,8 @@
       if (have[pos] < need) {
         const n = need - have[pos];
         errors.push({ code: 'TOO_FEW_' + pos, pos: pos, n: n,
-          msg: n === 1 ? 'Need ' + (AN[pos] ? 'an ' : 'a ') + posLabel(pos, false) + '.' : 'Need ' + n + ' more ' + posLabel(pos, true) + '.' });
+          msg: n === 1 && have[pos] >= 1 ? 'Need a backup ' + posLabel(pos, false) + ' (' + need + ' healthy).'     // HUNT3-league #5
+            : n === 1 ? 'Need ' + (AN[pos] ? 'an ' : 'a ') + posLabel(pos, false) + '.' : 'Need ' + n + ' more ' + posLabel(pos, true) + '.' });
       }
     });
     if (!errors.length && hp.length < C.ROSTER.MIN_PLAY) {
@@ -640,15 +641,26 @@
   }
 
   /** Cut players until the active roster fits max (default limit). @returns {number[]} cut pids */
-  Roster.cutToMax = function (L, tid, max) {
+  /**
+   * Cut players until the active roster fits max (default limit).
+   * o.protectNew: players signed this season (con.sgn === L.season) are cut only when nobody else can go (HUNT3 #2);
+   * o.news: a news line for every cut ('<Team> release <name>').
+   * @returns {number[]} cut pids
+   */
+  Roster.cutToMax = function (L, tid, max, o) {
+    o = o || {};
     max = max || Roster.limit(L);
     const cut = [];
     let guard = 40;
+    const fresh = {};
+    if (o.protectNew) Q().roster(L, tid).forEach((p) => { if (p.con && p.con.sgn === L.season) fresh[p.id] = true; });
     while (Q().active(L, tid).length > max && guard-- > 0) {
-      const p = Roster.nextCut(L, tid);
+      const p = (o.protectNew && Roster.nextCut(L, tid, fresh)) || Roster.nextCut(L, tid);
       if (!p) break;
+      const name = p.fn.charAt(0) + '. ' + p.ln;
       Roster.release(L, p.id);
       cut.push(p.id);
+      if (o.news && PT.League.News && PT.League.News.add) PT.League.News.add(L, 'cut', 'The ' + L.teams[tid].name + ' release ' + name, tid);
     }
     return cut;
   };
@@ -657,20 +669,29 @@
    * Plan for "Fix it for me" (design 2.2) without changing anything:
    * signings for every missing position minimum (o.useFA: the best free agent at the position, else a walk-on), then cuts
    * if the roster would go over the limit. text = one line for the confirm dialog ('Sign: QB walk-on (50) · Cut: …').
-   * @returns {{sign:string[], signs:{pos, pid, name, ovr, walkOn}[], cut:{pid, cost, perYear, years, name, pos, ovr}[], text:string}}
+   * Order (HUNT3): Hurt List moves for players out ≥ 4 weeks, then cuts, then signings (users pay the ask within cap room).
+   * @returns {{ir:{pid,name,pos,w}[], sign:string[], signs:{pos, pid, name, ovr, walkOn, ask}[], cut:{pid, cost, perYear, years, name, pos, ovr}[], text:string}}
    */
   Roster.fixPlan = function (L, tid, o) {
     o = o || {};
+    const t = team(L, tid);
+    const max = o.max || Roster.limit(L);
+    // 1. Hurt List first (HUNT3-league #3): players out ≥ 4 weeks free a spot for nothing
+    const longHurt = Q().active(L, tid).filter((p) => p.inj && p.inj.w >= C.ROSTER.IR_MIN_WEEKS && !p.ph)
+      .sort((x, y) => (y.inj.w - x.inj.w) || (x.id - y.id));
     const v = Roster.validate(L, tid, o);
     const sign = [];
     v.errors.forEach((e) => {
       if (e.pos) for (let i = 0; i < e.n; i++) sign.push(e.pos);
       else if (e.code === 'TOO_FEW_PLAYERS') for (let i = 0; i < e.n; i++) sign.push(lowestDepthPos(L, tid));
     });
-    const max = o.max || Roster.limit(L);
-    let over = Q().active(L, tid).length + sign.length - max;
+    const active = Q().active(L, tid).length;
+    const needIR = Math.max(0, active + sign.length - max);
+    const ir = (needIR > 0 ? longHurt : []).map((p) => ({ pid: p.id, name: p.fn.charAt(0) + '. ' + p.ln, pos: p.pos, w: p.inj.w }));
+    let over = active - ir.length + sign.length - max;
     const cut = [];
     const ex = {};
+    ir.forEach((x) => { ex[x.pid] = true; });
     while (over > 0) {
       const p = Roster.nextCut(L, tid, ex);
       if (!p) break;
@@ -679,21 +700,49 @@
       cut.push({ pid: p.id, cost: c.total, perYear: c.perYear, years: c.years, name: p.fn.charAt(0) + '. ' + p.ln, pos: p.pos, ovr: p.ovr });
       over--;
     }
-    // who would be signed: the best free agent at the position (useFA), else a walk-on (OVR 45–55)
+    // 2. who would be signed: the best free agent whose ask fits the Team Cash left (user), else a walk-on (HUNT3 #1)
     const taken = {};
+    let room = PT.League.Cap.space(L, tid) + cut.reduce((s2, c) => s2 + (Q().player(L, c.pid).con ? Q().player(L, c.pid).con.sal - c.perYear : 0), 0);
     const signs = sign.map((pos) => {
-      const fa = o.useFA ? bestFA(L, pos, taken) : null;
-      if (fa) { taken[fa.id] = true; return { pos: pos, pid: fa.id, name: fa.fn.charAt(0) + '. ' + fa.ln, ovr: fa.ovr, walkOn: false }; }
-      return { pos: pos, pid: null, name: 'Walk-on', ovr: 50, walkOn: true };
+      const pick = o.useFA ? bestFAFor(L, tid, pos, taken, room) : null;
+      if (pick) {
+        taken[pick.p.id] = true;
+        room -= pick.ask ? pick.ask.sal : 0;
+        return { pos: pos, pid: pick.p.id, name: pick.p.fn.charAt(0) + '. ' + pick.p.ln, ovr: pick.p.ovr, walkOn: false, ask: pick.ask };
+      }
+      return { pos: pos, pid: null, name: 'Walk-on', ovr: 50, walkOn: true, ask: null };
     });
     const txt = [];
-    if (signs.length) txt.push('Sign: ' + signs.map((x) => x.pos + (x.walkOn ? ' walk-on' : ' ' + x.name) + ' (' + x.ovr + ')').join(', '));
+    if (ir.length) txt.push('Hurt List: ' + ir.map((x) => x.name + ' (' + x.w + ' wk)').join(', '));
+    if (signs.length) txt.push('Sign: ' + signs.map((x) => x.pos + (x.walkOn ? ' walk-on' : ' ' + x.name) + ' (' + x.ovr + ')' +
+      (x.ask ? ' ' + PT.Util.fmtMoney(x.ask.sal) + ' ×' + x.ask.yrs : '')).join(', '));
     if (cut.length) txt.push('Cut: ' + cut.map((x) => x.name + ' ' + x.pos + ' ' + x.ovr + (x.cost ? ', dead ' + PT.Util.fmtMoney(x.perYear) + (x.years > 1 ? ' ×' + x.years : '') : '')).join(', '));
-    return { sign: sign, cut: cut, signs: signs, text: txt.join(' · ') };
+    return { ir: ir, sign: sign, cut: cut, signs: signs, text: txt.join(' · '), human: t.human };
   };
   function bestFA(L, pos, taken) {
     return Q().freeAgents(L).filter((p) => p.pos === pos && healthy(p) && !(taken && taken[p.id]))
       .sort((a, b) => (b.ovr - a.ovr) || (a.id - b.id))[0] || null;
+  }
+  /**
+   * Best free agent a team can really sign (HUNT3-league #1): users pay his ask (years inside his range) and it must fit
+   * the Team Cash left; AI teams get players under 60 OVR at minimum pay, better ones at their ask if it fits.
+   * @returns {{p:Player, ask:(null|{sal:number, yrs:number})}|null}
+   */
+  function bestFAFor(L, tid, pos, taken, room) {
+    const t = L.teams[tid];
+    const Ct = PT.League.Contracts;
+    const list = Q().freeAgents(L).filter((p) => p.pos === pos && healthy(p) && !(taken && taken[p.id]))
+      .sort((a, b) => (b.ovr - a.ovr) || (a.id - b.id));
+    for (const p of list) {
+      if (!t.human && p.ovr < 60) return { p: p, ask: null };
+      const a = Ct && typeof Ct.ask === 'function' ? Ct.ask(L, p.id, tid) : null;
+      if (!a) return { p: p, ask: null };
+      if (a.willing === false) continue;
+      const lo = a.lo != null ? a.lo : 1, hi = a.hi != null ? a.hi : Math.max(1, a.yrs);
+      const ask = { sal: a.sal, yrs: Math.max(lo, Math.min(hi, a.yrs || 1)) };
+      if (ask.sal <= room) return { p: p, ask: ask };
+    }
+    return null;
   }
   function lowestDepthPos(L, tid) {
     const cnt = posCounts(L, tid);
@@ -720,22 +769,25 @@
   Roster.fixIt = function (L, tid, o) {
     o = o || {};
     const plan = Roster.fixPlan(L, tid, o);
-    const cut = [], signed = [];
+    const cut = [], signed = [], ir = [];
+    plan.ir.forEach((x) => { if (Roster.setIR(L, x.pid, true).ok) ir.push(x.pid); });
     plan.cut.forEach((c) => { if (Roster.release(L, c.pid).ok) cut.push(c.pid); });
     plan.signs.forEach((x) => {
-      const pos = x.pos;
       let r = null;
-      if (o.useFA) {
-        const fa = x.pid != null ? Q().player(L, x.pid) : bestFA(L, pos);
+      if (o.useFA && x.pid != null) {
+        const fa = Q().player(L, x.pid);
         if (fa && fa.tid === C.TID.FA) {
-          const con = { sal: PT.League.PlayerGen.minPay(PT.League.Cap.cap(L)), exp: Roster.capSeason(L), sgn: L.season, rk: false, gtd: C.CAP.CUT_PCT };
+          const s0 = Roster.capSeason(L);
+          const con = x.ask
+            ? { sal: x.ask.sal, exp: s0 + x.ask.yrs - 1, sgn: L.season, rk: false, gtd: C.CAP.CUT_PCT }
+            : { sal: PT.League.PlayerGen.minPay(PT.League.Cap.cap(L)), exp: s0, sgn: L.season, rk: false, gtd: C.CAP.CUT_PCT };
           r = Roster.sign(L, fa.id, tid, con);
         }
       }
-      if (!r || !r.ok) r = Roster.walkOn(L, tid, pos);
+      if (!r || !r.ok) r = Roster.walkOn(L, tid, x.pos);
       if (r.ok) signed.push(r.pid);
     });
-    return { ok: Roster.validate(L, tid, o).ok, signed: signed, cut: cut, text: plan.text };
+    return { ok: Roster.validate(L, tid, o).ok, signed: signed, cut: cut, ir: ir, text: plan.text };
   };
 
   /** Cut lowest value-per-pay players until under the Team Cash limit. @returns {number[]} cut pids */

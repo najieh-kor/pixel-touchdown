@@ -185,7 +185,7 @@
         else { R.repairDepth(L, t.id); R.autoDepth(L, t.id, { onlyEmpty: true, silent: true }); }
         return;
       }
-      R.cutToMax(L, t.id, C.ROSTER.MAX_SEASON);
+      R.cutToMax(L, t.id, C.ROSTER.MAX_SEASON, { protectNew: true, news: true });   // HUNT3 #2: keep this year's signings
       if (!R.validate(L, t.id, { max: C.ROSTER.MAX_SEASON }).ok) R.fixIt(L, t.id, { useFA: true, max: C.ROSTER.MAX_SEASON });
       if (LG().Cap.space(L, t.id) < 0) R.fixCap(L, t.id);
       R.autoDepth(L, t.id, { silent: true });

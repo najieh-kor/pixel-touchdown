@@ -31,6 +31,8 @@
   S.trophy = (h, t, o) => seq(h, t, [[79, 0, 0.6], [83, 0.12, 0.6], [86, 0.24, 0.6], [91, 0.36, 1.1]], o,
     (tt, f, d) => { h.tone(tt, { type: 'triangle', f: f, dur: d, vol: V(o, 0.18) }); h.tone(tt, { type: 'sine', f: f * 2.01, dur: d * 0.5, vol: V(o, 0.05) }); });
   S.draftPick = (h, t, o) => { S.bell(h, t, o); seq(h, t + 0.25, [[67, 0, 0.12], [72, 0.12, 0.12], [76, 0.24, 0.4]], o, (tt, f, d) => brass(h, tt, f, d, V(o, 0.12))); };
+  /** soft positive blip ('good' toasts): two quick rising sine notes */
+  S.blip = (h, t, o) => { h.tone(t, { type: 'sine', f: 784 * P(o), dur: 0.07, vol: V(o, 0.1) }); h.tone(t + 0.06, { type: 'sine', f: 1175 * P(o), dur: 0.14, vol: V(o, 0.09) }); };
   S.signed = (h, t, o) => { h.noise(t, { type: 'bandpass', f: 3000, q: 2, dur: 0.05, vol: V(o, 0.2) }); S.coin(h, t + 0.06, o); };
 
   // ---------------- whistles / refs ----------------
@@ -147,6 +149,13 @@
     h.tone(hit, { type: 'sine', f: 110, f1: 45, dur: 0.35, vol: V(o, 0.6) });
     h.noise(hit, { type: 'highpass', f: 4500, a: 0.005, dur: 1.3, vol: V(o, 0.2) });
     [67, 71, 74, 79].forEach((n) => brass(h, hit, NOTE(n), 0.75, V(o, 0.06)));
+  };
+  /** opponent touchdown (HUNT3 #2): two low brass notes falling, a soft low thud */
+  S.theyScore = (h, t, o) => {
+    brass(h, t, NOTE(55), 0.22, V(o, 0.08)); brass(h, t, NOTE(50), 0.22, V(o, 0.05));
+    h.tone(t + 0.26, { type: 'sawtooth', f: NOTE(51), f1: NOTE(46), gt: 0.5, a: 0.03, hold: 0.35, rel: 0.25, vol: V(o, 0.08), filt: { f: 900 } });
+    h.tone(t + 0.26, { type: 'sawtooth', f: NOTE(46), f1: NOTE(41), gt: 0.5, a: 0.03, hold: 0.35, rel: 0.25, vol: V(o, 0.05), filt: { f: 700 } });
+    h.tone(t + 0.26, { type: 'sine', f: 70, f1: 45, dur: 0.4, vol: V(o, 0.3) });
   };
   S.fanfare = (h, t, o) => {
     seq(h, t, [[67, 0, 0.14], [72, 0.15, 0.14], [76, 0.3, 0.14], [79, 0.45, 0.32], [76, 0.8, 0.14], [79, 0.95, 0.9]], o, (tt, f, d) => brass(h, tt, f, d, V(o, 0.1)));

@@ -82,8 +82,8 @@
       hist: [[], []], histP: [[], []], dhist: [[], []], typeCount: [{}, {}], offPlays: [0, 0], teamPlays: [0, 0],
       hurry: [false, false], aiHurry: [false, false], flipNext: false, autoDef: !!(cfg.settings && cfg.settings.autoDef),
       ctl: -1, apTick: -9, kickReq: false, kickAimSaved: 0, kickPowSaved: 0, selO: null, selD: null, fourthDone: false, kickWait: null, tryTwo: false, patChosen: false, waitSnap: false,
-      canOnside: false, onsideReq: false, rescue: false, untimed: false, untimedNext: false, close: false, playNo: 0, driveStart: 0,
-      ot: { poss: [0, 0] }, star: { idx: -1, ring: 'none', t: 0, win: 0.4, left: 0, superJump: false, whiffD: false },
+      canOnside: false, onsideReq: false, deepReq: false, rescue: false, untimed: false, untimedNext: false, close: false, playNo: 0, driveStart: 0,
+      ot: { poss: [0, 0], had: [false, false], done: [false, false] }, star: { idx: -1, ring: 'none', t: 0, win: 0.4, left: 0, superJump: false, whiffD: false },
       dec: { act: 'none', tx: 0, ty: 0, lob: false, mx: 0, my: 0, tgt: -1 }, tmpFl: { t: 0, apex: 0, d: 0 },
       sitCache: { tos: [0, 0] }, res: { k: '', team: 0, y: 0, oob: false, good: false }, apAct: blankAction(), lastAct: blankAction(),
       ustats: { jukes: 0, spins: 0, brokenTackles: 0, starPlays: 0, starWhiffs: 0, longTD: 0, sacks: 0, ints: 0, bigPlays: 0 },
@@ -173,8 +173,9 @@
       if (!G.tryTwo) {
         // victory formation
         const oppTo = G.tos[1 - G.poss];
-        if (lead > 0 && G.q >= 4 && left <= 40 * (5 - G.down) - 34 * oppTo && left > 0) { G.selO = PT.Data.Playbook.byId('kneel'); }
-        else if (G.q === 2 && left <= RU.warnT(G) / 2 && s.toGoal > 65 && lead >= 0) G.selO = PT.Data.Playbook.byId('kneel');
+        // never kneel inside the own 3 (a safety) — HUNT3 #4
+        if (lead > 0 && G.q >= 4 && left <= 40 * (5 - G.down) - 34 * oppTo && left > 0 && s.toGoal < 97) { G.selO = PT.Data.Playbook.byId('kneel'); }
+        else if (G.q === 2 && left <= RU.warnT(G) / 2 && s.toGoal > 65 && s.toGoal < 97 && lead >= 0) G.selO = PT.Data.Playbook.byId('kneel');
         else if (G.down < 4 && RU.lateFG(G)) return startFG('fg', null);   // end-of-half FG on an early down
         else if (G.down === 4) {
           const d = RU.ai4th(G);
@@ -458,6 +459,7 @@
       const qb = G.ents[G.poss * 7];
       P.qb = qb.id;
       E.Ball.give(G, qb.id);
+      if (G.q > 4) G.ot.had[G.poss] = true;            // an OT possession counts from its first scrimmage snap (HUNT3 #1)
       E.AIQB.setup(G, qb);
       E.Stars.snap(G);
       P.t = 0; G.phase = 'LIVE'; G.pt = 0; G.waitSnap = false;
@@ -687,7 +689,8 @@
           const c = G.ents[b.car], dx = c.x - e.x, dy = c.y - e.y, dd = Math.hypot(dx, dy);
           // playtest: also a chance while the Star is closing in on the carrier (Super Dive reach covers the gap)
           const closing = dd > 0.01 ? ((e.vx - c.vx) * dx + (e.vy - c.vy) * dy) / dd : 0;
-          chance = dd <= T.STAR_NEAR || (dd <= T.STAR_CHASE && closing >= T.STAR_CLOSE_V && e.eng < 0);
+          // HUNT3 #3: no ring in the first STAR_MIN_T s, and only for an unblocked Star (a DL at the snap used to Super-Dive the QB)
+          chance = P.t >= T.STAR_MIN_T && e.eng < 0 && (dd <= T.STAR_NEAR || (dd <= T.STAR_CHASE && closing >= T.STAR_CLOSE_V));
         }
         else if (b.st === 'air' && b.kind === 'pass') chance = Math.hypot(b.lx - e.x, b.ly - e.y) <= T.STAR_AIR;
         if (chance && e.downT <= 0) {
@@ -728,7 +731,7 @@
       // the HUD shows GO while the defense is still jogging in: a GO tapped then is kept, not dropped (practice QA)
       // (also HIKE for the user's offense: an AI audible's re-lineup used to swallow it — stars.js "audibleO,turbo")
       if (G.poss === userIdx && a.ability && E.Stars.canUse(G, userIdx)) E.Stars.activate(G, userIdx, false, true);   // STAR works during the jog too
-      if (G.pt < lt) { if (a.snap && userIdx >= 0) P.goReq = true; F.jogStep(G, G.pt / lt); return; }
+      if (G.pt < lt && !P.jogDone) { if (a.snap && userIdx >= 0) P.goReq = true; F.jogStep(G, G.pt / lt); return; }
       if (!P.jogDone) { F.jogStep(G, 1); P.jogDone = true; G.waitSnap = userIdx >= 0; G.pt = lt; }
       const uo = G.poss === userIdx, ud = userIdx >= 0 && !uo;
       if (ud && a.starPick != null) setStar(a.starPick);
@@ -762,7 +765,15 @@
         if (b.st === 'held') return E.Contact.downAt(G, b.car, G.ents[b.car].y, false, true);
         return whistle('inc', P.off, P.los0, false);
       }
-      if (P.kind === 'kneel') { E.Physics.stop(G.ents[P.qb]); if (P.t >= 0.7) { P.rusher = P.qb; E.Contact.downAt(G, P.qb, G.los - G.dir, false, true); } return; }
+      if (P.kind === 'kneel') {
+        E.Physics.stop(G.ents[P.qb]);
+        if (P.t >= 0.7) {
+          P.rusher = P.qb;
+          const og = RU.ownGoalY(G, G.poss), ky = (G.los - G.dir - og) * G.dir < 0.6 ? og + 0.6 * G.dir : G.los - G.dir;   // never in the end zone
+          E.Contact.downAt(G, P.qb, ky, false, true);
+        }
+        return;
+      }
       if (P.kind === 'spike') { if (P.t >= 0.5) { b.st = 'dead'; whistle('inc', P.off, P.los0, false); } return; }
       userControl(a, dt);
       if (G.phase !== 'LIVE') return;
@@ -826,7 +837,7 @@
         if (userIdx >= 0 && Math.abs(P.edge) >= T.EDGE_TXT) {
           const uo = G.poss === userIdx;
           const txt = P.edge > 0 ? (uo ? 'They read it!' : 'Great call!') : (uo ? 'Fooled \'em!' : 'Uh oh, wrong call!');
-          em.emit('edge', { edge: P.edge, txt: txt });
+          em.emit('edge', { edge: P.edge, txt: txt, good: uo ? P.edge < 0 : P.edge > 0 });   // HUNT3 #2 (audio: bell vs buzzer)
           E.Snapshot.fx(G, 'text', MID, G.los + 6 * G.dir, 3, 1, -1, txt);
         }
       }
@@ -970,6 +981,8 @@
       autoKick: function () { if (G.kickWait && !(G.drill && G.drill.manualKick)) { startFG(G.kickWait, null); return true; } return false; },
       /** Request an onside kick (user kicking team, during kickoff setup). */
       onside: function () { if (G.phase === 'KICK' && G.P.kind === 'kickoff' && G.P.stage === 'setup' && G.canOnside) { G.onsideReq = true; return true; } return false; },
+      /** Kick it deep (the user's choice while the onside option is held, HUNT3 #5). */
+      kickDeep: function () { if (G.phase === 'KICK' && G.P.kind === 'kickoff' && G.P.stage === 'setup' && G.canOnside) { G.deepReq = true; return true; } return false; },
       timeout: function (tid) {
         const ti = tid === G.tids[0] ? 0 : tid === G.tids[1] ? 1 : -1;
         if (ti < 0 || G.tos[ti] <= 0 || G.over) return false;

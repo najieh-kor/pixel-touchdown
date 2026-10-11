@@ -39,7 +39,7 @@
     if (doc && doc.querySelector) {
       const tb = doc.querySelector('.hud-top');
       if (tb && tb.offsetParent !== null) { const r = tb.getBoundingClientRect(); if (r.height > 0 && r.bottom < h * 0.4) top = r.bottom + 4; }
-      const els = doc.querySelectorAll('.hud-tray-open .pc-tray, .hud-ctl-big, .hud-hint');
+      const els = doc.querySelectorAll('.hud-tray-open .pc-tray, .hud-ctl-big, .hud-ctl-cluster, .hud-ctl-row, .hud-hint');
       for (let i = 0; i < els.length; i++) {
         const r = els[i].getBoundingClientRect();
         if (r.height > 0 && r.width > 0 && r.top > h * 0.3) bottom = Math.min(bottom, r.top - 6);
@@ -61,7 +61,7 @@
     let dist = 60, wantDist = 60, yaw = 0, wantYaw = 0, orbit = 0;
     let shakeA = 0, shakeT = 0, slowT = 0, celebT = 0, aimK = 0, first = true;
     let lastMode = '', fitDist = 0, timeNow = 0, curPitch = null;
-    const qbBand = { top: 0, bottom: 0 };
+    const qbBand = { top: 0, bottom: 0 }, kickBand = { top: 0, bottom: 0 };
 
     function preset() { return Cm.P; }
 
@@ -197,11 +197,19 @@
             ty = 60 - f0.tz;
             fitDist = f0.dist;
           } else if (pre) {
-            tx = MIDX; width = p.pre;
-            {
-              const span = Math.abs(s.kick.y - by);
-              ty = by + (s.kick.y - by) * 0.45; width = Math.max(p.pre, (span + 14) / ratio);
-            }
+            // FG / XP aim: frame the holder + kicker AND the posts, inside the HUD-free band with the holder at
+            // least 60 px above the bottom controls (AUTO button), pulling back for long kicks
+            const ky = s.kick.y;
+            const hb = s.los - 7 * dir;                       // holder spot ~7 yd behind the LOS; kicker ~2 yd further
+            nPts = 0;
+            put(bx - 3.5 - MIDX, Math.min(hb, by) - 2.5 * dir, 0); put(bx + 3.5 - MIDX, Math.min(hb, by) - 2.5 * dir, 0);
+            put(bx - MIDX, by, 1.8);
+            put(-3.6, ky, 0); put(3.6, ky, 0); put(-3.6, ky, 8.6); put(3.6, ky, 8.6);
+            const bd = readBand(timeNow, w, h);
+            kickBand.top = bd.top; kickBand.bottom = Math.min(bd.bottom - 60, h * 0.86);
+            if (kickBand.bottom < kickBand.top + h * 0.3) kickBand.bottom = kickBand.top + h * 0.3;
+            const f0 = fit(0, 60 - (by + ky) / 2, wantYaw, p, kickBand, Math.abs(ky - by) + 6, udir, pitch);
+            tx = MIDX; ty = 60 - f0.tz; fitDist = f0.dist;
           } else if (mode === 'kick') {
             // kickoffs / punts / FGs: follow the ball, pulled back, aim at the landing spot when known
             const lx = b && b.tx != null ? b.tx : bx, ly = b && b.ty != null ? b.ty : by;

@@ -533,7 +533,27 @@ button.fl-seg-btn .fl-sv { color: #fff; }
   .fl-c.c-hs { display: none; }
   .fl-t-swap { --cols: 26px minmax(0, 1fr) 30px 76px; }
   .fl-t-swap .c-age { display: none; }
+  .fl-stars-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; padding: 6px; }
+  .fl-star { padding: 3px 4px; gap: 5px; }
+  .fl-star .portrait { width: 34px !important; height: 34px !important; }
+  .fl-star .fl-l2 > b { font-size: 14px; }
+  .fl-hide-n { display: none; }
 }
+.fl-star .fl-l2 { min-width: 0; }
+.fl-star .fl-l2 > b { overflow-wrap: break-word; min-width: 0; }
+@media (orientation: landscape) and (max-height: 480px) {
+  .lay.fired .fi-sub { display: none; }
+  .lay.fired .fi-card { padding: 4px 12px; margin-bottom: 10px; }
+  .lay.fired .fi-face > .sp-img { width: 40px; height: 40px; }
+  .lay.fired .fi-face span { top: 8px; }
+  .lay.fired .fi-job { padding: 6px 10px 4px; }
+  .lay.fired .fi-job .row { margin-bottom: 4px; }
+  .lay.fired .fi-job .btn { min-height: 40px; font-size: 20px; }
+}
+.fi-bank { margin-top: 3px; display: flex; align-items: center; gap: 10px; white-space: nowrap; }
+.fi-bank span { display: inline-flex; align-items: center; gap: 3px; }
+.fi-bank .px-ic { width: 15px; height: 15px; }
+.fi-bank .num { font-size: 16px; }
 @media (orientation: landscape) and (max-height: 400px) { .fl-f-sch { display: none !important; } }
 /* touch screens: small controls get a bigger invisible hit area (layout unchanged) */
 @media (pointer: coarse) {

@@ -26,6 +26,7 @@
   const st = { mx: 0, my: 0, shift: false, ffHeld: false, kick: kickOut };
   const PREVENT = { Space: 1, ArrowUp: 1, ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1, Tab: 1, Enter: 1 };
   let attached = false;
+  const MOVE_KEYS = { KeyJ: 'juke', KeyK: 'spin', KeyR: 'spin', KeyL: 'dive', KeyE: 'dive' };
   const KICK_SWEEP_MS = 2000;            // one 0→100% power sweep (was 1.2 s; client: kick timing too tight)
 
   function K() { return Input._k; }
@@ -54,6 +55,11 @@
     }
     held[code] = true;
     if (code === 'KeyO' && k.mode === 'off' && PT.Session && PT.Session.active && PT.Session.active()) { k.edge('onside'); return; }
+    // ball in the air (mode off during a live game): juke / spin / dive presses are buffered by the Session for the catch
+    if (k.mode === 'off' && !e.repeat && PT.Session && PT.Session.active && PT.Session.active()) {
+      const mv = MOVE_KEYS[code];
+      if (mv) { k.edge(mv); return; }
+    }
     if (!k.inGame()) return;
     k.device('kbd');
     if (PREVENT[code]) e.preventDefault();
@@ -77,6 +83,7 @@
         if (/^Digit[1-4]$/.test(code) || /^Numpad[1-4]$/.test(code)) { if (!rep) k.pass = +code.slice(-1); }
         else if (code === 'KeyQ') edge('throwAway');
         else if (code === 'Space') edge('snap');
+        else if (MOVE_KEYS[code]) edge(MOVE_KEYS[code]);     // buffered by the Session, applied on the catch
         break;
       case 'carrier':
         if (code === 'KeyJ' || code === 'Space' || code === 'KeyQ') edge('juke');

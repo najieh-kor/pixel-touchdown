@@ -113,8 +113,12 @@
     const plaques = [];
     const AW = (PT.Data.Text && PT.Data.Text.awards) || {};
     const AWN = { MVP: 'Top Dog', OPOY: 'Best Offense', DPOY: 'Best Defense', ROY: 'Best Newbie', COY: 'Coach of the Year', ALL: 'Pixel Pro Team' };
-    PT.League.Q.roster(L, u).forEach((p) => (p.aw || []).forEach((a) => plaques.push({ n: K().short(p), a: a })));
-    (L.hist.legends || []).filter((x) => (x.tids || []).includes(u)).forEach((x) => (x.aw || []).forEach((a) => plaques.push({ n: x.fn[0] + '. ' + x.ln, a: a })));
+    // HUNT3 #3: a plaque belongs to the team the award was won with (a.t), wherever the player is now
+    const seen = {};
+    // (old saves have no a.t: fall back to the team the player is with now)
+    const add = (id, n, a, now) => { const k = id + ':' + a.s + ':' + a.a; if ((a.t != null ? a.t : now) !== u || seen[k]) return; seen[k] = 1; plaques.push({ n: n, a: a }); };
+    (L.players || []).forEach((p) => (p.aw || []).forEach((a) => add(p.id, K().short(p), a, p.tid)));
+    (L.hist.legends || []).forEach((x) => (x.aw || []).forEach((a) => add(x.id, x.fn[0] + '. ' + x.ln, a, (x.tids || [])[(x.tids || []).length - 1])));
     plaques.sort((x, y) => (y.a.s || 0) - (x.a.s || 0));
     // HUNT2 #17: one grid — trophies and plaques first, then badges (unlocked, then locked); no Shelf/Badges toggle
     const al = achList(L), defs = (PT.Data.Achievements && PT.Data.Achievements.list) || [];
@@ -122,12 +126,13 @@
     const badgeTiles = al.filter((a) => a.got).concat(al.filter((a) => !a.got)).map((a) => {
       const def = defs.find((d) => d.id === a.id) || {};
       const ic = a.got ? ((a.icon && UI.Icons.has(a.icon) ? a.icon : UI.Icons.fromEmoji(a.icon || a.emo || '')) || 'trophy') : 'lock';
-      return html`<div class="trophy badge-t ${a.got ? 'got' : 'locked'}" data-testid="ach-${a.id}" title="${a.desc || def.desc || ''}"><span class="tr-ic">${K().ic(ic)}</span><span class="tr-tx"><b>${a.name}</b><span class="small">${a.desc || def.desc || ''}</span></span></div>`;
+      const d = a.desc || def.desc || '';
+      return html`<button type="button" class="trophy badge-t ${a.got ? 'got' : 'locked'}" data-action="badge" data-why="${a.name + (d ? ': ' + d : '') + (a.got ? '' : ' (locked)')}" data-testid="ach-${a.id}" title="${d}"><span class="tr-ic">${K().ic(ic)}</span><span class="tr-tx"><b>${a.name}</b><span class="small">${d}</span></span></button>`;
     });
     const items = shelf.concat(plaques.slice(0, 24).map((x) => html`<div class="trophy plaque"><span class="tr-ic">${K().ic('medal')}</span><span class="tr-tx"><b>${AWN[x.a.a] || AW[x.a.a] || x.a.a}</b><span class="small">${x.n} · ${x.a.s}</span></span></div>`)).concat(badgeTiles);
     return html`<div class="tr-cols">
       ${legacyCard(L, lg)}
-      ${K().card(html`${K().h2('Trophy Shelf', html`${retiredRow(L)}<span class="chip chip-gold ach-n num" title="Badges unlocked">${achN.got} / ${achN.all} badges</span>`)}${K().pg('shelf', items, { grid: true, cls: 'shelf-pg', empty: html`<div class="trophy ghost">${vox('carrot')}<span class="tr-tx"><b>Pixel Bowl</b><span class="small">Not won yet</span></span></div>` })}`, 'fill shelf-card')}
+      ${K().card(html`${K().h2('Trophy Shelf', html`${retiredRow(L)}<span class="chip chip-gold ach-n num" title="Badges unlocked">${achN.got} / ${achN.all} badges</span>`)}${K().pg('shelf', items, { grid: true, cls: 'shelf-pg nc-side', empty: html`<div class="trophy ghost">${vox('carrot')}<span class="tr-tx"><b>Pixel Bowl</b><span class="small">Not won yet</span></span></div>` })}`, 'fill shelf-card')}
     </div>`;
   }
 
@@ -141,9 +146,11 @@
     const ss = (L.hist.seasons || []).slice().sort((a, b) => b.s - a.s);
     if (!ss.length) return K().empty('scroll', 'No finished seasons yet.');
     const u = L.userTid;
-    const rows = ss.map((s) => { const c = s.champ != null ? L.teams[s.champ] : null; const us = s.user || {}; return html`<div class="sea-r ${s.champ === u ? 'me' : ''}"><b class="num">${s.s}</b>
+    // HUNT3 #10: after a job change, say which team you coached each season
+    const multi = careerTeams(L).length > 1;
+    const rows = ss.map((s) => { const c = s.champ != null ? L.teams[s.champ] : null; const us = s.user || {}; const ut = us.tid != null ? L.teams[us.tid] : null; return html`<div class="sea-r ${s.champ === u ? 'me' : ''}"><b class="num">${s.s}</b>
         <span class="tcell">${c ? html`${K().badge(c, 's')}<span class="ellip">${c.name}</span><b class="sea-ab">${c.abbr}</b>` : '—'}</span>
-        <span class="num n">${us.w != null ? D().rec(us.w, us.l, us.t) : '—'}</span><span class="ellip">${us.res ? RES_WORD[us.res] || us.res : html`<span class="muted">Missed</span>`}</span>
+        <span class="num n sea-you">${multi && ut ? html`<span class="tiny sea-tm">${ut.abbr}</span>` : ''}${us.w != null ? D().rec(us.w, us.l, us.t) : '—'}</span><span class="ellip">${us.res ? RES_WORD[us.res] || us.res : html`<span class="muted">Missed</span>`}</span>
         <span class="ellip sea-x">${s.mvp != null ? pname(L, s.mvp) : '—'}</span></div>`; });
     return html`<div class="sea-r sea-h"><span>Year</span><span>Champion</span><span class="n">You</span><span>Result</span><span class="sea-x">Top Dog</span></div>
       ${K().pg('sea', rows, { cls: 'sea-pg' })}`;
@@ -157,25 +164,45 @@
     const nm = parts.length > 1 && full.length > 12 ? parts[0][0] + '. ' + parts.slice(1).join(' ') : full;   // "P. Icewaddle"
     return html`<span class="rec-c"><b class="num">${D().int(r.v)}</b><span class="rec-n" title="${full}">${nm}</span>${r.s ? html`<span class="tiny muted rec-y">'${String(r.s).slice(-2)}</span>` : ''}</span>`;
   }
+  function careerTeams(L) {
+    let t = [L.userTid];
+    try { const car = PT.League.Coach.car ? PT.League.Coach.car(L) : null; if (car && car.teams && car.teams.length) t = car.teams.slice(); } catch (e) { /* keep */ }
+    return t.filter((x, i) => t.indexOf(x) === i);
+  }
+  /** HUNT3 #10: your records across every team you coached (best value per stat) */
+  function careerRecords(R, teams) {
+    const out = { game: {}, season: {} };
+    teams.forEach((t) => {
+      const f = (R.franchise && R.franchise[t]) || {};
+      ['game', 'season'].forEach((c) => Object.keys(f[c] || {}).forEach((k) => {
+        const r = f[c][k];
+        if (r && (!out[c][k] || r.v > out[c][k].v)) out[c][k] = r;
+      }));
+    });
+    return out;
+  }
   function recordsTab(L, params) {
     const R = (L.hist && L.hist.rec) || {};
     const lgR = R.league || {};
     const fr = (R.franchise && R.franchise[L.userTid]) || {};
+    const teamsC = careerTeams(L);
     const any = ['game', 'season', 'career'].some((k) => Object.keys(lgR[k] || {}).length) || Object.keys(fr).some((k) => Object.keys(fr[k] || {}).length);
     if (!any) return K().card(K().empty('chart', 'No records yet.'));
-    const team = params.rsc === 'team';
-    const src = team ? fr : lgR;
+    const scope = params.rsc === 'team' || (params.rsc === 'career' && teamsC.length > 1) ? params.rsc : 'league';
+    const team = scope !== 'league';
+    const src = scope === 'career' ? careerRecords(R, teamsC) : team ? fr : lgR;
     const cols = team ? ['game', 'season'] : ['game', 'season', 'career'];
     const NAMES = { game: 'Best Game', season: 'Best Season', career: 'Career' };
     const keys = [];
     cols.forEach((c) => Object.keys(src[c] || {}).forEach((k) => { if (!keys.includes(k)) keys.push(k); }));
     const order = Object.keys(STAT);
     keys.sort((a, b) => (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99));
-    const seg = html`<span class="rec-seg">${[['league', 'League'], ['team', 'Your Team']].map((x) => html`<button type="button" class="rec-sb ${(team ? 'team' : 'league') === x[0] ? 'on' : ''}" data-action="rscope" data-id="${x[0]}" data-testid="rec-scope-${x[0]}">${x[1]}</button>`)}</span>`;
+    const scopes = [['league', 'League'], ['team', 'Your Team']].concat(teamsC.length > 1 ? [['career', 'Career']] : []);
+    const seg = html`<span class="rec-seg">${scopes.map((x) => html`<button type="button" class="rec-sb ${scope === x[0] ? 'on' : ''}" data-action="rscope" data-id="${x[0]}" data-testid="rec-scope-${x[0]}">${x[1]}</button>`)}</span>`;
     const rows = keys.map((k) => html`<div class="rec-r c${cols.length}"><span class="rec-k">${STAT[k] || k}</span>${cols.map((c) => recCell(L, (src[c] || {})[k]))}</div>`);
     return K().card(html`${K().h2('Records', seg, 'chart')}
       <div class="rec-r rec-h c${cols.length}"><span></span>${cols.map((c) => html`<span>${NAMES[c]}</span>`)}</div>
-      ${K().pg('rec-' + (team ? 'team' : 'league'), rows, { cls: 'rec-pg', empty: html`<p class="muted small rec-none">No records yet.</p>` })}`, 'fill rec-card');
+      ${K().pg('rec-' + scope, rows, { cls: 'rec-pg', empty: html`<p class="muted small rec-none">${scope === 'team' ? 'Records start with your first season here.' : 'No records yet.'}</p>` })}`, 'fill rec-card');
   }
 
   function hofTab(L) {
@@ -237,6 +264,7 @@
       tab: (el, ev, params) => { params.tab = el.getAttribute('data-id'); UI.refresh(); },
       coach: () => UI.go('coach'),
       rscope: (el, ev, params) => { params.rsc = el.getAttribute('data-id'); UI.refresh(); },
+      badge: (el) => UI.Toast.show(el.getAttribute('data-why'), 'info', 2600),
       legend: (el) => {
         const L = PT.App.L, id = +el.getAttribute('data-id');
         const x = (L.hist.legends || []).find((y) => y.id === id);

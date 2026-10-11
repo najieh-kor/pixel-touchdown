@@ -416,7 +416,7 @@
     }
     if (!G.tryTwo) {
       const halfEnd = G.q === 2 || G.q >= 4;
-      if (G.score[o] > G.score[1 - o] && (G.q >= 4 || (G.q === 2 && s.clk <= (s.warn || 60)))) {
+      if (G.score[o] > G.score[1 - o] && s.toGoal < 97 && (G.q >= 4 || (G.q === 2 && s.clk <= (s.warn || 60)))) {   // no kneel inside the own 3
         const k = B.byId('kneel');
         out.push({ id: 'kneel', name: k.name, k: 'special', type: 'CLOCK', icon: k.icon, desc: k.desc, tag: 'Clock', sug: false, best: false, hint: null, tip: false });
       }

@@ -1810,3 +1810,69 @@ html.pt-touch .htc-row > .ht-pad, html.pt-coarse .htc-row > .ht-pad { display: n
 .sch-opp .sch-ab { display: none; }
 #screen .sch-pg .pg-list > .sch-row { container-type: inline-size; }
 @container (max-width: 300px) { .sch-opp .sch-full { display: none; } .sch-opp .sch-ab { display: inline; } }
+/* HUNT3 #4: short screens — Legacy becomes a one-line strip above the shelf; the shelf uses the full width with
+   compact one-line tiles (description in the tooltip), about 6+ tiles a page */
+@media (orientation: landscape) and (max-height: 480px) {
+  .lay.history .tr-cols { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: 6px; }
+  .lay.history .legacy-card { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 2px 12px; padding: 4px 10px; }
+  .lay.history .legacy-card .legacy-top { flex: 0 1 auto; gap: 8px; }
+  .lay.history .legacy-card .coach-ava { width: 32px; height: 32px; }
+  .lay.history .legacy-card .coach-ava .px-ic, .lay.history .legacy-card .coach-ava .sp-img { width: 22px; height: 22px; }
+  .lay.history .legacy-card .legacy-top .small { display: none; }
+  .lay.history .legacy-card .legacy-t { font-size: 18px; }
+  .lay.history .legacy-card .meter, .lay.history .legacy-card .legacy-stats { display: none; }
+  .lay.history .legacy-card > .small { flex: 1 1 auto; text-align: right; }
+  .lay.history .shelf-card .card-h { margin-bottom: 2px; }
+  .lay.history .shelf-pg .pg-list.pg-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px 6px; }
+  .lay.history .shelf-pg .trophy { min-height: 40px; padding: 2px 6px; gap: 6px; }
+  .lay.history .shelf-pg .trophy.badge-t .tr-tx .small { display: none; }
+  .lay.history .shelf-pg .trophy .tr-tx .small { font-size: 12px; line-height: 1.1; }
+  .lay.history .shelf-pg .trophy .tr-tx b { font-size: 13px; line-height: 1.1; }
+  .lay.history .shelf-pg .trophy .tr-ic .px-ic { width: 22px; height: 22px; }
+  .lay.history .shelf-pg .trophy .vt { zoom: 0.4; margin: 0; }
+}
+button.trophy.badge-t { border: 0; font: inherit; text-align: left; cursor: pointer; width: 100%; }
+/* HUNT3 #8: a long Auto-Fix plan scrolls inside the modal body, the buttons never cover it */
+.m-roster .mbody { max-height: calc(var(--app-h, 100dvh) - 220px); overflow: auto; }
+.sea-you { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.05; }
+.sea-you .sea-tm { color: var(--ink-2); font-weight: 700; }
+/* HUNT3 #14: Controls keeps its one-line explanations on phones (the grid has room) */
+@media (orientation: landscape) and (max-height: 480px) {
+  .lay.setx-tabs .setz-ctl .set-row .tiny { display: block; font-size: 12px; line-height: 1.15; }
+}
+/* HUNT3 #14: Controls cells = label + switch on one line, the explanation under both */
+.lay.setx-tabs .setz-ctl .set-row:not(.col-row) { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 6px; align-items: center; }
+.lay.setx-tabs .setz-ctl .set-row:not(.col-row) > .grow { display: contents; }
+.lay.setx-tabs .setz-ctl .set-row:not(.col-row) > .grow > b { grid-column: 1; grid-row: 1; line-height: 1.1; }
+.lay.setx-tabs .setz-ctl .set-row:not(.col-row) > .grow > .tiny { grid-column: 1 / -1; grid-row: 2; }
+.lay.setx-tabs .setz-ctl .set-row:not(.col-row) > .toggle { grid-column: 2; grid-row: 1; }
+@media (orientation: landscape) and (max-height: 480px) {
+  .lay.setx-tabs .setz-ctl .set-row:not(.col-row) > .grow > b { font-size: 14px; }
+  .lay.setx-tabs .setz-ctl .setz-grid { row-gap: 2px; }
+}
+@media (orientation: landscape) and (max-height: 480px) {
+  .lay.setx-tabs .setz-ctl .toggle { margin: 0; transform: none; }
+  .lay.setx-tabs .setz-ctl .set-row { padding-top: 1px; padding-bottom: 1px; }
+  .lay.setx-tabs .setz-ctl .set-row.col-row .seg .btn { min-height: 36px; }
+}
+.lay.setx-tabs .setz-ctl .setz-grid { align-items: start; }
+.lay.setx-tabs .setz-ctl .set-aim { grid-column: 1 / -1; }
+.lay.setx-tabs .setz-ctl .set-aim .set-row.col-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); grid-template-rows: auto auto; column-gap: 12px; align-items: center; }
+.lay.setx-tabs .setz-ctl .set-aim .set-row.col-row > b { grid-column: 1; grid-row: 1; }
+.lay.setx-tabs .setz-ctl .set-aim .set-row.col-row > .tiny { grid-column: 1; grid-row: 2; }
+.lay.setx-tabs .setz-ctl .set-aim .set-row.col-row > .seg { grid-column: 2; grid-row: 1 / 3; }
+/* HUNT3 #15: the dark XP (cap) icon gets a light outline on the navy chip */
+.pgx-r[data-testid="pgm-rew-xp"] .px-ic, .pgx-r[data-testid="pgm-rew-xp"] svg { filter: drop-shadow(1px 0 0 #fff) drop-shadow(-1px 0 0 #fff) drop-shadow(0 1px 0 #fff) drop-shadow(0 -1px 0 #fff); }
+@media (orientation: landscape) and (max-height: 480px) {
+  .lay.history .legacy-card { padding-top: 2px; padding-bottom: 2px; }
+  .lay.history .legacy-card .coach-ava { width: 28px; height: 28px; }
+  .lay.history .shelf-card .card-h { padding-top: 2px; padding-bottom: 2px; }
+  .lay.history .shelf-card .card-h h2 { font-size: 18px; }
+  .lay.history .shelf-pg.nc-side > .pg-ctl { gap: 2px; }
+}
+@media (orientation: landscape) and (max-height: 480px) { .lay.history .shelf-pg.nc-side > .pg-ctl { justify-content: flex-start; } }
+@media (orientation: landscape) and (max-height: 480px) {
+  .lay.history .shelf-pg.nc-side > .pg-ctl { gap: 0; padding-top: 0; }
+  .lay.history .shelf-pg.nc-side .pg-b { min-height: 40px; height: 40px; }
+  .lay.history .shelf-pg.nc-side .pg-n { font-size: 13px; line-height: 1; }
+}

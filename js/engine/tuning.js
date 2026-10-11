@@ -78,7 +78,7 @@
     DIVE_TKL_MIN: 0.5, DIVE_TKL_MAX: 2.3, DIVE_TKL_REACH: 1.5, DIVE_TKL_BRK: 0.08, DIVE_MISS_DOWN: 1.2,
     RET_TKL_BONUS: 0.0,       // tuned: kick coverage tackling help
     FUM_BASE: 0.008, FUM_BIG: 1.8, FUM_SACK_BEHIND: 1.8, FUM_SACK_FRONT: 1.2, FUM_SPIN: 1.5,
-    BIG_HIT_V: 7,
+    BIG_HIT_V: 11.5, BIG_SACK_V: 8,   // HUNT3 #6: ~20% of tackles are "big" (sfx, hitstop)
     LOOSE_T: 0.5, FUM_RET: 0.45,
     SACK_ESC_BASE: 0.10, SACK_ESC_MIN: 0.02, SACK_ESC_MAX: 0.35, SACK_FALL: 1.0,
 
@@ -86,7 +86,7 @@
     // playtest (human QB only, by difficulty): pass-rush win time ×USER_POCKET (TWIN was tuned for the instant AI QB;
     // a standing human was sacked 28% of dropbacks by 2.0 s), second-level blitzers read for USER_BLITZ_GO s at 45%
     // pace, and +USER_SACK_ESC "break free" chance on a sack
-    TWIN: 1.35, TWIN_SD: 0.25, USER_POCKET: [2.0, 2.2, 1.45, 1.2], USER_POCKET_ADD: [0.7, 0.7, 0.175, 0], USER_POCKET_MIN: [2.6, 2.4, 1.65, 1.4], USER_BLITZ_GO: [1.1, 1.0, 0.55, 0.4], USER_BLITZ_PACE: 0.95, USER_STEM: [0.85, 0.85, 0.963, 1], JUKE_REACT: [0.22, 0.22, 0.13, 0.1], JUKE_REACT_R: 5, USER_SACK_ESC: [0.15, 0.10, 0.062, 0.05], TSHED: 2.2, TSHED_SD: 0.2, DOUBLE: 1.8, ESCORT_SHED: 0.6, SCREEN_HOLD: 0.5,
+    TWIN: 1.35, TWIN_SD: 0.25, USER_POCKET: [2.0, 2.2, 1.6, 1.2], USER_POCKET_ADD: [0.7, 0.7, 0.28, 0], USER_POCKET_MIN: [2.6, 2.4, 1.8, 1.4], USER_BLITZ_GO: [1.1, 1.0, 0.64, 0.4], USER_BLITZ_PACE: 0.95, USER_STEM: [0.85, 0.85, 0.963, 1], JUKE_REACT: [0.22, 0.22, 0.13, 0.1], JUKE_REACT_R: 5, USER_SACK_ESC: [0.15, 0.10, 0.07, 0.05], TSHED: 2.2, TSHED_SD: 0.2, DOUBLE: 1.8, ESCORT_SHED: 0.6, SCREEN_HOLD: 0.5,
     POCKET_PUSH: 0.6, RUN_PUSH: 1.0, ENGAGE_PAD: 0.35, REENGAGE_CD: 1.2,
     BRICK_WALL_T: 1.0, ROAD_GRADER_T: 0.5, BUILDER_T: 0.2, BIG_EARS_T: 0.2, HORN_T: 0.15, SACK_MASTER_W: 0.85,
     GREEN_DOG_T: 0.8,
@@ -120,6 +120,7 @@
     RUN_INB: 15, RUN_HURRY: 8, RUN_LAST_MIN_FD: 10, RUN_STOP: 6, RUN_SACK: 15, RUN_KNEEL: 40, RUN_SPIKE: 3,
     SUG_HIST: 6, SUG_CALLED: 25, SUG_SHOWN: 14, SUG_FRESH: 6, SUG_TEMP: 7, SUG_REP: 8, SUG_STYLE: 30, TRICK_REACT: 0.25, SUG_DEF: 4, SUG_HOT: 6, SUG_COLD: 4,   // play-card suggestion variety (client pass 4)
     FORM_CHECK: { bunch: 0.7, empty: 0.7 },   // AI zone → man check vs these formations (coverage pass)
+    STAR_MIN_T: 0.6, ONSIDE_WAIT: 6,   // HUNT3: no Star ring right at the snap; onside choice held up to 6 s
     FG_LATE: 8,               // ≤ this many seconds left in Q2/Q4: the FG card leads / the AI kicks on any down
     KICK_POW_MAX: 0.95,       // FG card / kick meter: in range only while dist/maxRange ≤ this (the meter green zone)
     QLEN: 180,                // default quarter length when cfg.qLen is missing (4 quarters, client pass 4)

@@ -20,7 +20,7 @@
 
   let host = null, on = false, cfg = null, userIdx = 0, els = {}, last = {}, subs = [];
   let mode = 'none', paused = false, quitReq = false, ffOn = false, lastBan = { t: '', at: 0 }, banTimer = 0;
-  let lastSnap = null, audUsed = false, kickPlay = false, comboSeen = {}, armedFlag = false, armedPlay = false, halfFlag = false, pendMove = null;
+  let lastSnap = null, audUsed = false, kickPlay = false, comboSeen = {}, armedFlag = false, armedPlay = false, halfFlag = false, otFlag = false, koLatch = false, twoPending = false, ctlOpts = null, pendMove = null;
 
   // ---------------- pixel icons (no emoji) ----------------
   // PT.UI.Icons.get(name) (UI art system) when present, else these tiny 8×8 pixel SVGs.
@@ -173,7 +173,10 @@
     const ut = cfg.userTid != null ? cfg.userTid : (L ? L.userTid : -1);
     userIdx = cfg.away && cfg.away.tid === ut ? 1 : 0;
     unsub();
-    last = {}; els = {}; paused = false; quitReq = false; ffOn = false; mode = 'none'; lastSnap = null; comboSeen = {}; halfFlag = false; pendMove = null; armedFlag = false;
+    last = {}; els = {}; paused = false; quitReq = false; ffOn = false; mode = 'none'; lastSnap = null; comboSeen = {}; halfFlag = false; otFlag = false; koLatch = false; twoPending = false; pendMove = null; armedFlag = false;
+    // a new game starts from its own settings (cfg.settings, else L.settings), never the last game's controls opts
+    ctlOpts = null;
+    if (cfg && cfg.settings) { ctlOpts = {}; ['easyThrow', 'aimMode'].forEach((k) => { if (cfg.settings[k] != null) ctlOpts[k] = cfg.settings[k]; }); }
     const home = cfg.home || { abbr: 'HOM', col: { pri: 0x3a86ff, sec: 0xffffff }, sp: 'dog' };
     const away = cfg.away || { abbr: 'AWY', col: { pri: 0xff5a5f, sec: 0xffffff }, sp: 'cat' };
     const kits = kitsNow();
@@ -199,6 +202,8 @@
       <div class="hud-note" data-h="note" data-testid="hud-note" hidden></div>
       <button type="button" class="hud-star" data-h="star" data-hact="star" data-testid="btn-star" hidden>TAP!</button>
       <div class="hud-kick" data-h="kick" hidden></div>
+      <div class="hud-onside" data-h="ons" data-testid="hud-onside" hidden></div>
+      <div class="hud-ghost" data-h="ghost" aria-hidden="true" hidden><span class="hud-ghost-ball">${ic('ball')}</span><span class="hud-ghost-f">${ic('hand')}</span></div>
       <div class="hud-ban" data-h="ban" aria-live="assertive"></div>
       <div class="hud-pops" data-h="pop"></div>
       <div class="hud-ctl2" data-h="ctl2">
@@ -254,6 +259,16 @@
     if (halfPaused) { halfPaused = false; try { if (PT.Session && PT.Session.resume && !paused) PT.Session.resume(); } catch (e) { /* ignore */ } }
     Hud.flushBanners();
   }
+  /** HUNT2 #8 / HUNT3 #1: a break (halftime, overtime) clears the controls, FG card, star ring, pills and Surge state */
+  function breakCleanup() {
+    armedFlag = false; armedPlay = false; pendMove = null; twoPending = false;
+    Hud.setControls('none');
+    if (els.kick) els.kick.hidden = true;
+    last.kick = undefined;
+    ['warn', 'note', 'aimt', 'ret'].forEach((k) => { if (els[k]) els[k].hidden = true; });
+    if (els.star) els.star.hidden = true;
+    last.ring = undefined;
+  }
   /** Halftime card: score, 3 quick stats each, a coach tip. Pauses the game; closes on tap or after 6.5 s. */
   Hud.halftime = function () {
     if (!on || !els.root) return;
@@ -271,13 +286,8 @@
     const old = els.root.querySelector('.hud-half');
     if (old) old.remove();
     // HUNT2 #8: nothing from the first half stays up behind the card (controls, FG card, Surge, down chip, Q3 clock)
-    halfFlag = true; armedFlag = false; pendMove = null;
-    Hud.setControls('none');
-    if (els.kick) els.kick.hidden = true;
-    last.kick = undefined;
-    ['warn', 'note', 'aimt', 'ret'].forEach((k) => { if (els[k]) els[k].hidden = true; });
-    if (els.star) els.star.hidden = true;
-    last.ring = undefined;
+    halfFlag = true;
+    breakCleanup();
     const d = globalThis.document.createElement('div');
     d.className = 'hud-half';
     d.setAttribute('data-testid', 'hud-halftime');
@@ -308,10 +318,15 @@
   Hud.paused = () => paused;
   Hud.quitRequested = () => quitReq;
   Hud.userIdx = () => userIdx;
+  let freshTos = null;   // set by 'game:timeout' until the snapshot catches up
   Hud.timeoutsLeft = function () {
+    if (freshTos) return freshTos[userIdx];
     const s = lastSnap && lastSnap.hud;
     return s && s.tos ? s.tos[userIdx] : 3;
   };
+  Hud.userIdx = () => userIdx;
+  /** HUNT3 #8: PlayCall marks a 2-point try as soon as GO FOR 2 is picked */
+  Hud.markTwo = function () { twoPending = true; last.ddv = undefined; };
   Hud.el = (k) => els[k] || null;
 
   // ---------------- per-frame update ----------------
@@ -334,12 +349,22 @@
     lastSnap = snap || lastSnap;
     // 4 quarters (client decision): Q1–Q4, OT after
     setText('q', halfFlag ? '' : hud.q > 4 ? 'OT' : 'Q' + hud.q);
-    if (setKey('halfRow', halfFlag) && els.ddrow) els.ddrow.hidden = halfFlag;
+    // HUNT3 #7: kickoffs show 'KICKOFF' (not the scoring drive's down); BREAK / halftime / overtime start hide the row
+    const ph = snap ? snap.phase : '';
+    if (ph === 'CALL' || ph === 'PRESNAP' || ph === 'PAT') koLatch = false;
+    const sb = snap && snap.ball;
+    if (ph === 'KICK' && sb && (sb.kind === 'ko' || sb.kind === 'onside' || (sb.st === 'spot' && sb.z >= 0.25)) && !koLatch) {
+      koLatch = true;
+      for (let i = banQ.length - 1; i >= 0; i--) if (banQ[i].style !== 'td' && banQ[i].style !== 'record') banQ.splice(i, 1);   // stale result banners never land on the kickoff
+    }
+    const noRow = halfFlag || otFlag || ph === 'BREAK';
+    if (setKey('halfRow', noRow) && els.ddrow) els.ddrow.hidden = noRow;
     updateAim(snap);
     setText('clk', halfFlag ? 'HALF' : PT.Util.fmtClock(hud.clk));
     setText('hs', String(hud.hs));
     setText('as', String(hud.as));
     const tos = hud.tos || [3, 3];
+    if (freshTos && tos[0] === freshTos[0] && tos[1] === freshTos[1]) freshTos = null;
     if (setKey('tos', tos[0] + ',' + tos[1])) {
       if (els.ht) els.ht.innerHTML = dots(tos[0]);
       if (els.at) els.at.innerHTML = dots(tos[1]);
@@ -349,8 +374,10 @@
       if (els.a) els.a.classList.toggle('hud-ball', hud.poss === 1);
     }
     let dd = '';
+    const two = hud.two || twoPending;
     if (halfFlag) dd = '';
-    else if (hud.two) dd = '2-PT TRY';   // HUNT2 #11: not "1st & Goal" on a 2-point try
+    else if (koLatch) dd = 'KICKOFF';
+    else if (two) dd = '2-PT TRY';   // HUNT2 #11: not "1st & Goal" on a 2-point try
     else if (hud.down >= 1 && hud.down <= 4) {
       const goal = snap ? (snap.dir > 0 ? snap.los + hud.togo >= 110 : snap.los - hud.togo <= 10) : false;
       dd = PT.Util.ordinal(hud.down) + ' & ' + (goal ? 'Goal' : hud.togo < 0.5 ? 'inches' : Math.max(1, Math.round(hud.togo)));
@@ -359,7 +386,7 @@
     setText('dd', dd);
     // HUNT2 #6: "Ball on" from the USER's side with team abbreviations (BLZ 29 / FLP 35), never OWN/OPP
     const boY = snap && snap.los != null ? yardFor(snap.los) : hud.ballOn;
-    setText('bo', halfFlag || hud.two || !boY ? '' : 'Ball on ' + boY);
+    setText('bo', halfFlag || koLatch || two || !boY ? '' : 'Ball on ' + boY);
     if (setKey('wxk', hud.wx || '') && els.wx) { els.wx.innerHTML = hud.wx ? String(ic(WX_ICON[hud.wx] || 'sun')) : ''; els.wx.title = (K().WX[hud.wx] || ['', ''])[1]; }
     if (snap && setKey('phase', snap.phase)) host.setAttribute('data-phase', snap.phase);
     // Star Play ring (R9)
@@ -383,14 +410,49 @@
     const rh = hud.retHint || '';
     if (setKey('ret', rh) && els.ret) {
       els.ret.hidden = !rh;
-      els.ret.textContent = rh === 'fc' ? 'TAP = Fair catch' : rh === 'tb' ? 'TAP = Touchback' : '';
+      // engine round 3: say where a touchback puts the ball
+      els.ret.innerHTML = rh === 'fc' ? 'TAP = Fair catch' : rh === 'tb' ? String(html`<span>TAP = Touchback</span><small class="hud-ret-sub">Touchback = ball at the 35</small>`) : '';
     }
     // FG aim / kick preview
     const kk = snap && snap.kick;
     const kOn = !!(kk && kk.on) && !halfFlag;
     const kTxt = kOn ? String(kk.pct == null ? '' : kk.pct) + (kk.outRange ? ':far' : '') : '';
     if (setKey('kick', kOn + ':' + kTxt)) renderKick(kOn, kk);
+    updateGhost(snap, kOn && mode === 'kick');
+    updateOnside(hud, snap);
   };
+  /** engine round 3: kicking off with an onside chance → 'Kick deep' / 'Onside · NN%' (engine holds the setup ≤ 6 s) */
+  let onsPicked = false;
+  function updateOnside(hud, snap) {
+    const want = !!(hud.onside && snap && snap.phase === 'KICK') && !onsPicked;
+    if (!hud.onside) onsPicked = false;
+    const pct = want ? Math.round(hud.onsidePct || 0) : 0;
+    if (!setKey('ons', want + ':' + pct) || !els.ons) return;
+    els.ons.hidden = !want;
+    if (els.root) els.root.classList.toggle('hud-ons-on', want);
+    if (!want) { els.ons.innerHTML = ''; return; }
+    els.ons.innerHTML = String(html`<div class="hud-ons-t">Kickoff</div>
+      <div class="hud-ons-row">
+        <button type="button" class="btn btn-sec btn-m" data-hact="kickdeep" data-testid="btn-kick-deep">${ic('boot')}<span class="btn-t">Kick deep</span></button>
+        <button type="button" class="btn btn-gold btn-m" data-hact="onside" data-testid="btn-onside-kick">${ic('ball')}<span class="btn-t">Onside${pct ? ' · ' + pct + '%' : ''}</span></button>
+      </div><i class="hud-ons-bar" aria-hidden="true"></i>`);
+  }
+  /** HUNT3-render: ghost finger + ball at the holder's screen spot until the user starts the drag */
+  function updateGhost(snap, want) {
+    const g = els.ghost;
+    if (!g) return;
+    const kk = snap && snap.kick, b = snap && snap.ball;
+    const R = PT.Render;
+    let p = null;
+    if (want && b && !(kk && kk.pow > 0) && R && typeof R.fieldToScreen === 'function') {
+      try { p = R.fieldToScreen(b.x, b.y, b.z || 0); } catch (e) { p = null; }
+    }
+    const vis = !!(p && p.vis);
+    if (setKey('ghostOn', vis)) g.hidden = !vis;
+    if (!vis) return;
+    const k = Math.round(p.x) + ',' + Math.round(p.y);
+    if (setKey('ghostXY', k)) g.style.transform = 'translate(' + Math.round(p.x) + 'px,' + Math.round(p.y) + 'px)';
+  }
 
   /** field y (0..120) → 'BLZ 29' | 'FLP 35' | '50', counted from the user's own goal line (snap.udir) */
   function yardFor(y) {
@@ -537,7 +599,8 @@
     watch: { row: true, btns: [
       { id: 'ff', label: '2×', icon: 'ff', testid: 'btn-ff', toggle: true, key: 'F', title: 'Fast (2×)' },
       { id: 'skip', label: 'End play', icon: 'skip', testid: 'btn-skip', key: 'X', title: 'Jump to the end of this play' }], hint: '' },
-    kick: { big: true, btns: [{ id: 'autokick', label: 'Auto', icon: 'boot', testid: 'btn-auto-kick', key: 'A' }], hint: 'Drag back to aim, let go to kick' }
+    // HUNT3-render: AUTO is a corner chip (never over the holder); a ghost finger + ball marks the start point
+    kick: { chip: true, btns: [{ id: 'autokick', label: 'Auto', icon: 'boot', testid: 'btn-auto-kick', key: 'A' }], hint: 'Drag from anywhere, let go to kick' }
   };
   CTL.defensePlay = CTL.watch;
 
@@ -547,11 +610,11 @@
     const m = CTL[mode];
     host.setAttribute('data-mode', mode);
     if (!m) { e.innerHTML = ''; e.className = 'hud-ctl'; last.mvWait = undefined; setText('hint', ''); if (els.aud) els.aud.hidden = true; if (els.skipd) els.skipd.hidden = true; return; }
-    e.className = 'hud-ctl ' + (m.big ? 'hud-ctl-big' : m.row ? 'hud-ctl-row' : 'hud-ctl-cluster') + ' hud-n' + m.btns.length;
+    e.className = 'hud-ctl ' + (m.chip ? 'hud-ctl-chip' : m.big ? 'hud-ctl-big' : m.row ? 'hud-ctl-row' : 'hud-ctl-cluster') + ' hud-n' + m.btns.length;
     last.mvWait = undefined;
     const pct = lastSnap && lastSnap.kick && lastSnap.kick.pct != null ? lastSnap.kick.pct : (UI.PlayCall && UI.PlayCall._kickPct != null ? UI.PlayCall._kickPct : null);
     let hint = m.hint || '';
-    if (mode === 'qb' && qbHintCount(0) > QB_HINTS) hint = '';
+    if (mode === 'qb') hint = qbHintCount(0) > QB_HINTS ? '' : throwHint();
     if (els.hint) els.hint.classList.toggle('hud-hint-top', mode === 'qb');
     e.innerHTML = String(html`${m.btns.map((b) => {
       const label = b.id === 'autokick' && pct != null ? 'Auto (' + pct + '%)' : b.label;
@@ -565,7 +628,23 @@
   }
 
   /** @param {'none'|'presnap'|'qb'|'carrier'|'defense'|'watch'|'kick'} m */
-  Hud.setControls = function (m) {
+  /** HUNT3 #4: the throw hint follows the controls settings (Easy Throw / Aim style Point / Slingshot) */
+  function throwSettings() {
+    const L = PT.App && PT.App.L;
+    return Object.assign({}, (L && L.settings) || {}, ctlOpts || {});
+  }
+  function throwHint() {
+    const s = throwSettings();
+    if (s.easyThrow) return 'Tap a number to throw!';
+    if (s.aimMode === 'point') return 'Drag toward a catcher to throw!';
+    return 'Pull back to throw!';
+  }
+  Hud.throwHint = throwHint;
+  Hud.setControls = function (m, opts) {
+    if (opts && typeof opts === 'object') {
+      ctlOpts = {};
+      ['easyThrow', 'aimMode'].forEach((k) => { if (opts[k] != null) ctlOpts[k] = opts[k]; });
+    }
     m = m || 'none';
     if (!on) { mode = m; return; }
     if (m === mode && els.ctl && els.ctl.childElementCount) return;
@@ -598,6 +677,15 @@
       case 'ability': press('ability'); break;
       case 'skipdrive': if (!sess('simDrive')) press('simDrive'); if (els.skipd) els.skipd.hidden = true; break;
       case 'audible': press('audible'); break;
+      case 'kickdeep': case 'onside': {
+        onsPicked = true; last.ons = undefined;
+        if (els.ons) { els.ons.hidden = true; els.ons.innerHTML = ''; }
+        if (els.root) els.root.classList.remove('hud-ons-on');
+        const S = PT.Session, g = S && S.game ? S.game() : null;
+        if (a === 'onside') { if (!(S && S.onside && S.onside() !== false) && g && g.onside) g.onside(); }
+        else if (g && typeof g.kickDeep === 'function') g.kickDeep();
+        break;
+      }
       case 'ff': {
         ffOn = !ffOn; press('ff');
         t.classList.toggle('hud-on', ffOn);
@@ -710,6 +798,8 @@
       while (banQ.length > 3) banQ.shift();
       return;
     }
+    // HUNT3 #5: pre-snap (HIKE / GO, SURGE, Audible on screen) a big banner would cover the controls → a short pill
+    if ((mode === 'presnap' || mode === 'defense') && style !== 'super') { note(sub ? text + ' ' + sub : text, 1300); return; }
     const now = D().now();
     if (lastBan.t === text && now - lastBan.at < 400) return;
     lastBan = { t: text, at: now };
@@ -721,7 +811,8 @@
     els.ban.innerHTML = '';
     els.ban.appendChild(b);
     clearTimeout(banTimer);
-    banTimer = setTimeout(() => { b.classList.add('hud-out'); setTimeout(() => b.remove(), 300); }, ms || (style === 'td' ? 2200 : 1400));
+    if (els.root) els.root.classList.add('hud-ban-on');      // HUNT3 #5: the warn chip steps aside while a banner shows
+    banTimer = setTimeout(() => { b.classList.add('hud-out'); setTimeout(() => { b.remove(); if (els.root && !els.ban.childElementCount) els.root.classList.remove('hud-ban-on'); }, 300); }, ms || (style === 'td' ? 2200 : 1400));
   };
   /** floating pop near the field center ("+12 yds") */
   Hud.pop = function (text, kind) {
@@ -763,7 +854,8 @@
       const t = p.kind === 'int' ? 'PICK!' : p.kind === 'downs' ? 'TURNOVER ON DOWNS!' : 'FUMBLE!';
       const style = isUser(p.tid) ? 'good' : 'turnover';
       // HUNT2 #10: the renderer draws 'INTERCEPTED!' / 'FUMBLE!' in the world for 1.0 s; the banner waits until it is gone
-      if (p.kind === 'int' || p.kind === 'fumble') setTimeout(() => { if (on) Hud.banner(t, style); }, 1050);
+      // HUNT3 #5: if the next tray / pre-snap is already up when the delay ends, the stale banner is dropped
+      if (p.kind === 'int' || p.kind === 'fumble') setTimeout(() => { if (on && !choiceOpen() && mode !== 'presnap' && mode !== 'defense') Hud.banner(t, style); }, 1050);
       else Hud.banner(t, style);
       // a user pick / fumble recovery in a live play: the user runs it back → carrier controls
       if (isUser(p.tid) && p.kind !== 'downs' && lastSnap && lastSnap.phase === 'LIVE') Hud.setControls('carrier');
@@ -831,8 +923,30 @@
     on_('game:audibleCall', () => { audUsed = true; if (els.aud) els.aud.hidden = true; });
     // one audible per play (INT2): reset only when a new play is called / the old one ends. Resetting on a mode
     // change brought the button back after the audible's re-lineup, and the engine then refused the 2nd audible.
-    on_('game:call', () => { audUsed = false; armedFlag = false; armedPlay = false; halfFlag = false; });
-    on_('game:kickoff', () => { halfFlag = false; });
+    on_('game:call', () => { audUsed = false; armedFlag = false; armedPlay = false; halfFlag = false; otFlag = false; });
+    on_('game:kickoff', () => { halfFlag = false; otFlag = false; twoPending = false; });
+    on_('game:pat', () => { twoPending = false; });
+    // HUNT3 #1: overtime gets a banner + who receives; the stale down row is hidden until the kickoff
+    on_('game:overtime', (p) => {
+      otFlag = true;
+      breakCleanup();
+      const gt = p && p.recvTid != null ? teamOf(p.recvTid) : null;
+      Hud.banner('OVERTIME', 'record', 2400, gt ? abbrOf(gt) + ' gets the ball' : '');
+    });
+    // HUNT3 #2: timeouts → pips from the payload / a fresh situation right away (the tray may reopen before the next frame)
+    on_('game:timeout', (p) => {
+      let tos = null;
+      try { const g = PT.Session && PT.Session.game && PT.Session.game(); const st = g && g.situation ? g.situation() : null; if (st && st.tos) tos = [st.tos[0], st.tos[1]]; } catch (e) { tos = null; }
+      if (!tos && lastSnap && lastSnap.hud && lastSnap.hud.tos && p && p.left != null) {
+        tos = lastSnap.hud.tos.slice();
+        tos[teamOf(p.tid) === cfg.away ? 1 : 0] = p.left;
+      }
+      if (!tos) return;
+      freshTos = tos;
+      last.tos = tos[0] + ',' + tos[1];
+      if (els.ht) els.ht.innerHTML = dots(tos[0]);
+      if (els.at) els.at.innerHTML = dots(tos[1]);
+    });
     on_('game:playEnd', () => { if (armedPlay) refundNote(); audUsed = false; armedFlag = false; armedPlay = false; pendMove = null; });
     // Yards / incomplete text is drawn in the 3D world by the renderer (engine fx 'text' = play desc), so the HUD
     // adds no second "+N yds" / "No catch" line (too much text at once). Only the big banners above stay.

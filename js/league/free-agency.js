@@ -195,6 +195,14 @@
     if (last) {
       L.fa.offers = [];
       for (const t of L.teams) if (!t.human) PT.League.AIGM.fillNeeds(L, t.id, false);
+      // HUNT3-league #2: AI teams end the Market at a legal 22 (draft picks/re-signs can push them over); this year's
+      // signings are cut last, and every real cut gets a news line
+      const Ro = PT.League.Roster;
+      for (const t of L.teams) {
+        if (t.human) continue;
+        if (typeof Ro.cutToMax === 'function') Ro.cutToMax(L, t.id, C.ROSTER.MAX_SEASON, { protectNew: true, news: true });
+        else if (PT.League.Auto && PT.League.Auto.cutToMax) PT.League.Auto.cutToMax(L, t.id, C.ROSTER.MAX_SEASON);
+      }
     }
     if (PT.Events) PT.Events.emit('league:changed', { what: 'fa' });
     return { signed: signed, user: user };

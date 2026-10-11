@@ -58,12 +58,12 @@
     if (!st || st.done) {
       const n = lg.draft.order.filter((o) => o.tid === lg.userTid && o.pid != null).length;
       void n;
-      return F.head(html`${F.seg('', 'Draft done', { icon: 'check', cls: 'fl-seg-t' })}${F.gap()}`);
+      return F.head(html`${F.seg('', 'Draft done', { icon: 'check', cls: 'fl-seg-t' })}${F.gap()}${F.rosterSeg(lg)}`);
     }
     const on = lg.teams[st.pick.tid], mine = st.userOnClock;
     const clock = html`<span class="fl-seg fl-clock ${mine ? 'me' : ''}" data-testid="draft-clock"><span class="fl-sl">On the clock</span>${mine ? html`<b class="fl-sv">You</b>` : html`${K().badge(on, 's')}<b class="fl-sv">${FK().team(on)}</b>`}</span>`;
     const nextPk = mine ? '' : st.next ? F.seg('Your next pick', '#' + st.next) : F.seg('Your picks', 'Done', { cls: 'fl-seg-dim' });
-    return F.head(html`${F.seg('Round', String(st.pick.rd), { cls: 'fl-seg-t', testid: 'draft-round' })}${F.seg('Pick', String(st.pick.pk), { cls: 'fl-seg-t' })}${clock}${F.gap()}${F.needSeg(lg)}${nextPk}${scouts}`);
+    return F.head(html`${F.seg('Round', String(st.pick.rd), { cls: 'fl-seg-t', testid: 'draft-round' })}${F.seg('Pick', String(st.pick.pk), { cls: 'fl-seg-t' })}${clock}${F.gap()}${F.needSeg(lg)}${nextPk}<span class="fl-hide-n">${F.rosterSeg(lg)}</span>${scouts}`);
   }
 
   function ticker(lg, st) {
@@ -192,8 +192,7 @@
       let st = null;
       try { if (!Dr().status(lg).done) Dr().simToUser(lg); st = Dr().status(lg); } catch (e) { st = null; }
       UI.Toast.show((p ? K().pname(p) : 'Rookie') + ' drafted' + (st && st.userOnClock ? ". You're up again." : ''), 'good');
-      const v = D().$('#screen .lay');
-      if (v) K().confetti(v, 50);
+      FK().confetti(50);
     } else UI.Toast.show((r && r.msg) || 'Pick failed.', 'bad');
     changed('draft');
   }

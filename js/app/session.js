@@ -18,7 +18,7 @@
     'firstDown', 'touchdown', 'fieldGoal', 'pat', 'safety', 'turnover', 'fumble', 'interception', 'bigPlay', 'playEnd', 'quarterEnd',
     'halftime', 'twoMinute', 'gameEnd', 'kickoff', 'punt', 'penalty', 'timeout', 'doink', 'onside', 'edge', 'star', 'superPlay',
     'whiff', 'injury', 'possession', 'returnTd', 'starRing', 'starPlay', 'kick', 'recover', 'batted', 'overtime',
-    'ability', 'abilityArmed', 'abilityWarn', 'audible'];
+    'ability', 'abilityArmed', 'abilityWarn', 'audible', 'hitstop'];
   Session.autoplay = false;
   /** dev only: force an input mode during the user's LIVE offense (e.g. 'qb' with the engine stub) */
   Session.debugForceMode = null;
@@ -125,7 +125,9 @@
   /** Session-side reactions only (haptics, slow-mo, game end). Banners are the HUD's job: it listens to game:*. */
   function react(name, p) {
     switch (name) {
-      case 'bigPlay': if (!reduceMotion() && !S.fast && !(PT.Flags && PT.Flags.test)) PT.Loop.slowmo(p.slowmo || 0.4, p.dur || 1); break;
+      // slow-mo / hit-stop only for the user's plays (engine marks AI-vs-AI moments user:false)
+      case 'bigPlay': if (p.user !== false && !reduceMotion() && !S.fast && !(PT.Flags && PT.Flags.test)) PT.Loop.slowmo(p.slowmo || 0.4, p.dur || 1); break;
+      case 'hitstop': if (p.user !== false && !reduceMotion() && !S.fast && !(PT.Flags && PT.Flags.test)) PT.Loop.slowmo(0.02, (p.ms || 60) / 1000); break;
       case 'tackle': haptic(p.big ? 30 : 15); break;
       case 'sack': haptic(30); break;
       case 'touchdown': haptic([60, 40, 60]); break;
@@ -368,6 +370,12 @@
     }
     if (S.mode !== 'qb') a.aim.on = false;
     if (S.mode !== 'kick') a.kickAim.on = false;
+    // juke / spin / dive pressed during the dropback or while the ball is in the air: hold them 0.5 s and apply
+    // them on the catch (the HUD buffers its taps the same way; this covers keyboard / gamepad)
+    const cb = ctlEnt(snap), hasBall = !!(cb && cb.ball);
+    if ((S.mode === 'qb' || S.mode === 'off' || (S.mode === 'carrier' && !hasBall)) && (f.juke || f.spin || f.dive)) {
+      S.moveBuf = { juke: f.juke, spin: f.spin, dive: f.dive, t: now() };
+    }
     switch (S.mode) {
       case 'presnap': a.snap = f.snap || f.go; break;
       case 'qb': {
@@ -385,7 +393,16 @@
         a.snap = f.snap;
         break;
       }
-      case 'carrier': a.juke = f.juke; a.dive = f.dive; a.spin = f.spin; break;
+      case 'carrier': {
+        a.juke = f.juke; a.dive = f.dive; a.spin = f.spin;
+        const mb = S.moveBuf;
+        if (mb && now() - mb.t > 500) S.moveBuf = null;                    // too old
+        else if (mb && hasBall) {                                           // the catch: apply once
+          a.juke = a.juke || !!mb.juke; a.spin = a.spin || !!mb.spin; a.dive = a.dive || !!mb.dive;
+          S.moveBuf = null;
+        }
+        break;
+      }
       case 'return':                                  // ball in the air to the user's returner (snap.hud.retHint)
         a.snap = f.snap || f.juke || f.dive || f.go;  // tap = fair catch / touchback; steering (mx/my) = bring it out
         break;
@@ -468,8 +485,16 @@
   }
   /** Auto-start defense (Settings, L.settings.autoDef) → game.setAutoDef (engine auto-GOes after 1 s). */
   function autoDefOn() { return !!S.settings.autoDef; }      // ROUND6 E: Settings → "Auto-start defense" only (no in-game chip)
+  /**
+   * The engine's auto-GO counts presnap time from lineup, so turning Auto-start D on (or resuming) at a waiting defensive
+   * presnap would GO instantly (HUNT3 #3). Session keeps the engine's autoDef off for 1 s of play first (S.autoDefHold).
+   */
+  function holdAutoDef() {
+    const n = S.game.needs();
+    if (autoDefOn() && n && n.k === 'SNAP' && n.side === 'D') { S.autoDefHold = 1.0; syncAutoDef(); }
+  }
   function syncAutoDef() {
-    const on = autoDefOn();
+    const on = autoDefOn() && !(S.autoDefHold > 0);
     if (on !== S.autoDefSent && typeof S.game.setAutoDef === 'function') { S.game.setAutoDef(on); S.autoDefSent = on; }
   }
 
@@ -583,7 +608,7 @@
   /** HUD STAR button / gamepad Y: same as PT.Input.press('ability') */
   Session.ability = function () { PT.Input.press('ability'); };
 
-  // ---------------- #touch overlay: Easy Throw badges + Onside button ----------------
+  // ---------------- #touch overlay: Easy Throw badges (the onside choice is the HUD's Kick deep / Onside tray) ----------------
   function overlay() {
     if (S.ov !== null) return S.ov;
     const doc = globalThis.document, layer = doc && doc.getElementById('touch');
@@ -596,12 +621,8 @@
       b.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); PT.Input.press('pass' + n); });
       root.appendChild(b); badges.push(b);
     }
-    const ons = doc.createElement('button'); ons.type = 'button'; ons.className = 'pt-onside'; ons.textContent = 'ONSIDE KICK';
-    ons.setAttribute('data-testid', 'btn-onside');
-    ons.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); Session.onside(); });
-    root.appendChild(ons);
     layer.appendChild(root);
-    S.ov = { root: root, badges: badges, ons: ons, shown: '' };
+    S.ov = { root: root, badges: badges, shown: '' };
     return S.ov;
   }
   function removeOverlay(s) { if (s.ov && s.ov.root) s.ov.root.remove(); }
@@ -621,8 +642,6 @@
       }
       else if (b.style.display !== 'none') b.style.display = 'none';
     }
-    const ons = !!(snap.hud && snap.hud.onside) && typeof S.game.onside === 'function';
-    if (ons !== (ov.ons.style.display === 'block')) ov.ons.style.display = ons ? 'block' : 'none';
   }
   /** Onside kick (offered by the engine via snap.hud.onside: user kicking, Q4, trailing). Also key O. */
   Session.onside = function () {
@@ -643,6 +662,7 @@
       const nk = n ? n.k + (n.side || '') : '';
       if (nk !== S.needKey) { S.needKey = nk; S.tNeed = 0; S.needSeq++; } else S.tNeed += dt;
       S.modeT = (S.modeT || 0) + dt;
+      if (S.autoDefHold > 0) { S.autoDefHold -= dt; if (S.autoDefHold <= 0) syncAutoDef(); }
       if (n && handleNeed(n)) return;
       const f = PT.Input.sample();
       if (f.pause) { Session.pause(); return; }
@@ -778,7 +798,9 @@
     S.unsubs.push(PT.Events.on('app:prefs', (p) => { if (S && p && p.speed) S.speed = speedPref(); }));
     S.unsubs.push(PT.Events.on('league:changed', (e) => {     // in-game settings (HUD gear): watch speed, auto defense, lefty
       if (!S || !e || e.what !== 'settings' || !L.settings) return;
+      const was = autoDefOn();
       Object.assign(S.settings, L.settings);
+      if (!was && autoDefOn()) holdAutoDef();
       syncAutoDef();
       if (L.settings.watch && !flagFF) S.watch = L.settings.watch;
       PT.Input.setOptions({ lefty: !!S.settings.lefty, aimMode: S.settings.aimMode || 'sling' });
@@ -853,6 +875,7 @@
     PT.Loop.pause(false);
     PT.Input.setMode(S.mode || 'off');
     PT.Input.flush();
+    holdAutoDef();
     emit('game:pause', { on: false, gid: S.gid });
   };
 

@@ -203,7 +203,9 @@
       } catch (e) { /* skip him */ }
     });
     if (PT.Events) PT.Events.emit('league:changed', { what: 'contract' });
-    UI.Toast.show(n ? 'Kept ' + D().plural(n, 'player') : 'No one to keep.', n ? 'good' : 'info');
+    const left = lists(lg).open.length;
+    UI.Toast.show(n ? 'Kept ' + D().plural(n, 'player') + (left ? ' · ' + D().plural(left, 'bench deal') + ' open' : '')
+      : left ? 'No starters to keep · ' + D().plural(left, 'bench deal') + ' open' : 'No one to keep.', n ? 'good' : 'info', 3000);
     UI.refresh();
   }
 

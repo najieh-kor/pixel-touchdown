@@ -92,7 +92,8 @@
     const G = Input.Gestures, J = Input.Joystick, m = k.mode;
     if (type === 'touch') {
       const moveMode = m === 'qb' || m === 'carrier' || m === 'return';
-      const onStick = moveMode && J.hit(x, y, m === 'qb');
+      // return mode uses the strict stick zone too: the rest of the screen must stay "TAP = fair catch / touchback" (HUNT3 #1)
+      const onStick = moveMode && J.hit(x, y, m === 'qb' || m === 'return');
       if (onStick) {
         // a new thumb on the stick ALWAYS takes it over: a stale 'joy' entry (lost release) can never block the stick
         for (const q of Array.from(ptrs.values())) if (q.role === 'joy' && q.id !== p.id) dropPtr(q, 'new thumb on the stick');
@@ -145,6 +146,7 @@
         // the stick was reset by a mode change (e.g. off during a whistle) but the thumb never left: pick it back up
         if (!k.joy.on && (k.mode === 'qb' || k.mode === 'carrier' || k.mode === 'return')) Input.Joystick.start(p.x, p.y);
         Input.Joystick.move(p.x, p.y);
+        p.maxMag = Math.max(p.maxMag || 0, k.joy.mag || 0);
         break;
       case 'aim': G.aimMove(p.x, p.y); break;
       case 'kick': G.kickMove(p.x, p.y); break;
@@ -159,7 +161,11 @@
     const k = K(), G = Input.Gestures;
     p.x = e.clientX || p.x; p.y = e.clientY || p.y;
     switch (p.role) {
-      case 'joy': Input.Joystick.end(); break;
+      case 'joy':
+        Input.Joystick.end();
+        // a quick tap on the stick while the ball is in the air to the returner still means fair catch / touchback
+        if (!cancelled && k.mode === 'return' && (p.maxMag || 0) < 0.3 && G.classify(p, k.now()) === 'tap') k.edge('snap');
+        break;
       case 'aim': if (cancelled) G.cancel(); else { G.aimMove(p.x, p.y); G.aimEnd(); } break;
       case 'kick': if (cancelled) G.cancel(); else { G.kickMove(p.x, p.y); G.kickEnd(); } break;
       case 'seek': k.seek.on = false; break;

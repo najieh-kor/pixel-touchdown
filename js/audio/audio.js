@@ -289,15 +289,52 @@
     A.wantMusic = name;
     if (!M) return;
     if (!name) { M.stop(); return; }
-    if (running()) M.play(name, { fadeIn: STING_SONGS[name] ? 0.02 : undefined, fade: STING_SONGS[name] ? 0.5 : undefined });
+    if (running()) {
+      M.play(name, { fadeIn: STING_SONGS[name] ? 0.02 : undefined, fade: STING_SONGS[name] ? 0.5 : undefined });
+      const inf = STING_SONGS[name] && M.info && M.info(name);
+      if (inf) stHold(A.ctx.currentTime + (inf.intro || 0));
+    }
   };
   Audio.musicName = function () { return A.wantMusic; };
   const STING_SONGS = { victory: 1, champion: 1, defeat: 1 };
   /** Musical jingle over the music: td | levelUp | achievement | coin | newSeason | win | lose. @returns {number} secs */
+  // HUNT3 #3: stingers never pile up. One at a time, ≥ 0.9 s apart, held while a result fanfare plays.
+  // The same name requested again within 2 s is dropped (counted in SQ.dup).
+  const SQ = { q: [], busy: 0, timer: null, last: {}, dup: 0 };
+  function stFire(name, o) {
+    const len = Audio.Music.sting(name, o);
+    if (len > 0) SQ.busy = A.ctx.currentTime + Math.max(0.9, len - 0.15);
+    return len;
+  }
+  function stPump() {
+    SQ.timer = null;
+    if (!SQ.q.length) return;
+    if (A.muted || !running()) { SQ.q.length = 0; return; }
+    const wait = SQ.busy - A.ctx.currentTime;
+    if (wait > 0.02) { SQ.timer = setTimeout(stPump, Math.ceil(wait * 1000)); return; }
+    const it = SQ.q.shift();
+    stFire(it[0], it[1]);
+    if (SQ.q.length) SQ.timer = setTimeout(stPump, Math.ceil(Math.max(0.05, SQ.busy - A.ctx.currentTime) * 1000));
+  }
+  /** hold queued stingers until t (AudioContext seconds), e.g. while the victory fanfare plays */
+  function stHold(t) { SQ.busy = Math.max(SQ.busy, t); }
+  /**
+   * Musical jingle over the music: td | levelUp | achievement | coin | newSeason | win | lose (queued, see SQ).
+   * @returns {number} secs (estimated when queued; 0 = could not play, caller may fall back to an sfx)
+   */
   Audio.sting = function (name, o) {
     log.push('sting:' + name); if (log.length > 50) log.shift();
     if (A.muted || !running() || !Audio.Music) return 0;
-    return Audio.Music.sting(name, o);
+    const now = A.ctx.currentTime, len = Audio.Music.length(name);
+    if (!(len > 0)) return 0;
+    if (SQ.last[name] != null && now - SQ.last[name] < 2) { SQ.dup++; return len; }
+    SQ.last[name] = now;
+    if (now < SQ.busy || SQ.q.length) {
+      SQ.q.push([name, o]);
+      if (!SQ.timer) stPump();
+      return len;
+    }
+    return stFire(name, o);
   };
   /** Music intensity 0..1 (game bed layers: red zone, two-minute drill, close score…) */
   Audio.setIntensity = function (x) { A.intensity = Math.max(0, Math.min(1, +x || 0)); if (Audio.Music) Audio.Music.setIntensity(A.intensity); };
@@ -371,6 +408,7 @@
   const KEEP_SCREENS = { settings: 1, game: 1 };
   const RESULT_SCREENS = { postgame: 1, quickpost: 1, results: 1 };
   function league() { return PT.App && PT.App.L; }
+  function userCoins() { const L = league(), t = L && L.teams && L.teams[L.userTid]; return t && t.fin ? t.fin.coins : null; }
   function userChamp() {
     const L = league();
     if (!L) return false;
@@ -410,6 +448,7 @@
     const on = PT.Events.on;
     on('game:start', (p) => {
       A.game = { home: p.home, away: p.away, user: p.userTid, horn: p.horn || null, po: p.po || 0 };
+      A.coins0 = userCoins();
       Audio.crowd(p.crowd == null ? 0.6 : p.crowd);
       const wx = p.weather && p.weather.k;
       Audio.ambience(wx === 'rain' || wx === 'snow' || wx === 'wind' || wx === 'fog' ? wx : null);
@@ -441,11 +480,13 @@
     on('game:touchdown', (p) => {
       const good = homeGood(p);
       const mine = p.user != null ? !!p.user : !!(A.game && p.tid != null && p.tid === A.game.user);
-      if (mine) Audio.setIntensity(1);               // celebration: everything in until the next whistle
-      if (!(mine && Audio.sting('td') > 0)) Audio.play('td');
-      if (good) Audio.play('fireworks');
-      react(good, true);
-      if (good && A.game && A.game.horn) setTimeout(() => Audio.play(A.game.horn === 'train' ? 'trainHorn' : 'carHorn'), 700);
+      if (mine) {                                     // HUNT3 #2: only the user's TD celebrates
+        Audio.setIntensity(1);                        // everything in until the next whistle
+        if (!(Audio.sting('td') > 0)) Audio.play('td');
+        Audio.play('fireworks');
+        if (good && A.game && A.game.horn) setTimeout(() => Audio.play(A.game.horn === 'train' ? 'trainHorn' : 'carHorn'), 700);
+      } else Audio.play('theyScore');
+      react(good, true);                              // the home crowd still reacts
     });
     on('game:fieldGoal', (p) => { Audio.play('whistle'); Audio.play(p.good ? 'fgGood' : 'fgMiss'); react(homeGood(p) === !!p.good, false); });
     on('game:doink', () => Audio.play('doink'));
@@ -463,7 +504,12 @@
       Audio.play('whistle', { short: true, vol: 0.5 });
       if (p && p.sit) Audio.setIntensity(sitIntensity(p.sit));   // red zone / two-minute / close score → layers
     });
-    on('game:quarterEnd', () => Audio.play('whistle', { long: true }));
+    on('game:quarterEnd', (p) => {                  // HUNT3 #4: at Q4+ a gameEnd may follow in the same tick (one whistle)
+      if (p && p.q >= 4) { const t0 = A.endAt || 0; setTimeout(() => { if ((A.endAt || 0) === t0) Audio.play('whistle', { long: true }); }, 60); }
+      else Audio.play('whistle', { long: true });
+    });
+    on('game:injury', () => Audio.play('groan', { vol: 0.5 }));
+    on('game:timeout', () => Audio.play('whistle', { short: true, vol: 0.7 }));
     on('game:halftime', () => Audio.play('whistle', { long: true }));
     on('game:twoMinute', () => { Audio.play('whistle', { long: true }); Audio.setIntensity(Math.max(Audio.intensity(), 0.55)); });
     on('game:onside', () => Audio.play('gasp'));
@@ -477,14 +523,18 @@
     on('game:batted', () => Audio.play('drop', { pitch: 1.4 }));
     on('game:recover', (p) => react(homeGood(p), false));
     on('game:overtime', () => Audio.play('whistle', { long: true }));
-    on('game:edge', (p) => Audio.play(p.good ? 'bell' : 'buzzer'));
+    on('game:edge', (p) => {                         // good:true "Great call!" → bell + sparkle, false → buzzer
+      const good = p && (p.good != null ? !!p.good : p.edge > 0);
+      if (good) { Audio.play('bell'); Audio.play('starRing', { vol: 0.5, pitch: 1.5 }); } else Audio.play('buzzer');
+    });
     on('game:pause', (p) => Audio.duck(!!p.on));
     on('game:gameEnd', (p) => {
+      A.endAt = (A.endAt || 0) + 1;
       Audio.play('whistle', { long: true });
       const won = A.game && p && p.box ? (A.game.user === p.box.h ? p.box.hs > p.box.as : A.game.user === p.box.a ? p.box.as > p.box.hs : false) : false;
       const tie = p && p.box && p.box.hs === p.box.as;
-      if (won) Audio.music(A.game && A.game.po >= 4 ? 'champion' : 'victory');   // the songs open with their own fanfare
-      else { swell(0.2, 2); Audio.music(tie ? 'hq2' : 'defeat'); }
+      if (won) { Audio.play('roar', { vol: 0.8 }); swell(0.8, 3); Audio.music(A.game && A.game.po >= 4 ? 'champion' : 'victory'); }   // songs open with their own fanfare
+      else { Audio.play(tie ? 'groan' : 'aww', { vol: 0.7 }); swell(0.2, 2); Audio.music(tie ? 'hq2' : 'defeat'); }
     });
     on('ui:click', (p) => {
       const k = p && p.kind;
@@ -499,6 +549,11 @@
       if (!n) return;
       A.screen = n;
       if (A.game || KEEP_SCREENS[n]) return;
+      if (n === 'postgame' || n === 'quickpost') {    // '+N Coins' → coin stinger (queued after the fanfare)
+        const c = userCoins();
+        if (A.coins0 != null && c != null && c > A.coins0) Audio.sting('coin', { duck: 0.7 });
+        A.coins0 = null;
+      }
       if (RESULT_SCREENS[n] && STING_SONGS[A.wantMusic]) return;   // keep the victory / champion / defeat music
       Audio.music(screenSong(n));
     });
@@ -507,8 +562,27 @@
       if (to === 'PRESEASON') Audio.sting('newSeason', { duck: 0.35 });
       if (!A.game && A.screen && !KEEP_SCREENS[A.screen] && !RESULT_SCREENS[A.screen]) Audio.music(screenSong(A.screen));
     });
-    on('league:draftPick', (p) => { if (PT.App && PT.App.L && p && p.tid === PT.App.L.userTid) Audio.play('draftPick'); });
+    let lastPick = -9;
+    on('league:draftPick', (p) => {                  // HUNT3 #3: auto draft batches → one fanfare
+      if (!(PT.App && PT.App.L && p && p.tid === PT.App.L.userTid)) return;
+      const now = A.ctx ? A.ctx.currentTime : 0;
+      if (now - lastPick > 1) Audio.play('draftPick');
+      lastPick = now;
+    });
     on('league:signed', (p) => { if (PT.App && PT.App.L && p && p.tid === PT.App.L.userTid) Audio.play('signed'); });
+    let lastToast = { bad: -9, good: -9 };
+    on('ui:toast', (p) => {                          // HUNT3 #4: 'bad' → error, 'good' → soft blip (never on top of a jingle)
+      const k = p && p.kind, now = A.ctx ? A.ctx.currentTime : 0;
+      if (k === 'bad' && now - lastToast.bad > 0.4) { lastToast.bad = now; Audio.play('error', { vol: 0.8 }); }
+      else if (k === 'good' && now - lastToast.good > 0.6 && now >= SQ.busy) { lastToast.good = now; Audio.play('blip'); }
+    });
+    on('league:levelUp', () => { if (!(Audio.sting('levelUp', { duck: 0.5 }) > 0)) Audio.play('levelUp'); });   // HUNT3 #1
+    on('league:changed', (p) => {
+      const w = p && p.what;
+      if (A.game) return;
+      if (w === 'facility') { if (!(Audio.sting('coin', { duck: 0.7 }) > 0)) Audio.play('coin'); }
+      else if (w === 'staff' || w === 'trade') Audio.play('signed');
+    });
     on('league:achievement', () => { if (!(Audio.sting('achievement', { duck: 0.5 }) > 0)) Audio.play('trophy'); });
     on('app:saveFailed', () => Audio.play('error'));
     on('app:visibility', (p) => { if (p.hidden) Audio.suspend(); else Audio.resume(); });

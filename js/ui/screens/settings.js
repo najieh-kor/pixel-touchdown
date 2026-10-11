@@ -23,7 +23,8 @@
   UI.adapt = UI.adapt || {};
   UI.adapt.setSetting = function (k, v) {
     const L = PT.App && PT.App.L;
-    if (!L) return;
+    // HUNT3-input #2: control options can be set from the title (App.setSettings saves them to device prefs)
+    if (!L) { if (PT.App && PT.App.setSettings) PT.App.setSettings({ [k]: v }); UI.applyPrefs(); return; }
     const fn = (PT.App.setSettings && !PT.App.setSettings.__stub && PT.App.setSettings) || (PT.League.setSettings && !PT.League.setSettings.__stub && PT.League.setSettings);
     if (fn) { fn === PT.App.setSettings ? fn({ [k]: v }) : fn(L, { [k]: v }); }
     else { L.settings = Object.assign({}, L.settings, { [k]: v }); if (PT.Events) PT.Events.emit('league:changed', { what: 'settings' }); }
@@ -34,8 +35,8 @@
     return html`<div class="set-row"><div class="grow"><b>${label}</b>${sub ? html`<div class="tiny muted">${sub}</div>` : ''}</div>
       <button type="button" class="toggle ${on ? 'on' : ''}" role="switch" aria-checked="${on ? 'true' : 'false'}" aria-label="${label}" data-action="tog" data-k="${key}" data-scope="${scope}" data-testid="set-${key}"></button></div>`;
   }
-  function seg(key, cur, opts, label, scope, disabled) {
-    return html`<div class="set-row col-row"><b>${label}</b><div class="seg" role="radiogroup" aria-label="${label}">${opts.map((o) => html`<button type="button" class="btn btn-sec btn-s ${String(cur) === String(o[0]) ? 'on' : ''}" role="radio" aria-checked="${String(cur) === String(o[0]) ? 'true' : 'false'}" data-action="seg" data-k="${key}" data-v="${o[0]}" data-scope="${scope}" data-testid="set-${key}-${o[0]}" ${disabled ? D().raw('disabled') : ''}>${o[1]}</button>`)}</div></div>`;
+  function seg(key, cur, opts, label, scope, disabled, sub) {
+    return html`<div class="set-row col-row"><b>${label}</b>${sub ? html`<div class="tiny muted">${sub}</div>` : ''}<div class="seg" role="radiogroup" aria-label="${label}">${opts.map((o) => html`<button type="button" class="btn btn-sec btn-s ${String(cur) === String(o[0]) ? 'on' : ''}" role="radio" aria-checked="${String(cur) === String(o[0]) ? 'true' : 'false'}" data-action="seg" data-k="${key}" data-v="${o[0]}" data-scope="${scope}" data-testid="set-${key}-${o[0]}" ${disabled ? D().raw('disabled') : ''}>${o[1]}</button>`)}</div></div>`;
   }
 
 
@@ -88,9 +89,10 @@
   function mount(el, params) {
     const p = prefs();
     const L = PT.App && PT.App.L;
-    const s = (L && L.settings) || {};
+    // without a franchise the control options come from device prefs (App.CONTROL_KEYS)
+    const s = (L && L.settings) || ((PT.App && PT.App.CONTROL_KEYS) || []).reduce((o, k) => { if (p[k] !== undefined) o[k] = p[k]; return o; }, {});
     const tabs = [{ id: 'game', label: 'Game', testid: 'tab-set-game' }];
-    if (L) tabs.push({ id: 'controls', label: 'Controls', testid: 'tab-set-controls' });
+    tabs.push({ id: 'controls', label: 'Controls', testid: 'tab-set-controls' });
     tabs.push({ id: 'screen', label: 'Sound & Screen', testid: 'tab-set-screen' });
     let tab = params.tab || SET.tab;
     if (!tabs.some((t) => t.id === tab)) tab = 'game';
@@ -98,13 +100,13 @@
     const grid = (inner, cls) => K().card(html`<div class="setz-grid">${inner}</div>`, 'setz fill ' + (cls || ''));
     let body;
     if (tab === 'controls') {
-      body = grid(html`${seg('aimMode', s.aimMode || 'sling', [['sling', 'Slingshot'], ['point', 'Point']], 'Aim style', 'L')}
-        ${toggle('easyThrow', s.easyThrow, 'Easy Throw', 'Numbered throw badges', 'L')}
+      body = grid(html`${toggle('easyThrow', s.easyThrow, 'Easy Throw', 'Tap numbers to throw', 'L')}
         ${toggle('lefty', s.lefty, 'Left-handed', 'Swap stick and buttons', 'L')}
-        ${toggle('autoDef', !!s.autoDef, 'Auto-start defense', 'Coach calls and starts the play', 'L')}
+        ${toggle('autoDef', !!s.autoDef, 'Auto-start defense', 'Coach picks the call, starts the D', 'L')}
         ${toggle('autoKick', s.autoKick, 'Auto Kick', 'Kicks are automatic', 'L')}
-        ${toggle('penalties', s.penalties !== false, 'Penalties', 'Flags on the field', 'L')}
-        ${toggle('autoLineup', s.autoLineup, 'Auto Lineup', 'Best players start', 'L')}`, 'setz-ctl');
+        ${L ? toggle('penalties', s.penalties !== false, 'Penalties', 'Flags on the field', 'L') : ''}
+        ${L ? toggle('autoLineup', s.autoLineup, 'Auto Lineup', 'Best players start', 'L') : ''}
+        <div class="set-aim">${seg('aimMode', s.aimMode || 'sling', [['sling', 'Slingshot'], ['point', 'Point']], 'Aim style', 'L', false, 'Point: drag to the catcher')}</div>`, 'setz-ctl');
     } else if (tab === 'screen') {
       body = grid(html`${seg('music', volCur(p.music), VOL, 'Music', 'P')}
         ${seg('sfx', volCur(p.sfx), VOL, 'Sound', 'P')}
@@ -118,7 +120,7 @@
       body = html`${grid(html`${L ? seg('diff', L.diff, (PT.C.DIFFS || ['Beginner', 'Normal', 'Expert', 'Legend']).map((n, i) => [i, n]), 'Difficulty', 'L') : ''}
         ${L ? seg('qLen', s.qLen || 180, [[120, '2 min'], [180, '3 min'], [300, '5 min']], 'Quarter length', 'L') : ''}
         ${seg('speed', p.speed || 0.8, [[0.7, 'Relaxed'], [0.8, 'Normal'], [1, 'Fast']], 'Game speed', 'P')}
-        ${L ? seg('watch', s.watch && s.watch !== 3 ? s.watch : 0.8, [[0.8, '0.8×'], [1, '1×'], [1.5, '1.5×']], 'Defense speed', 'L') : ''}`, 'setz-game')}
+        ${seg('watch', s.watch && s.watch !== 3 ? s.watch : 0.8, [[0.8, '0.8×'], [1, '1×'], [1.5, '1.5×']], 'Defense speed', 'L')}`, 'setz-game')}
         <div class="setz-btns setz-row">
           ${L && autosaveOff ? K().btn({ label: 'Save Now', icon: 'save', action: 'save', kind: 'go', size: 's', testid: 'btn-save' }) : ''}
           ${K().btn({ label: 'Save Slots', icon: 'folder', action: 'slots', kind: 'sec', size: 's', testid: 'btn-set-slots' })}
@@ -151,15 +153,16 @@
     ctlRow('Run', 'Drag left side', 'Hold + point', ['W', 'A', 'S', 'D'], 'Left stick'),
     ctlRow('Sprint', 'SPRINT button (or push the stick all the way)', 'Hold Shift', ['Shift'], 'Hold RT'),
     ctlRow('Hike', 'HIKE button', 'Click HIKE', ['Space'], 'A'),
-    ctlRow('Throw', 'Pull back + let go', 'Drag + let go', ['1', '2', '3', '4'], 'Right stick, then RT'),
+    ctlRow('Throw', 'Pull back + let go (or drag to the target with Point aim)', 'Drag + let go', ['1', '2', '3', '4'], 'Right stick, then RT'),
     ctlRow('Lob', 'Hold LOB', 'Right button', ['Shift'], 'Hold LT'),
     ctlRow('Juke', 'JUKE', 'Click JUKE', ['Q'], 'A'),
     ctlRow('Spin', 'SPIN', 'Click SPIN', ['R'], 'B'),
     ctlRow('Dive', 'DIVE', 'Click DIVE', ['E'], 'X'),
     ctlRow('Star Play', 'Tap when green', 'Click', ['Space'], 'A'),
-    ctlRow('Move Star', 'Tap a defender', 'Click a defender', ['Tab'], 'LB'),
+    ctlRow('Control player', 'Tap a defender', 'Click a defender', ['Tab'], 'LB'),
+    ctlRow('Surge', 'SURGE button', 'Click SURGE', ['G'], 'Y'),
     ctlRow('Kick', 'Pull back + let go', 'Drag + let go', ['←', '→', 'Space'], 'Stick + hold A'),
-    ctlRow('Fast', '» button', 'Click »', ['F'], 'RB'),
+    ctlRow('2× speed', '2× button', 'Click 2×', ['F'], 'RB'),
     ctlRow('Pause', 'Tap Pause', 'Click Pause', ['Esc'], 'Start'),
     ctlRow('Menus', 'Tap', 'Click', ['Arrows', 'Enter', 'Esc'], 'D-pad, A = OK'),
     ctlRow('Next (HQ)', 'NEXT', 'Click NEXT', ['N'], 'A on NEXT'),
@@ -205,9 +208,10 @@
     return K().card(html`${K().h2('Defense')}
       ${steps('ht-def', [
     step(1, 'Pick a Defense Call', 'Square blocks are your defenders. Red arrows rush the QB, blue bubbles guard an Area, dashed lines stick to a Buddy.', d ? dia(d.id, 'D') : ''),
-    step(2, 'Move the Star', 'Your Star defender has a gold ring. Tap another defender to move the Star before the snap.', ''),
-    step(3, 'Star Play', 'Tap when the gold ring turns green for a Super Dive or Super Jump.', html`<span class="ht-ring"><i></i></span>`),
-    step(4, 'Speed Up', 'Press » to go fast, Skip to jump to the result, or Sim Drive to finish their drive.', '')])}`, 'fill');
+    step(2, 'Control a player', 'Tap a defender to control him before the snap.', ''),
+    step(3, 'Star Play', 'Tap TAP! when the ring turns green for a Super Dive or Super Jump.', html`<span class="ht-ring"><i></i></span>`),
+    step(4, 'Surge', 'When the meter is full, tap SURGE: all your Stars on the field use their power.', ''),
+    step(5, 'Speed up', 'Press 2× to go fast, End play to jump to the result, or Sim drive.', '')])}`, 'fill');
   }
   function howCounters() {
     const DF = PT.Data.Defense, PB = PT.Data.Playbook;

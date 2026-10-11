@@ -174,6 +174,8 @@
     if (!item) return;
     const h = tHost();
     if (!h) return;
+    // HUNT3 #7: no crossfade overlap — a toast that is fading out goes away now
+    Array.prototype.forEach.call(h.querySelectorAll('.toast.out'), (n) => n.remove());
     const d = globalThis.document.createElement('div');
     d.className = 'toast toast-' + item.kind;
     d.setAttribute('data-testid', 'toast');
@@ -188,6 +190,8 @@
     if (!text || !tHost()) return;
     kind = kind || 'info';
     text = String(text);
+    // HUNT3-audio #4: let the audio side react (error sound on 'bad'); fired for every request, merged or not
+    try { if (PT.Events && PT.Events.emit) PT.Events.emit('ui:toast', { kind: kind, text: text }); } catch (e) { /* ignore */ }
     const key = kind + '|' + text;                   // HUNT #16: exact text (no '×3' for levels 2, 3, 4)
     // HUNT #15: badge toasts collapse into one ("3 new badges")
     if (kind === 'ach') {
@@ -227,6 +231,14 @@
     if (host) {
       const sc = globalThis.document.getElementById('screen');
       host.classList.toggle('t-flow', !!(sc && sc.querySelector('.lay.flow')));
+      host.classList.toggle('t-rail', !!(sc && sc.querySelector('.frame.has-nav')));
+      // HUNT3 #7: flow toasts fit the empty left part of the foot bar (left of its first button)
+      const fb = sc && sc.querySelector('.lay.flow .foot .btn');
+      const nav = sc && sc.querySelector('.navbar');
+      if (fb) {
+        const left = nav ? nav.getBoundingClientRect().right : 0;
+        host.style.setProperty('--tflow-w', Math.max(160, Math.round(fb.getBoundingClientRect().left - left - 24)) + 'px');
+      }
     }
     if (!held.length) return;
     // left the Fired screen: release what waited (after the new screen has painted)

@@ -148,6 +148,22 @@
       return out;
     } catch (e) { return []; }
   };
+  /** active (non-Hurt-List) players and the Week 1 limit */
+  FK.rosterCount = function (lg) {
+    let act = 0;
+    try { act = PT.League.Q.active(lg, lg.userTid).length; } catch (e) { act = 0; }
+    return { act: act, max: (PT.C.ROSTER && PT.C.ROSTER.MAX_SEASON) || 22 };
+  };
+  /** header segment "Roster 24/22" (red when over the Week 1 limit) */
+  FK.rosterSeg = function (lg) {
+    const r = FK.rosterCount(lg);
+    return FK.seg(html`<span class="fl-nf">Roster</span>`, r.act + '/' + r.max, { icon: 'players', cls: r.act > r.max ? 'fl-seg-warn' : '', testid: 'roster-count' });
+  };
+  /** confetti that survives the re-render that follows an action (hosted on #screen, not on the view) */
+  FK.confetti = function (n, colors) {
+    const host = globalThis.document.getElementById('screen');
+    if (host) setTimeout(() => K().confetti(host, n, colors), 0);
+  };
   /** red header segment "Need QB, K" (empty when the roster is fine) */
   FK.needSeg = function (lg) {
     const sp = FK.shortPos(lg);

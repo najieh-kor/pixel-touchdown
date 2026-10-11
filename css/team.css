@@ -557,3 +557,17 @@
 .pc2-meta.pc2-con { flex-wrap: nowrap; align-items: flex-start; }
 .pc2-con > span { min-width: 0; }
 .lay.shop .sp-star.on .sp-lv, .lay.shop .sp-star.on .tiny { color: var(--ink); }
+
+/* ======================= HUNT3 ======================= */
+/* #1: the side pager has a fixed width; a table head above a side-paged list stops where the rows stop */
+.pg.tx-side-pg > .pg-ctl { width: 50px; }
+.tx-list:has(> .pg.tx-side-pg > .pg-ctl:not([hidden])) > .tx-thead { margin-right: 44px; }
+/* #2: Make Star rows — line 1 name · pos · rating, line 2 ability · Starter/Bench */
+.ln-sp-m { display: grid; grid-template-rows: auto auto; gap: 2px; min-width: 0; }
+.ln-sp-1, .ln-sp-2 { display: flex; align-items: center; gap: 0 5px; min-width: 0; }
+.ln-sp-1 .ln-pr-n { min-width: 0; }
+.ln-sp-1 .pos { min-width: 26px; height: 18px; font-size: 14px; margin: 0; flex: none; }
+.ln-sp-1 .stars { flex: none; }
+.ln-sp-1 .stars .px-ic { width: 10px; height: 10px; }
+.ln-sp-1 .stars-num { font-size: 13px; margin-left: 2px; }
+.ln-sp-2 .chip { margin: 0; }

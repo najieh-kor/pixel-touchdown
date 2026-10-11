@@ -185,10 +185,13 @@
       .sort((x, y) => (!!y.slot - !!x.slot) || y.p.ovr - x.p.ovr);
     return html`${panelHead('Make Star', 'Starters first', { action: 'd-stars', testid: 'btn-star-back', title: 'Back to Stars', icon: 'back' })}
       ${K().pg('lnstarpick', list.map((x) => {
+        // HUNT3 #2: two fixed lines — 1: name · pos · rating; 2: Surge ability · Starter/Bench
         const a = K().ABILITY[K().abilityKind(x.p.pos)];
-        return pickRow(x.p, null, t, { action: 'd-starpick', testid: 'star-pick-' + x.p.id,
-          extra: a ? html`<span class="ln-ab" title="${a.name}: ${a.txt}">${K().ic(a.icon)}${a.name}</span>` : '',
-          sub: x.slot ? 'Starter: ' + label(x.slot) : 'Bench' });
+        return html`<button type="button" class="ln-pr ln-sp ${x.p.inj ? 'hurt' : ''}" data-action="d-starpick" data-pid="${x.p.id}" data-testid="star-pick-${x.p.id}">
+          ${K().portrait(x.p, 28, t.col.pri)}
+          <span class="ln-sp-m"><span class="ln-sp-1"><b class="ln-pr-n">${K().pname(x.p)}</b>${K().posChip(x.p.pos)}${K().stars(x.p.ovr)}</span>
+            <span class="ln-sp-2">${a ? html`<span class="ln-ab" title="${a.name}: ${a.txt}">${K().ic(a.icon)}${a.name}</span>` : ''}<span class="ln-pr-w">${x.slot ? 'Starter: ' + label(x.slot) : 'Bench'}</span>${x.p.inj ? K().hurtShort(x.p) : ''}</span></span>
+        </button>`;
       }), { cls: 'ln-pg tx-side-pg' })}`;
   }
   /** HUNT2 #2: 8/8 and a new Star tapped → pick the Star he replaces (rows that would break 2 per side are off) */

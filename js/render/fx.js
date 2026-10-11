@@ -232,9 +232,21 @@
             if (Fx.tdText) text(f.txt || 'TOUCHDOWN!', f.x, f.y, 4, R.Voxel.hexStr(tc.sec === 0xffffff ? 0xffd23f : tc.sec), true);
             if (g.stadium) g.stadium.cheer(1);
             break;
-          case 'confetti': confetti(f.x, f.y, Math.min(R._state && R._state.reduceMotion ? 60 : 200, N - 20), tcols); break;
+          case 'confetti': {
+            // confetti only for the USER's touchdowns; an opponent TD gets a small grey dust puff
+            const userTm = (snap.udir || 1) === snap.dir ? (snap.poss || 0) : 1 - (snap.poss || 0);
+            const scorer = f.tid != null && g.home && f.tid === g.home.tid ? 0 : f.tid != null && g.away && f.tid === g.away.tid ? 1 : (snap.poss || 0);
+            if (scorer === userTm) confetti(f.x, f.y, Math.min(R._state && R._state.reduceMotion ? 60 : 200, N - 20), tcols);
+            else burst(f.x, f.y, 0.4, 14, [[0.6, 0.62, 0.66], [0.75, 0.75, 0.78]], 3, 0, 0.18);
+            break;
+          }
           case 'fumble': burst(f.x, f.y, 0.6, 12, [[0.55, 0.29, 0.16], [1, 1, 1]], 5, 0, 0.16); text(f.txt || 'FUMBLE!', f.x, f.y, 3, '#ffb03a'); break;
-          case 'text': if (String(f.txt || '').length <= Fx.MAX_TEXT) text(f.txt, f.x, f.y, 3.2, '#ffffff', false); break;
+          case 'text': {
+            const tx = String(f.txt || '');
+            // the HUD owns the TOUCHDOWN banner; long texts belong to UI banners too
+            if (tx.length <= Fx.MAX_TEXT && !/^\s*touchdown!?\s*$/i.test(tx)) text(tx, f.x, f.y, 3.2, '#ffffff', false);
+            break;
+          }
           case 'coin': coins(f.x, f.y, f.n || 6); break;
           case 'ability': {
             const kc = g.kits && g.kits[team] ? [rgb(g.kits[team].pri), rgb(g.kits[team].helm)] : tcols;
@@ -295,12 +307,24 @@
           if (k >= 1) { t.sp.visible = false; continue; }
           const pop = k < 0.2 ? outBack(k / 0.2) : 1;
           const vw = g && g.camera ? g.camera.width : 40;
-          const base = Math.min(t.w, vw * 0.42);
+          let base = Math.min(t.w, vw * 0.42);
+          let px = t.x;
+          const py = t.y + k * 2.2;
+          // keep the whole text inside 10–90% of the screen width (shrink if needed, then slide)
+          const cam = g && g.camera ? g.camera.cam : null;
+          if (cam) {
+            const sgn = Math.cos(g.camera.yaw || 0) >= 0 ? 1 : -1;     // camera right = world +x (udir +1) or −x
+            _pc.set(px, py, t.z).project(cam);
+            _pr.set(px + sgn * base / 2, py, t.z).project(cam);
+            let half = Math.abs(_pr.x - _pc.x);
+            if (half > 0.78) { base *= 0.78 / half; half = 0.78; }
+            const lim = 0.8 - half;
+            const nx = Math.max(-lim, Math.min(lim, _pc.x));
+            if (nx !== _pc.x && half > 0) px += sgn * (nx - _pc.x) / (2 * half) * base;
+          }
           const w = base * pop;
           t.sp.scale.set(w, w / 4, 1);
-          // keep the text inside the view horizontally
-          const cx = g && g.camera ? g.camera.target.x : 0, lim = Math.max(0, vw / 2 - base / 2 - 0.5);
-          t.sp.position.set(Math.max(cx - lim, Math.min(cx + lim, t.x)), t.y + k * 2.2, t.z);
+          t.sp.position.set(px, py, t.z);
           t.mat.opacity = k > 0.75 ? 1 - (k - 0.75) / 0.25 : 1;
         }
       },
@@ -311,5 +335,6 @@
     };
   };
 
+  const _pc = T ? new T.Vector3() : null, _pr = T ? new T.Vector3() : null;
   function outBack(t) { const c = 2.2; t = Math.max(0, Math.min(1, t)); return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); }
 })(globalThis.PT = globalThis.PT || {});

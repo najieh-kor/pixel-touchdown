@@ -35,15 +35,15 @@
 
   // device-specific words: [touch, mouse, kbd, pad]
   const HOW = {
-    throw: [['Tap HIKE.', 'Put a finger on the right side, pull BACK away from a catcher, let go. Longer pull = longer throw.'],
+    throw: [['Tap HIKE.', 'Put a finger on the {aim} side, pull BACK away from a catcher, let go. Longer pull = longer throw.'],
       ['Click HIKE (or press Space).', 'Drag BACK away from a catcher and let go. Longer drag = longer throw.'],
       ['Press Space to hike.', 'Press 1, 2, 3 or 4 to throw to that catcher.'],
       ['Press A to hike.', 'Point the right stick at a catcher, pull RT to throw.']],
-    run: [['Hike and throw the short pass to the open catcher.', 'After the catch, steer with the joystick (bottom-left) and tap JUKE, SPIN or DIVE.'],
+    run: [['Hike and throw the short pass to the open catcher.', 'After the catch, steer with the joystick ({stick}) and tap JUKE, SPIN or DIVE.'],
       ['Hike and throw to a catcher.', 'After the catch, hold the mouse to run. Click JUKE, SPIN or DIVE.'],
       ['Hike (Space) and throw (1–4).', 'After the catch, steer with WASD. Q = Juke, R = Spin, E = Dive.'],
       ['Hike (A) and throw (RT).', 'After the catch, steer with the left stick. A = Juke, B = Spin, X = Dive.']],
-    handoff: [['Tap HIKE. The handoff is automatic.', 'Steer with the joystick (bottom-left). Gain 5 yards.'],
+    handoff: [['Tap HIKE. The handoff is automatic.', 'Steer with the joystick ({stick}). Gain 5 yards.'],
       ['Click HIKE. The handoff is automatic.', 'Hold the mouse button to run toward the pointer. Gain 5 yards.'],
       ['Press Space. The handoff is automatic.', 'Steer with WASD. Shift = sprint. Gain 5 yards.'],
       ['Press A. The handoff is automatic.', 'Steer with the left stick. Gain 5 yards.']],
@@ -100,6 +100,22 @@
     return d === 'touch' ? 0 : d === 'mouse' ? 1 : d === 'pad' ? 3 : 2;
   }
   const pill = (k) => PILL[k][devIdx()];
+  /** Left-handed mode (html[data-lefty="1"], Input lefty) mirrors the stick to the right and the aim zone to the left */
+  function lefty() {
+    const de = globalThis.document && globalThis.document.documentElement;
+    if (de && de.getAttribute('data-lefty') != null) return de.getAttribute('data-lefty') === '1';
+    try { return !!(PT.Input && PT.Input.options && PT.Input.options().lefty); } catch (e) { return false; }
+  }
+  /** the HUD's throw hint for the player's own setting (Easy Throw / Point / slingshot); null when the HUD has none */
+  function hudThrow() {
+    try { const H = UI.Hud; return H && typeof H.throwHint === 'function' ? H.throwHint() || null : null; } catch (e) { return null; }
+  }
+  /** touch / mouse: the throw line follows the player's aim setting (feature-detected), keys / pad keep their own */
+  function throwLine(dflt) {
+    const d = devIdx(), t = d <= 1 ? hudThrow() : null;
+    return t && !/^Pull back/i.test(t) ? t : dflt;        // the slingshot default keeps the fuller coaching line
+  }
+  const sided = (t) => String(t).replace('{aim}', lefty() ? 'left' : 'right').replace('{stick}', lefty() ? 'bottom-right' : 'bottom-left');
 
   function teamsFor() {
     const st = PT.App._stash && PT.App._stash.L;
@@ -330,7 +346,7 @@
     const id = P.step.id;
     if (P.flash && P.flash.until > Date.now()) return P.flash.text;
     if (stage === 'hike') return pill('hike');
-    if (stage === 'qb') return id === 'handoff' ? '' : pill('throw');
+    if (stage === 'qb') return id === 'handoff' ? '' : (devIdx() <= 1 && hudThrow()) || pill('throw');
     if (stage === 'carrier') return id === 'handoff' || id === 'throw' ? pill('run') : pill('steer');
     if (stage === 'dcall' || stage === 'call') return '';          // the tray is the instruction
     if (stage === 'go') return pill('go');
@@ -349,7 +365,7 @@
     let air = false;
     try { const sn = g && g.snapshot(); air = !!(sn && sn.phase === 'LIVE' && sn.ball && sn.ball.st === 'air'); } catch (e) { air = false; }
     const t = P.phase === 'play' ? text(stage) : '';
-    const key = P.i + '|' + P.phase + '|' + stage + '|' + t + '|' + air + '|' + devIdx() + '|' + P.tries + '|' + !!P.busy;
+    const key = P.i + '|' + P.phase + '|' + stage + '|' + t + '|' + air + '|' + devIdx() + '|' + lefty() + '|' + P.tries + '|' + !!P.busy;
     if (!force && key === P.key) return;
     P.key = key;
     c.setAttribute('data-step', P.step.id);
@@ -368,10 +384,10 @@
     const leaveBtn = K().btn({ label: 'Leave', icon: ic('exit'), action: 'pr-leave', kind: 'ghost', size: 's', testid: 'btn-practice-leave' });
     const lastStep = P.i >= STEPS.length - 1;
     if (P.phase === 'intro' && !P.done) {
-      const how = (HOW[P.step.id] || [])[devIdx()] || [];
+      const how = ((HOW[P.step.id] || [])[devIdx()] || []).map((h, i) => (P.step.id === 'throw' && i === 1 ? throwLine(h) : h));
       D().set(c, html`${head}
         <p class="pr-brief">${BRIEF[P.step.id] || ''}</p>
-        <ol class="pr-how">${how.map((h) => html`<li>${h}</li>`)}</ol>
+        <ol class="pr-how">${how.map((h) => html`<li>${sided(h)}</li>`)}</ol>
         <div class="pr-btns">
           ${leaveBtn}
           ${K().btn({ label: 'Skip', icon: ic('ff'), action: 'pr-next', kind: 'sec', size: 's', testid: 'btn-practice-next' })}
@@ -458,6 +474,12 @@
       setTimeout(() => leave(true), 0);
       return;
     }
+    // the HUD keeps the last game's aim options until the Session's first setControls; prime it with this session's
+    // settings so the intro's throw line (Hud.throwHint) matches before the first snap (HUD should reset on show)
+    try {
+      const st = (PT.App.L && PT.App.L.settings) || {};
+      if (UI.Hud && typeof UI.Hud.setControls === 'function') UI.Hud.setControls('none', { easyThrow: !!st.easyThrow, aimMode: st.aimMode || 'sling' });
+    } catch (e) { /* optional */ }
     P.timer = setInterval(tick, 100);
     showIntro();
   }

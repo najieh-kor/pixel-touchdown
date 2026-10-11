@@ -46,6 +46,7 @@
   function togoText(togo, goal) { return goal ? 'Goal' : togo < 0.5 ? 'inches' : String(Math.max(1, Math.round(togo))); }
   PC.togoText = togoText;
   function sitText(sit) {
+    if (sit && (sit.two || sit.tryTwo)) return '2-PT TRY · one play';   // HUNT3 #8
     if (!sit || !sit.down) return '';
     const goal = sit.dir > 0 ? sit.y + sit.togo >= 110 : sit.y - sit.togo <= 10;
     // HUNT2 #6: ball spot from the user's side with team abbreviations (Hud.yardFor), not OWN/OPP of the offense
@@ -326,7 +327,8 @@
 
   /** engine round 2: 0:00 rescue tray (sit.rescue) shows the REAL clock, not the HUD's 0:00 */
   function rescueClock(sit) {
-    if (!sit || !sit.rescue || sit.clk == null) return '';
+    // HUNT3 #2: also in the last 10 s of Q2 / Q4 when the tray is not a rescue
+    if (!sit || sit.clk == null || !(sit.rescue || (sit.clk <= 10 && (sit.q === 2 || sit.q === 4)))) return '';
     return html`<span class="pk-clk" data-testid="pc-rescue-clock">${ic('clock')}<b class="num">${PT.Util.fmtClock(sit.clk)}</b> left</span>`;
   }
   function chip(label, icon, pact, testid, onState, extra, cls) {
@@ -348,7 +350,8 @@
     const side = o.side === 'D' ? 'D' : 'O';
     const cards = o.cards || [];
     const best = bestIdx(cards);
-    const tos = UI.Hud && UI.Hud.timeoutsLeft ? UI.Hud.timeoutsLeft() : 3;
+    // HUNT3 #2: the count Session passes (fresh g.situation()) wins; the HUD's last frame may predate a timeout
+    const tos = o.tos != null ? o.tos : o.sit && o.sit.tos && UI.Hud && UI.Hud.userIdx ? o.sit.tos[UI.Hud.userIdx()] : UI.Hud && UI.Hud.timeoutsLeft ? UI.Hud.timeoutsLeft() : 3;
     const chips = side === 'O'
       ? html`${chip('Flip', 'flip', 'flip', 'btn-flip', PC.state.flip)}${chip('Hurry', 'bolt', 'hurry', 'btn-hurry', PC.state.hurry)}${o.canTimeout !== false ? chip('Timeout', 'clock', 'timeout', 'btn-timeout', false, (tos > 0 ? '' : 'disabled') + ' data-n="' + tos + '"') : ''}`
       : html`${chip('Sim drive', 'robot', 'simdrive', 'btn-sim-drive', false, '', 'pk-chip-skip')}${o.canTimeout ? chip('Timeout', 'clock', 'timeout', 'btn-timeout', false, (tos > 0 ? '' : 'disabled') + ' data-n="' + tos + '"') : ''}`;
@@ -431,7 +434,7 @@
   function tipHtml(side) {
     const id = side === 'D' ? 'defense' : 'playcall';
     if (K().tipSeen(id)) return '';
-    const txt = side === 'D' ? "Pick a defense. Tap TAP! when the ring turns green. Tap SURGE when it's full." : 'Tap a play, then HIKE. Pull back like a slingshot to throw.';
+    const txt = side === 'D' ? "Pick a defense. Tap TAP! when the ring turns green. Tap SURGE when it's full." : 'Tap a play, then HIKE. ' + (UI.Hud && UI.Hud.throwHint ? UI.Hud.throwHint() : 'Pull back to throw!');
     return html`<div class="pk-tip"><span aria-hidden="true">${ic('cap')}</span><span class="pk-tip-t">${txt}</span><button type="button" class="pk-chip" data-pact="tipok" data-id="${id}" data-testid="tip-ok-${id}">Got it</button></div>`;
   }
 
@@ -592,7 +595,8 @@
         render();
         if (PC.state.autoDef) startAuto(); else clearTimeout(autoTimer);
         break;
-      case 'go': case 'kick': case 'two': done(a); break;
+      case 'go': case 'kick': done(a); break;
+      case 'two': if (cur.kind === 'pat' && UI.Hud && UI.Hud.markTwo) UI.Hud.markTwo(); done(a); break;
       case 'punt': done(cur.kind === 'fourth' ? 'punt' : 'PUNT'); break;
       case 'fg': done(cur.kind === 'fourth' ? 'fg' : 'FG'); break;
       default: break;
@@ -616,7 +620,7 @@
     }
     if (cur.kind === 'pat') {
       if (k === '1' || k === 'k') { done('kick'); return true; }
-      if (k === '2') { done('two'); return true; }
+      if (k === '2') { if (UI.Hud && UI.Hud.markTwo) UI.Hud.markTwo(); done('two'); return true; }
       return false;
     }
     const side = cur.o.side === 'D' ? 'D' : 'O';

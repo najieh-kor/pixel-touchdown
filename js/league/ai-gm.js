@@ -133,7 +133,10 @@
     const target = inSeason ? C.ROSTER.NEED : C.ROSTER.TEMPLATE;
     for (let guard = 0; guard < 12; guard++) {
       const c = counts(L, tid, inSeason);
-      const pos = C.POS.find((x) => (c[x] || 0) < target[x]);
+      // HUNT3-league #2: minimums always; template gaps only while the team is under a legal 22 (no Market overload)
+      const act = Q().roster(L, tid).filter((p) => !p.ir).length;
+      let pos = C.POS.find((x) => (c[x] || 0) < C.ROSTER.NEED[x]);
+      if (!pos && act < C.ROSTER.MAX_SEASON) pos = C.POS.find((x) => (c[x] || 0) < target[x]);
       if (!pos) break;
       const fas = Q().freeAgents(L).filter((p) => p.pos === pos && !p.inj).sort((a, b) => (b.ovr - a.ovr) || (a.id - b.id));
       let pick = null, sal = 0;
@@ -276,7 +279,8 @@
   // ---------------- Market (17.3) ----------------
 
   /**
-   * An AI team's offer for one Market player, or null. Needs: below template count, or starter < his OVR − 2.
+   * An AI team's offer for one Market player, or null. Needs: below template count, or starter < his OVR − 2 (an upgrade
+   * only at/below the template count, or with a free bench cut at that position). Never past 22 incl. pending offers.
    * Offer if capRoom − reserve ≥ Ask × 0.9 with chance Contender 0.8 · Middle 0.5 · Rebuild 0.3 (Rebuild: age ≤ 27 only).
    * Pay = Ask × rand(0.9, 1.1) (Contender × 1.05), years inside his range.
    */
@@ -286,8 +290,21 @@
     if (!p || p.tid !== C.TID.FA || t.human) return null;
     r = r || rng(L, tid, 'bid' + pid);
     const c = counts(L, tid, false);
-    const needPos = (c[p.pos] || 0) < C.ROSTER.TEMPLATE[p.pos] || Con().starterOvr(L, tid, p.pos) < p.ovr - 2;
-    if (!needPos) return null;
+    // HUNT3-league #2: never bid past a legal 22-man roster (pending offers count), and only upgrade where there is room
+    const active = Q().roster(L, tid).filter((x) => !x.ir).length;
+    const open = ((L.fa && L.fa.offers) || []).filter((o) => o.tid === tid).length;
+    if (active + open >= C.ROSTER.MAX_SEASON) return null;
+    const have = c[p.pos] || 0, tpl = C.ROSTER.TEMPLATE[p.pos];
+    const below = have < tpl;
+    const upgrade = Con().starterOvr(L, tid, p.pos) < p.ovr - 2;
+    if (!below && !upgrade) return null;
+    if (!below && have > tpl) {
+      const starts = {};
+      Object.keys(t.dc || {}).forEach((s0) => { if (s0 !== 'KR' && t.dc[s0] && t.dc[s0][0] != null) starts[t.dc[s0][0]] = true; });
+      const deadOf = (x) => { const cc = Cap().cutCost ? Cap().cutCost(L, x.id) : null; return cc == null ? 1 : typeof cc === 'number' ? cc : (cc.total || 0); };
+      const freeCut = Q().roster(L, tid).some((x) => !x.ir && x.pos === p.pos && x.ovr < p.ovr && !starts[x.id] && deadOf(x) === 0);
+      if (!freeCut) return null;
+    }
     if (t.strat === 'rebuild' && p.age > 27) return null;
     const a = Con().ask(L, pid, tid);
     const room = Cap().space(L, tid) - Cap().cap(L) * K().FA_RESERVE;

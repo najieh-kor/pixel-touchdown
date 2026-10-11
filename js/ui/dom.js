@@ -104,6 +104,11 @@
     if (mx === mn) return 0;
     return (mx - mn) / (l > 0.5 ? 2 - mx - mn : mx + mn);
   };
+  /** darker version of an int color (k 0..1 multiplies each channel) */
+  dom.shade = function (c, k) {
+    const ch = (v) => Math.max(0, Math.min(255, Math.round(v * k)));
+    return (ch((c >> 16) & 255) << 16) | (ch((c >> 8) & 255) << 8) | ch(c & 255);
+  };
   /** readable text color for a background int color */
   dom.inkOn = (c) => (dom.lum(c) > 0.42 ? '#1b1f3a' : '#ffffff');
 

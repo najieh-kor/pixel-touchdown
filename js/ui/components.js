@@ -374,7 +374,9 @@
   /** Colours for a home/away pair that always differ (same kits as the 3D game): {h, a} as '#rrggbb'.
    *  Away side = its jersey colour, or its helmet colour when the away jersey is white. */
   K.kitCols = function (homeTid, awayTid) {
-    const L = PT.App.L, ht = L.teams[homeTid], at = L.teams[awayTid];
+    // ids (loaded league) or team defs/objects with .col (Quick Game options, no league yet)
+    const L = PT.App.L;
+    const ht = typeof homeTid === 'object' ? homeTid : L.teams[homeTid], at = typeof awayTid === 'object' ? awayTid : L.teams[awayTid];
     const fall = { h: D().hex(ht.col.pri), a: D().hex(at.col.pri), hn: ht.col.pri, an: at.col.pri };
     try {
       const R = PT.Render;

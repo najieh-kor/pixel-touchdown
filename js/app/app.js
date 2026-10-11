@@ -103,6 +103,7 @@
       diff: o.diff == null ? 1 : o.diff, now: Date.now() });
     if (o.coachSp && L.coach && typeof L.coach === 'object') L.coach.sp = o.coachSp;
     L.dv = 2;                                         // created with the 4-level difficulty (ROUND6 B)
+    App.seedControls(L, false);                       // a new franchise starts with this device's control settings
     App.L = L; App.slot = slot; App.interrupted = null;
     onLeagueReady();
     App.save();
@@ -130,6 +131,7 @@
     }
     if (PT.Session && PT.Session.active()) PT.Session.quit({ simRest: false });
     App.L = r.L; App.slot = slot;
+    App.seedControls(App.L, true);                    // older saves without a stored control value: use the device's
     try { App.interrupted = findInterrupted(r.L, r.inGame); } catch (e) { App.interrupted = null; }
     onLeagueReady();
     emit('app:loaded', { slot: slot, which: which });
@@ -390,8 +392,18 @@
    * @param {{userTid:number, oppTid:number, diff?:number, qLen?:number, wx?:Object|null, home?:boolean, seed?:number}} o
    * @returns {{L:League, gid:number}}
    */
+  /** control settings that follow the DEVICE (HUNT3 #2): mirrored into prefs, seeded into new / temp / older leagues */
+  App.CONTROL_KEYS = ['lefty', 'aimMode', 'easyThrow', 'autoDef', 'watch'];
+  /** copy device control prefs into L.settings (onlyMissing: keep a franchise's own stored values) */
+  App.seedControls = function (L, onlyMissing) {
+    if (!L || !L.settings || !PT.Save || !PT.Save.prefs) return L;
+    const pf = PT.Save.prefs();
+    App.CONTROL_KEYS.forEach((k) => { if (pf[k] != null && (!onlyMissing || L.settings[k] === undefined)) L.settings[k] = pf[k]; });
+    return L;
+  };
   App.tempLeague = function (o) {
     const L = PT.League.create({ seed: App.TEMP_SEED, userTid: o.userTid, coach: 'Coach', diff: o.diff == null ? 1 : o.diff, now: Date.now() });
+    App.seedControls(L, false);                     // Practice / Quick Game keep the player's control settings
     L.seed = o.seed != null ? o.seed >>> 0 : newSeed();
     if (o.qLen) L.settings.qLen = o.qLen;
     L.settings.autoKick = false;
@@ -403,6 +415,14 @@
     return { L: L, gid: gid };
   };
   App.TEMP_SEED = 20260;
+
+  /** control settings changed anywhere (franchise Settings, pause ⚙) also become device prefs */
+  function mirrorControls(partial) {
+    if (!partial || !PT.Save || !PT.Save.setPrefs) return;
+    const out = {};
+    App.CONTROL_KEYS.forEach((k) => { if (partial[k] !== undefined) out[k] = partial[k]; });
+    if (Object.keys(out).length) PT.Save.setPrefs(out);
+  }
 
   // ---------------- prefs / settings / haptics ----------------
   /** Persist + apply device prefs ({sfx, music, muted, quality, haptics, reduceMotion, watch, kickMode}). */
@@ -419,6 +439,7 @@
   };
   /** Change several league settings at once (WP5 in-game gear: watch, autoDef, lefty, autoKick …). @returns {Result} */
   App.setSettings = function (partial) {
+    mirrorControls(partial);
     if (!App.L) return fail('NO_LEAGUE', 'No league loaded.');
     Object.assign(App.L.settings, partial || {});
     emit('league:changed', { what: 'settings' });
@@ -427,6 +448,7 @@
   };
   /** Change a league setting (L.settings[k]) and save. @returns {Result} */
   App.setSetting = function (k, v) {
+    mirrorControls({ [k]: v });
     if (!App.L) return fail('NO_LEAGUE', 'No league loaded.');
     App.L.settings[k] = v;
     emit('league:changed', { what: 'settings' });

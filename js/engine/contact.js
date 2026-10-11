@@ -223,7 +223,7 @@
       c.an = 'celebrate'; c.at = 0;
       PT.Engine.Snapshot.fx(G, 'td', c.x, c.y, 0, 1, G.tids[c.tm], 'TOUCHDOWN!');
       PT.Engine.Snapshot.fx(G, 'confetti', c.x, gy, 0, 200, G.tids[c.tm], '');
-      if (!G.fast) G.em.emit('bigPlay', { slowmo: 0.4, dur: 0.3, kind: 'td' });
+      if (!G.fast) G.em.emit('bigPlay', { slowmo: 0.4, dur: 0.3, kind: 'td', user: c.tm === G.userIdx });
       return G.whistle('td', c.tm, gy, false);
     }
     if (oob) {
@@ -314,8 +314,9 @@
       G.snap.cam.shake = Math.max(G.snap.cam.shake, 0.3);
       PT.Engine.Snapshot.fx(G, 'hit', c.x, c.y, 1, 2, G.tids[d.tm], 'SACK!');
       G.em.emit('sack', { pid: c.pid, by: d.pid, x: c.x, y: c.y });
-      G.em.emit('tackle', { carrier: c.pid, by: [d.pid], x: c.x, y: c.y, big: true, sack: true });
-      if (!G.fast) G.em.emit('bigPlay', { slowmo: 0.5, dur: 0.06, kind: 'hitstop' });
+      const sackBig = Math.hypot(c.vx - d.vx, c.vy - d.vy) >= T.BIG_SACK_V && d.eng < 0 && behind;   // blindside / unblocked only (HUNT3 #6)
+      G.em.emit('tackle', { carrier: c.pid, by: [d.pid], x: c.x, y: c.y, big: sackBig, sack: true });
+      if (!G.fast) G.em.emit('bigPlay', { slowmo: 0.5, dur: 0.06, kind: 'hitstop', big: sackBig, user: c.tm === G.userIdx || d.tm === G.userIdx });
       if (CT.fumbleRoll(G, c, d, behind ? T.FUM_SACK_BEHIND : T.FUM_SACK_FRONT, true)) return true;
       CT.downAt(G, ci, c.y, false, false);
       return true;
@@ -364,7 +365,8 @@
     if (c.turboBrk) { c.turboBrk = false; pb = 1; }                         // Turbo: the first tackle attempt is auto-broken
     pb = PT.Util.clamp(pb, T.BRK_MIN, T.BRK_MAX);
     const closing = Math.hypot(c.vx - d.vx, c.vy - d.vy);
-    const big = closing >= T.BIG_HIT_V - T.BIG_HIT_MASS * (d.mass - 2);    // L tacklers hit harder (big hit sooner)
+    // L tacklers hit harder (big hit sooner); only a clean, unblocked hit on a carrier who isn't spinning (HUNT3 #6)
+    const big = closing >= T.BIG_HIT_V - T.BIG_HIT_MASS * (d.mass - 2) && d.eng < 0 && !(c.spinT > 0);
     if (rng.chance(pb)) {
       G.tk.brk++;
       c.slowT = T.BRK_SLOW_T;
@@ -383,7 +385,7 @@
     G.snap.cam.shake = Math.max(G.snap.cam.shake, big ? 0.2 : 0.08);
     PT.Engine.Snapshot.fx(G, 'hit', c.x, c.y, 0.8, big ? 2 : 1, G.tids[d.tm], '');
     G.em.emit('tackle', { carrier: c.pid, by: [d.pid], x: c.x, y: c.y, big: big });
-    if (big && !G.fast) G.em.emit('bigPlay', { slowmo: 0.5, dur: 0.06, kind: 'hitstop' });
+    if (big && !G.fast) G.em.emit('bigPlay', { slowmo: 0.5, dur: 0.06, kind: 'hitstop', big: true, user: c.tm === G.userIdx || d.tm === G.userIdx });
     CT.injuryCheck(G, c, big ? T.INJ_BIG : 1);
     CT.injuryCheck(G, d, big ? T.INJ_BIG : 1);
     // facemask (design 8.15)

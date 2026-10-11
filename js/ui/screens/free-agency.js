@@ -77,7 +77,7 @@
       void n;
       // Swaps stays one tap away (it is not a step of the flow, so it lives in the header, not the bottom bar)
       const swaps = mkToggle('fa');
-      return F.head(html`${F.seg('Market Day', (lg.sub + 1) + '/' + PT.C.FA_DAYS, { icon: 'contract', cls: 'fl-seg-t', testid: 'fa-day' })}${F.seg(html`<span class="fl-nf">Offers today</span><span class="fl-ns">Offers</span>`, used + '/' + MAX_OFFERS_DAY, { cls: used >= MAX_OFFERS_DAY ? 'fl-seg-warn' : '' })}${F.gap()}${F.needSeg(lg)}${swaps}`);
+      return F.head(html`${F.seg(html`<span class="fl-nf">Market </span>Day`, (lg.sub + 1) + '/' + PT.C.FA_DAYS, { icon: 'contract', cls: 'fl-seg-t', testid: 'fa-day' })}${F.seg(html`<span class="fl-nf">Offers today</span><span class="fl-ns">Offers</span>`, used + '/' + MAX_OFFERS_DAY, { cls: used >= MAX_OFFERS_DAY ? 'fl-seg-warn' : '' })}${F.gap()}${F.needSeg(lg)}${F.rosterSeg(lg)}${swaps}`);
     }
     if (m === 'sign') return F.head(html`${F.seg('', 'Free Agents', { icon: 'contract', cls: 'fl-seg-t' })}${F.gap()}${mkToggle('fa')}`);
     return F.head(html`${F.seg('', 'Market Closed', { icon: 'lock', cls: 'fl-seg-t' })}${F.seg('Opens', 'after Draft Day', { cls: 'fl-seg-dim' })}`);
@@ -189,10 +189,29 @@
     if (short.length) {
       UI.Modal.open({ title: 'You still need ' + short.join(', '), icon: 'warn', body: 'Finish anyway? You can sign a walk-on before Week 1.',
         buttons: [{ label: 'Back', value: null, kind: 'cancel', testid: 'btn-finish-back' }, { label: 'Finish anyway', value: 'ok', kind: 'go' }] })
-        .then((v) => { if (v === 'ok') runFinish(lg, F); });
+        .then((v) => { if (v === 'ok') checkOver(lg, F); });
       return;
     }
-    runFinish(lg, F);
+    checkOver(lg, F);
+  }
+  /** over the Week 1 limit: say so now (with who would go and their dead money), never as a Week 1 surprise */
+  function checkOver(lg, F) {
+    const rc = FK().rosterCount(lg);
+    if (rc.act <= rc.max) { runFinish(lg, F); return; }
+    let plan = null;
+    try { plan = PT.League.Roster.fixPlan(lg, lg.userTid, { max: rc.max }); } catch (e) { plan = null; }
+    const cuts = plan && plan.cut ? plan.cut : [];
+    const rows = cuts.map((c) => html`<div class="fl-lv">${K().posChip(c.pos)}<b class="fl-lv-n">${c.name}</b><span class="fl-lv-r">${FK().stars(c.ovr)}${c.cost ? FK().tag('Dead ' + D().money(c.perYear) + (c.years > 1 ? ' ×' + c.years : ''), 'red') : FK().tag('No dead money', 'green')}</span></div>`);
+    UI.Modal.open({ title: 'Week 1 limit is ' + rc.max + ' · you have ' + rc.act, icon: 'players', cls: 'm-list m-leave', dismiss: false,
+      body: html`<p class="fl-note">Auto cut would release:</p>${K().pg('cuts', rows, { cls: 'fl-lv-pg' })}`,
+      buttons: [{ label: 'Back', value: null, kind: 'cancel', testid: 'cut-back' }, { label: 'Pick myself', value: 'pick', kind: 'sec', testid: 'btn-cut-pick' }, { label: 'Auto cut', value: 'auto', kind: 'go' }] })
+      .then((v) => {
+        if (v === 'pick') { UI.go('roster'); return; }
+        if (v !== 'auto') return;
+        try { PT.League.Roster.fixIt(lg, lg.userTid, { max: rc.max }); } catch (e) { UI.Toast.show('Could not cut.', 'bad'); return; }
+        if (PT.Events) PT.Events.emit('league:changed', { what: 'roster' });
+        runFinish(lg, F);
+      });
   }
   function runFinish(lg, F) {
     const busy = UI.Modal.busy('Finishing the Market…');
@@ -316,8 +335,8 @@
       .then(() => {
         if (yes) { sw.give = []; sw.get = []; if (PT.Events) PT.Events.emit('league:changed', { what: 'trade' }); }
         UI.refresh();
+        if (yes) FK().confetti(40);
       });
-    if (yes) { const v = D().$('#screen .lay'); if (v) K().confetti(v, 40); }
   }
 
   UI.screens.swaps = {

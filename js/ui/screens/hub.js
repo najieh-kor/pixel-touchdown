@@ -76,15 +76,16 @@
     const tw = (c.twist && typeof c.twist === 'object' && c.twist.name) ? c.twist : twistOf(L);
     const goal = (c.goal && (c.goal.txt || c.goal)) || (L.boss && L.boss.goal && L.boss.goal.txt) || '';
     const money = [];
-    if (c.tv) money.push('TV money +' + D().money(c.tv));
-    if (c.bills) money.push('Bills -' + D().money(c.bills));
+    // HUNT3 #2: tv / bills are Coin changes (not Team Cash)
+    if (c.tv) money.push('TV money +' + D().int(c.tv) + ' Coins');
+    if (c.bills) money.push('Bills −' + D().int(c.bills) + ' Coins');
     const camp = (c.camp || []).map((pid) => PT.League.Q.player(L, pid)).filter(Boolean);
     const lines = (c.lines || []).filter((x) => typeof x === 'string');
     return K().card(html`<h2 class="hq-gate-t">${K().ic('calendar')} Season ${c.s || L.season}</h2>
       <div class="ns-rows">
         <div class="ns-row"><span class="ns-ic">${K().ic('dice')}</span><span class="grow ns-tw"><b>${tw.name}</b>${tw.desc ? html`<span class="small ns-fx">${K().numify(tw.desc)}</span>` : ''}</span></div>
         ${goal ? html`<div class="ns-row"><span class="ns-ic">${K().ic('briefcase')}</span><span class="grow"><b>Boss goal:</b> ${K().numify(goal)}</span></div>` : ''}
-        ${money.length ? html`<div class="ns-row"><span class="ns-ic">${K().ic('cash')}</span><span class="grow small">${K().numify(money.join(' · '))}</span></div>` : ''}
+        ${money.length ? html`<div class="ns-row"><span class="ns-ic">${K().icon('coin')}</span><span class="grow small">${K().numify(money.join(' · '))}</span></div>` : ''}
         ${camp.length ? html`<div class="ns-row ns-x"><span class="ns-ic">${K().ic('dumbbell')}</span><span class="grow small">Camp: ${camp.map((p) => K().short(p)).join(', ')}</span></div>` : ''}
         ${lines.map((x) => html`<div class="ns-row ns-x"><span class="ns-ic">${K().ic('news')}</span><span class="grow small">${K().numify(x)}</span></div>`)}
       </div>

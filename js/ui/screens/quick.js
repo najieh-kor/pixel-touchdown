@@ -20,7 +20,7 @@
   const QLEN = [[120, '2 min'], [180, '3 min'], [300, '5 min'], [420, '7 min']];
   const MPH = 0.48889;
   const WX = {
-    random: { name: 'Random', set: null },
+    random: { name: 'Any', set: null },          // HUNT3 #11: short enough for the 4-column weather row
     sunny: { name: 'Sunny', set: { k: 'sunny', wx: 0, wy: 0, mph: 3 } },
     rain: { name: 'Rain', set: { k: 'rain', wx: 0, wy: 0, mph: 6 } },
     snow: { name: 'Snow', set: { k: 'snow', wx: 0, wy: 0, mph: 5 } },
@@ -80,13 +80,14 @@
   }
   function stepOpts() {
     const t = teamDef(st.tid), o = teamDef(st.opp);
+    const kc = K().kitCols(t, o);                  // HUNT3 #12: you are home; colours as the kits on the field
     const seg = (list, cur, act, pre) => html`<div class="seg qg-seg-${act}">${list.map((x) => K().btn({ label: x[1], kind: 'sec', size: 's', action: act, cls: x[0] === cur ? 'on' : '', data: { v: x[0] }, testid: pre + x[0] }))}</div>`;
     return K().layout(html`<div class="cols2 qgx">
       <div>
         <section class="card qg-vs">
-          <button type="button" class="qg-side" data-action="change-team" data-testid="btn-qg-change-team" style="${K().teamVars(t)}">${K().badge(t, 'l')}<b class="ellip">${t.name}</b>${K().stars(ovrs()[t.id], { team: true })}</button>
+          <button type="button" class="qg-side" data-action="change-team" data-testid="btn-qg-change-team" style="${K().teamVars(t)};--t-pri:${kc.h};--t-pri-ink:${D().inkOn(kc.hn)}">${K().badge(t, 'l')}<b class="ellip">${t.name}</b>${K().stars(ovrs()[t.id], { team: true })}</button>
           <span class="qg-vs-t">VS</span>
-          <button type="button" class="qg-side" data-action="change-opp" data-testid="btn-qg-change-opp" style="${K().teamVars(o)}">${K().badge(o, 'l')}<b class="ellip">${o.name}</b>${K().stars(ovrs()[o.id], { team: true })}</button>
+          <button type="button" class="qg-side" data-action="change-opp" data-testid="btn-qg-change-opp" style="${K().teamVars(o)};--t-pri:${kc.a};--t-pri-ink:${D().inkOn(kc.an)}">${K().badge(o, 'l')}<b class="ellip">${o.name}</b>${K().stars(ovrs()[o.id], { team: true })}</button>
         </section>
         <section class="card">${K().h2('Difficulty')}
           ${K().diffCards(st.diff, 'qg-diff-')}

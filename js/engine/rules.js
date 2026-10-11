@@ -65,12 +65,16 @@
 
   /** Give team ti the ball at field y (1st & 10). */
   RU.setPoss = function (G, ti, y) {
-    const changed = ti !== G.poss;
+    const changed = ti !== G.poss, prev = G.poss;
     G.poss = ti; G.dir = RU.dirOf(G, ti);
     G.los = PT.Util.clamp(y, GL + 0.5, GH - 0.5);
     RU.firstDown(G);
     G.driveStart = G.los;
-    if (G.q > 4) G.ot.poss[ti]++;
+    if (G.q > 4) {
+      G.ot.poss[ti]++;
+      // the team that had the ball (a real scrimmage possession) has now finished its OT possession
+      if (changed && prev >= 0 && G.ot.had[prev]) G.ot.done[prev] = true;
+    }
     if (changed) G.em.emit('possession', { tid: G.tids[ti] });
   };
 
@@ -241,6 +245,7 @@
         }
         deadT = T.DEAD_TD_T;
       } else if (res.k === 'td' && res.team === def) {
+        if (G.q > 4 && G.ot.had[off]) G.ot.done[off] = true;
         // defensive TD (pick-six / fumble return)
         scored = true; result = 'td'; turnover = P.picked ? 'int' : 'fumble';
         const scorer = ent(P.carrierEnd);
@@ -443,12 +448,17 @@
   };
 
   /** OT: after both teams have had a possession, the next score (or a lead) wins (design 8.16). */
+  /**
+   * OT (HUNT3 #1): each team gets a possession (counted from its first scrimmage snap, finished when the ball changes
+   * hands — a kickoff never counts). The game ends when the scores differ and the trailing team has finished a
+   * possession (so a first-drive score never ends it; a defensive score or a go-ahead score on the second drive does;
+   * after both had it, any score — sudden death).
+   */
   RU.otCheck = function (G) {
-    const o = G.ot;
-    if (o.poss[0] >= 1 && o.poss[1] >= 1 && G.score[0] !== G.score[1]) G.next = 'final';
-    else if (G.next === 'kickoff' || G.next === 'safety' || G.next === 'call') {
-      // first possession scored a FG or TD: the other team still gets its chance
-    }
+    const o = G.ot, d = G.score[0] - G.score[1];
+    if (!d) return;
+    const trail = d > 0 ? 1 : 0;
+    if (o.done[trail]) G.next = 'final';
   };
 
   /** What happens after the dead-ball pause. */
@@ -498,7 +508,12 @@
       return true;
     }
     // Q4 or OT period end
-    if (G.score[0] !== G.score[1]) { game._final(); return true; }
+    if (G.score[0] !== G.score[1]) {
+      // OT clock ran out while the trailing team never had the ball: it still gets its possession (another period)
+      const trail = G.score[0] > G.score[1] ? 1 : 0;
+      if (G.q >= 5 && !G.ot.had[trail]) { G.q++; G.clk = G.qLen; while (G.box.q[0].length < G.q) { G.box.q[0].push(0); G.box.q[1].push(0); } G.em.emit('overtime', { q: G.q, half: 3 }); return false; }
+      game._final(); return true;
+    }
     if (G.q >= 5 && !(G.cfg.po > 0)) { game._final(); return true; }   // regular season: tie after one OT
     RU.startOT(G);
     return true;
@@ -515,7 +530,7 @@
     if (first) {
       const recv = G.rng.chance(0.5) ? 0 : 1;
       G.dir0 = recv === 0 ? 1 : -1;
-      G.ot.poss[0] = 0; G.ot.poss[1] = 0;
+      G.ot.poss[0] = 0; G.ot.poss[1] = 0; G.ot.had[0] = G.ot.had[1] = false; G.ot.done[0] = G.ot.done[1] = false;
       G.em.emit('overtime', { q: G.q, half: 3, recvTid: G.tids[recv] });
       game._break((G.fast || G.idle) ? T.FAST.BREAK_HALF_T : T.BREAK_HALF_T, 'kickoff', 1 - recv);
     } else {

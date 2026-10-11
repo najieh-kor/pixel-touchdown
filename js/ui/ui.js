@@ -232,8 +232,10 @@
     const lg = L();
     // HUNT #31: another team's roster / player card belongs to League (not your Team section)
     const otherTeam = lg && top.params && top.params.tid != null && top.params.tid !== lg.userTid && (top.name === 'roster' || top.name === 'player');
-    // HUNT #47: no back arrow on a section root (the rail is the way between sections)
-    const sectionRoot = !otherTeam && Object.keys(SECTIONS).some((k) => SECTIONS[k].some((x) => x.to === top.name && (!x.tab || !top.params || !top.params.tab || x.tab === top.params.tab)));
+    const full = chrome === 'full' && lg && !lg.tmp;
+    // HUNT #47: no back arrow on a section root (the rail is the way between sections) — only when the rail is shown
+    // (HUNT3 #1: Settings / How to Play from the title have no rail and need their back arrow)
+    const sectionRoot = full && !otherTeam && Object.keys(SECTIONS).some((k) => SECTIONS[k].some((x) => x.to === top.name && (!x.tab || !top.params || !top.params.tab || x.tab === top.params.tab)));
     const back = stack.length > 1 && scr.back !== false && !sectionRoot ? K().back() : '';
     const navOn = otherTeam ? 'league' : (SECTION_OF[top.name] || SECTION_OF[scr.nav] || scr.nav || top.name);
     const head = h`<header class="topbar">
@@ -241,7 +243,6 @@
       <h1 class="tb-title ellip">${headTitle(top.name, scr, top.params)}</h1>
       <div class="tb-r" data-head-stats>${lg && !lg.tmp ? headStats(lg) : ''}</div>
     </header>`;
-    const full = chrome === 'full' && lg && !lg.tmp;
     const nav = full ? h`<nav class="navbar" aria-label="Main">${NAV.map((n) => h`<button type="button" class="nav-i ${n.id === navOn ? 'on' : ''}" data-action="nav" data-id="${n.id}" data-testid="nav-${n.id}" ${n.id === navOn ? D().raw('aria-current="page"') : ''}><span class="nav-ic" aria-hidden="true">${K().ic(n.icon)}</span><span class="nav-t">${n.label}</span>${badgeFor(n.id, lg) ? D().raw('<span class="dot"></span>') : ''}</button>`)}</nav>` : '';
     const sub = full && !otherTeam ? subnav(top, lg) : '';
     return h`<div class="frame ${full ? 'has-nav' : 'no-nav'} ${sub ? 'has-sub' : ''}">${head}${sub}${nav}<main class="view enter" tabindex="-1"></main></div>`;
@@ -447,8 +448,12 @@
     if (!t) { ['--c-pri', '--c-sec', '--c-pri-ink', '--c-sec-ink', '--c-go', '--c-go-ink'].forEach((v) => r.removeProperty(v)); return; }
     const dd = D();
     const cands = [t.col.pri, t.col.sec, t.col.acc].filter((c) => c != null);
-    const vivid = cands.filter((c) => dd.sat(c) > 0.45 && dd.lum(c) > 0.08 && dd.lum(c) < 0.85).sort((a, b) => dd.sat(b) - dd.sat(a))[0];
-    const go = vivid != null ? vivid : 0x2ecc71;
+    // HUNT3 #13: the GO colour must read on cream (pale primaries like the Sandsharks' tan gave ~1.4:1)
+    const okLum = (c) => dd.lum(c) < 0.6 || (dd.sat(c) > 0.9 && dd.lum(c) < 0.85);   // bright yellows read with dark ink; pale tans don't
+    const vivid = cands.filter((c) => dd.sat(c) > 0.45 && dd.lum(c) > 0.08 && okLum(c)).sort((a, b) => dd.sat(b) - dd.sat(a))[0];
+    let go = vivid;
+    if (go == null && dd.shade) { const sh = dd.shade(t.col.pri, 0.65); if (dd.sat(sh) > 0.3 && dd.lum(sh) < 0.6) go = sh; }
+    if (go == null) go = 0x2ecc71;
     r.setProperty('--c-pri', dd.hex(t.col.pri));
     r.setProperty('--c-sec', dd.hex(t.col.sec));
     r.setProperty('--c-pri-ink', dd.inkOn(t.col.pri));
@@ -646,15 +651,25 @@
 
   function rosterHelp(b) {
     const errs = (b.errors || []).map((e) => e.msg);
-    // round 2: say exactly what Auto-Fix will do (signings / cuts with names, OVR and dead pay)
-    let plan = '';
-    try { const lg = L(); const fp = PT.League.Roster.fixPlan && PT.League.Roster.fixPlan(lg, lg.userTid, { useFA: true }); plan = (fp && fp.text) || ''; } catch (e) { plan = ''; }
-    return UI.Modal.open({ title: 'Roster Issues', icon: 'clipboard',
-      body: D().html`<ul class="bul">${errs.map((m) => D().html`<li>${m}</li>`)}</ul>${plan ? D().html`<p class="small"><b>Auto-Fix:</b> ${plan}</p>` : ''}<p class="muted small">Fix it yourself or use Auto-Fix.</p>`,
-      buttons: [{ label: 'Auto-Fix', value: 'fix', kind: 'go', testid: 'btn-fix-roster' }, { label: 'Go to Lineup', value: 'go', kind: 'sec' }, { label: 'Later', value: null, kind: 'cancel' }] })
+    const codes = (b.errors || []).map((e) => e.code || '');
+    // round 2/HUNT3 #8: say exactly what Auto-Fix will do, one line per step, plus the dead money total
+    let fp = null;
+    try { const lg = L(); fp = PT.League.Roster.fixPlan ? PT.League.Roster.fixPlan(lg, lg.userTid, { useFA: true }) : null; } catch (e) { fp = null; }
+    const parts = fp && fp.text ? fp.text.split(' · ') : [];
+    const dead = fp && fp.cut ? fp.cut.reduce((a, x) => a + (x.perYear || 0), 0) : 0;
+    const tooMany = codes.some((c) => c === 'TOO_MANY' || /TOO_MANY/.test(c));
+    const tooFew = codes.some((c) => /^TOO_FEW/.test(c));
+    const go = tooMany ? { label: 'Go to Pay', to: () => UI.reset('team', { tab: 'pay' }) }
+      : tooFew ? { label: 'Go to Market', to: () => UI.reset('market') }
+        : { label: 'Go to Lineup', to: () => UI.reset('depth') };
+    return UI.Modal.open({ title: 'Roster Issues', icon: 'clipboard', cls: 'm-roster',
+      body: D().html`<ul class="bul">${errs.map((m) => D().html`<li>${m}</li>`)}</ul>${parts.length
+        ? D().html`<p class="small"><b>Auto-Fix will:</b></p><ul class="bul small">${parts.map((x) => D().html`<li>${x}</li>`)}${dead ? D().html`<li>Dead money ${D().money(dead)}/yr</li>` : ''}</ul>`
+        : D().html`<p class="muted small">Fix it yourself or use Auto-Fix.</p>`}`,
+      buttons: [{ label: 'Auto-Fix', value: 'fix', kind: 'go', testid: 'btn-fix-roster' }, { label: go.label, value: 'go', kind: 'sec' }, { label: 'Later', value: null, kind: 'cancel' }] })
       .then((v) => {
         if (v === 'fix') { PT.League.Auto.resolve(L(), b); UI.Toast.show('Roster fixed', 'good'); if (PT.Events) PT.Events.emit('league:changed', { what: 'roster' }); UI.refresh(); }
-        else if (v === 'go') UI.reset('depth');
+        else if (v === 'go') go.to();
       });
   }
   function capHelp(b) {

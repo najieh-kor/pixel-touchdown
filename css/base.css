@@ -175,12 +175,19 @@ b.num, .num b { font-weight: 400; }
     2px 2px 0 var(--ink), -2px 2px 0 var(--ink), 2px -2px 0 var(--ink), -2px -2px 0 var(--ink);
 }
 
+/* HUNT3 #5: reduce motion skips animations, but timed info (HUD pops, the champion banner) must still show for its time:
+   those use a hold-then-hide keyframe instead of jumping to their last (invisible) frame */
+@keyframes holdFade { 0%, 99% { opacity: 1; } 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
+  *:not(.hud-pop):not(.fl-cele), *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
+  .hud-pop { animation: holdFade 1.2s steps(1, end) forwards !important; transform: translateX(-50%); }
+  .fl-cele { animation: holdFade 2.6s steps(1, end) forwards !important; }
 }
-:root[data-motion="reduce"] *, :root[data-motion="reduce"] *::before, :root[data-motion="reduce"] *::after {
+:root[data-motion="reduce"] *:not(.hud-pop):not(.fl-cele), :root[data-motion="reduce"] *::before, :root[data-motion="reduce"] *::after {
   animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important;
 }
+:root[data-motion="reduce"] .hud-pop { animation: holdFade 1.2s steps(1, end) forwards !important; transform: translateX(-50%); }
+:root[data-motion="reduce"] .fl-cele { animation: holdFade 2.6s steps(1, end) forwards !important; }
 
 /* species mascot heads (voxel portraits) used inline in text */
 .sp-img { display: inline-block; width: 1.7em; height: 1.7em; vertical-align: middle; object-fit: contain; image-rendering: pixelated; margin: -0.2em 0.1em; }

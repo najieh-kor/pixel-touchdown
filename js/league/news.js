@@ -36,7 +36,7 @@
    * @param {League} L @param {string} k kind @param {string} txt @param {number} [tid] @returns {Object} item
    */
   News.add = function (L, k, txt, tid) {
-    const item = { s: L.season, wk: L.week, k: k, txt: String(txt).replace(/\.\s*$/, '') };   // no trailing periods (HUNT-league #3)
+    const item = { s: L.season, wk: L.week, ph: L.phase, k: k, txt: String(txt).replace(/\.\s*$/, '') };   // no trailing periods (HUNT-league #3); ph: UI time tag (HUNT3-ui-core #9)
     if (tid != null && tid >= 0) item.tid = tid;
     L.news.unshift(item);
     if (L.news.length > MAX) L.news.length = MAX;

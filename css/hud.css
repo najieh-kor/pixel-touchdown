@@ -575,3 +575,44 @@
 .pk-card.pk-off, .pk-mini.pk-off, .pk-chip.pk-chip-off { opacity: 0.5; filter: grayscale(0.8); cursor: not-allowed; }
 .pk-card.pk-card-to .pk-dia { color: var(--sun); }
 .hud-bn-sub { display: block; margin-top: 2px; font-size: clamp(16px, 4.4vmin, 30px); letter-spacing: 0.02em; white-space: normal; text-wrap: balance; text-shadow: 0 2px 0 var(--ink), 2px 0 0 var(--ink), -2px 0 0 var(--ink), 0 -2px 0 var(--ink); }
+
+/* ======================= HUNT3 (hud) ======================= */
+/* #3 left-handed: the SURGE meters mirror to the right (the round SURGE button moves left), with the note pill */
+:root[data-lefty="1"] .hud-meters { left: auto; right: calc(8px + var(--sar)); }
+@media (orientation: landscape) and (max-height: 480px) { :root[data-lefty="1"] .hud-note { left: auto; right: calc(8px + var(--sar)); } }
+/* #5 the red 'Their Surge is ready!' chip steps aside while a big banner is up */
+.hud-ban-on .hud-warn { visibility: hidden; }
+/* #6 pause menu: wide enough for two buttons a row on every screen; labels never cut */
+.hud-pm-card { width: min(560px, 92vw); }
+.hud-pm-btns .btn { min-width: 0; flex: 1 1 0; }
+.hud-pm-btns .btn .btn-t { white-space: nowrap; overflow: visible; text-overflow: clip; }
+/* HUNT3-render (HUD part): kick mode — AUTO is a bottom-right corner chip; ghost finger + ball on the holder */
+.hud-ctl.hud-ctl-chip { left: auto; right: calc(14px + var(--sar)); bottom: calc(14px + var(--sab)); transform: none; }
+:root[data-lefty="1"] .hud-ctl.hud-ctl-chip { right: auto; left: calc(14px + var(--sal)); }
+.hud-ctl-chip .hud-btn { width: 140px; height: 52px; flex-direction: row; gap: 8px; padding: 0 12px; font-size: 18px; background: var(--sun); color: var(--ink); box-shadow: var(--frame), inset 0 -4px 0 rgba(0, 0, 0, 0.14), 0 6px 0 0 rgba(27, 31, 58, 0.55); }
+.hud-ctl-chip .hud-btn .hud-btn-ic .px-ic, .hud-ctl-chip .hud-btn .hud-btn-ic .hud-px { width: 20px; height: 20px; font-size: 20px; }
+.hud-ctl-chip .hud-btn .hud-kbd { position: absolute; top: -10px; right: -10px; font-size: 11px; }
+.hud-ghost { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; z-index: 2; }
+.hud-ghost-ball, .hud-ghost-f { position: absolute; display: block; }
+.hud-ghost-ball { left: -11px; top: -11px; width: 22px; height: 22px; border-radius: 50%; box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.85), 0 0 12px 4px rgba(255, 210, 63, 0.7); animation: ghostPulse 1.4s ease-in-out infinite; }
+.hud-ghost-ball .px-ic, .hud-ghost-ball .hud-px { width: 22px; height: 22px; font-size: 22px; }
+.hud-ghost-f { left: -4px; top: 4px; color: #fff; filter: drop-shadow(0 2px 0 var(--ink)); animation: ghostDrag 1.6s ease-in-out infinite; }
+.hud-ghost-f .px-ic, .hud-ghost-f .hud-px { width: 30px; height: 30px; font-size: 30px; }
+@keyframes ghostPulse { 50% { box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.6), 0 0 18px 8px rgba(255, 210, 63, 0.5); } }
+@keyframes ghostDrag { 0%, 15% { transform: translate(0, 0); opacity: 0; } 25% { opacity: 1; } 75% { transform: translate(0, 46px); opacity: 1; } 100% { transform: translate(0, 46px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .hud-ghost-ball, .hud-ghost-f { animation: none; } }
+.hud-tray-open .hud-ghost, .hud-paused .hud-ghost { display: none; }
+.hud-ctl-chip .hud-btn .hud-btn-t { white-space: nowrap; font-size: 16px; }
+/* engine round 3: onside choice at the user's kickoff (Session's single ONSIDE KICK button steps aside) */
+.hud-onside { position: absolute; left: 50%; bottom: calc(18px + var(--sab)); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 12px 10px; background: rgba(14, 18, 42, 0.86); pointer-events: auto; z-index: 4; box-shadow: var(--frame), 0 7px 0 0 rgba(27, 31, 58, 0.55); animation: popIn 220ms var(--bounce); }
+.hud-ons-t { font-family: var(--font-d); font-size: 15px; letter-spacing: 0.06em; color: var(--sun); text-transform: uppercase; }
+.hud-ons-row { display: flex; gap: 10px; }
+.hud-ons-row .btn { min-width: 170px; white-space: nowrap; }
+.hud-ons-row .btn .btn-t { overflow: visible; text-overflow: clip; }
+.hud-ons-bar { display: block; align-self: stretch; height: 4px; background: var(--sun); transform-origin: left; animation: onsBar 6s linear forwards; }
+@keyframes onsBar { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+.hud-ons-on .hud-ctl, .hud-ons-on .hud-hint { visibility: hidden; }
+body:has(.hud-ons-on) .pt-onside { display: none !important; }
+.hud-ret-sub { display: block; font-size: 0.72em; opacity: 0.9; text-align: center; }
+.hud-ret:has(.hud-ret-sub) { flex-direction: column; gap: 0; }
+.hud-ons-on .hud-dd { visibility: hidden; }
