@@ -98,13 +98,20 @@
     const keepJoy = !!(MOVE[m] && MOVE[K.mode]);   // qb → carrier (scramble / after the throw): the thumb keeps running
     K.mode = m;
     if (K.el) K.el.setAttribute('data-mode', m);
+    if (Input.Pointer && Input.Pointer.setMode) Input.Pointer.setMode(m);
     Input.flush(keepJoy);
   };
   /** @returns {string} current mode */
   Input.mode = function () { return K.mode; };
 
   /** @param {{lefty?:boolean, aimMode?:'sling'|'point'}} o */
-  Input.setOptions = function (o) { Object.assign(K.opts, o || {}); if (Input.Joystick && Input.Joystick.relayout) Input.Joystick.relayout(); };
+  Input.setOptions = function (o) {
+    Object.assign(K.opts, o || {});
+    if (Input.Joystick && Input.Joystick.relayout) Input.Joystick.relayout();
+    if (Input.Pointer && Input.Pointer.relayout) Input.Pointer.relayout();
+  };
+  /** hard reset of all touch/pointer state (exposed for the Session / tests) */
+  Input.resetPointers = function () { if (Input.Pointer && Input.Pointer.reset) Input.Pointer.reset(); };
   Input.options = function () { return Object.assign({}, K.opts); };
 
   /** Drop pending edges, active drags and (unless keepJoy) the joystick (mode changes, pause, decisions). */
@@ -153,6 +160,7 @@
    */
   Input.sample = function () {
     const f = frame;
+    if (Input.Pointer && Input.Pointer.watchdog) Input.Pointer.watchdog();
     const kb = Input.Keyboard ? Input.Keyboard.state() : null;
     const moveOk = K.mode === 'qb' || K.mode === 'carrier' || K.mode === 'return';
     let mx = 0, my = 0;
