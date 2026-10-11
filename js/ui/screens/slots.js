@@ -28,11 +28,18 @@
     const main = m && m.main, auto = m && m.auto;
     const x = main || auto;
     if (!x) {
+      // HUNT2 #3: an empty slot in New Game mode is one big NEW GAME button; Import is a small link under it
+      if (mode !== 'load') {
+        return html`<section class="card slot-card empty-slot">
+          <span class="slot-num">${s}</span>
+          ${K().btn({ label: 'New Game', icon: 'sparkle', action: 'pick', data: { slot: s }, kind: 'go', size: 'l', testid: 'slot-' + s, cls: 'slot-new' })}
+          <button type="button" class="slot-imp" data-action="import" data-slot="${s}" data-testid="slot-${s}-import">or import a save code</button>
+        </section>`;
+      }
       return html`<section class="card slot-card empty-slot">
         <button type="button" class="slot-main" data-action="pick" data-slot="${s}" data-testid="slot-${s}">
           <span class="slot-num">${s}</span>
-          <span class="grow slot-info"><b class="big">Empty slot</b><span class="small muted">${mode === 'load' ? 'Nothing saved here.' : 'Start a new game'}</span></span>
-          <span class="slot-go">${mode === 'load' ? '' : K().ic('sparkle')}</span>
+          <span class="grow slot-info"><b class="big">Empty slot</b><span class="small muted">Nothing saved here.</span></span>
         </button>
         <div class="btn-row slot-tools">${K().btn({ label: 'Import', icon: 'folder', action: 'import', data: { slot: s }, kind: 'ghost', size: 's', testid: 'slot-' + s + '-import' })}</div>
       </section>`;

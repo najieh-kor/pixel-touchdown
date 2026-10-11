@@ -221,6 +221,13 @@
     queue.length = 0;
     const name = e && e.name;
     if (HOLD_ON[name]) { vis.slice().forEach(hideT); return; }      // entering Fired: clear what is showing
+    // HUNT2 #13: a new screen starts clean (badge toasts may stay; they are about you, not the old screen)
+    vis.filter((x) => x.kind !== 'ach').forEach(hideT);
+    const host = tHost();
+    if (host) {
+      const sc = globalThis.document.getElementById('screen');
+      host.classList.toggle('t-flow', !!(sc && sc.querySelector('.lay.flow')));
+    }
     if (!held.length) return;
     // left the Fired screen: release what waited (after the new screen has painted)
     const out = held.splice(0, held.length);

@@ -529,3 +529,49 @@
 .pk-aud .pk-mini .pk-dia { height: 48px; }
 @media (orientation: landscape) and (max-height: 400px) { .pk-aud .pk-mini .pk-dia { height: 38px; } }
 .hud-tray-open .hud-aimt, .hud-root:has(.hud-half) .hud-aimt, .hud-paused .hud-aimt { display: none !important; }
+
+/* ======================= HUNT2 (hud) ======================= */
+/* #4 timeout pips: a row of small pips under the team abbreviation, never beside the score digits */
+.hud-sb-nm { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 0; }
+.hud-sb-h .hud-sb-nm { align-items: flex-end; }
+.hud-sb-tm .hud-sb-to { flex-direction: row; gap: 3px; }
+.hud-sb-tm .hud-sb-to i { width: 6px; height: 4px; background: rgba(0, 0, 0, 0.25); box-shadow: none; }
+.hud-sb-tm .hud-sb-to i.hud-on { background: #fff; box-shadow: 0 0 0 1px var(--ink); }
+.hud-sb-tm .hud-sb-sc { margin-left: auto; padding-left: 8px; }
+.hud-sb-h .hud-sb-sc { margin-left: 0; margin-right: auto; padding-left: 0; padding-right: 8px; }
+/* #3 SURGE title over the ATK/DEF meters */
+.hud-mt-h { display: block; font-family: var(--font-d); font-size: 10px; letter-spacing: 0.08em; color: var(--sun); text-align: center; line-height: 1; }
+/* #5 / #3 small pill under the scorebug: SURGE SET! xN, Surge saved, first-time Surge tip */
+.hud-note { position: absolute; left: 50%; top: calc(112px + var(--sat)); transform: translateX(-50%); display: inline-flex; align-items: center; gap: 6px; max-width: calc(100% - 32px); padding: 4px 14px; background: rgba(14, 18, 42, 0.85); color: #fff; font-family: var(--font-d); font-size: 16px; letter-spacing: 0.03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; z-index: 3; box-shadow: var(--frame-2); }
+.hud-note .hud-px, .hud-note .px-ic { width: 16px; height: 16px; font-size: 16px; color: var(--sun); flex: none; }
+.hud-note.hud-note-set { background: var(--purple); color: var(--sun); box-shadow: var(--frame-2), 0 0 0 2px var(--sun); }
+.hud-note.hud-note-tip { white-space: normal; text-align: center; font-size: 15px; }
+.hud-tray-open .hud-note, .hud-paused .hud-note, .hud-root:has(.hud-half) .hud-note { display: none !important; }
+/* short landscape: the top band right of the scorebug holds SURGE / Audible / Sim drive → the pill goes under the meters */
+@media (orientation: landscape) and (max-height: 480px) {
+  .hud-note { top: calc(122px + var(--sat)); left: calc(8px + var(--sal)); transform: none; max-width: min(260px, 38vw); font-size: 14px; white-space: normal; }
+}
+/* #1 move buttons wait for the catch (a tap is held for 0.5 s and sent on the catch) */
+.hud-ctl.hud-moves-wait .hud-btn { opacity: 0.45; animation: none; }
+.hud-ctl.hud-moves-wait .hud-btn:active { transform: none; box-shadow: var(--frame), inset 0 -5px 0 rgba(0, 0, 0, 0.14), 0 9px 0 0 rgba(27, 31, 58, 0.55); }
+.hud-ctl.hud-moves-wait .hud-btn.hud-held { opacity: 0.8; outline: 3px solid var(--sun); }
+/* #2 kick aim: the FG card leaves the center band (the uprights) and sits under the meters, top-left */
+[data-mode="kick"] .hud-kick { left: calc(8px + var(--sal)); top: calc(172px + var(--sat)); transform: none; }
+@media (orientation: landscape) and (max-height: 500px) { [data-mode="kick"] .hud-kick { top: calc(142px + var(--sat)); } }
+:root[data-lefty="1"] [data-mode="kick"] .hud-kick { left: auto; right: calc(8px + var(--sar)); }
+/* #7 confetti never falls over the play tray / PAT choice */
+.hud-tray-open > .confetti { display: none; }
+/* #9 Sim drive is a secondary (white) button; End play is the per-play control */
+.hud-skipd { background: var(--paper); color: var(--ink); }
+/* #12 locked plays count next to the tabs */
+.pk-lockn { display: inline-flex; align-items: center; gap: 4px; flex: none; padding: 2px 8px; font-size: 13px; font-weight: 700; color: #fff; background: rgba(255, 255, 255, 0.12); white-space: nowrap; }
+.pk-lockn .hud-px, .pk-lockn .px-ic { width: 12px; height: 12px; font-size: 12px; }
+/* engine round 2: FLAG! banner, FG "Too far", rescue clock, timeout card, disabled cards */
+.hud-bn-flag { --bg: var(--sun); --fg: #fff; }
+.hud-kick-card.hud-kick-far { background: #d9d6cc; }
+.hud-kick-card.hud-kick-far .hud-kick-pct { color: var(--ink-2); font-size: 18px; }
+.pk-clk { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; padding: 1px 8px; background: var(--red); color: #fff; font-size: 14px; font-weight: 700; white-space: nowrap; }
+.pk-clk .hud-px, .pk-clk .px-ic { width: 14px; height: 14px; font-size: 14px; }
+.pk-card.pk-off, .pk-mini.pk-off, .pk-chip.pk-chip-off { opacity: 0.5; filter: grayscale(0.8); cursor: not-allowed; }
+.pk-card.pk-card-to .pk-dia { color: var(--sun); }
+.hud-bn-sub { display: block; margin-top: 2px; font-size: clamp(16px, 4.4vmin, 30px); letter-spacing: 0.02em; white-space: normal; text-wrap: balance; text-shadow: 0 2px 0 var(--ink), 2px 0 0 var(--ink), -2px 0 0 var(--ink), 0 -2px 0 var(--ink); }

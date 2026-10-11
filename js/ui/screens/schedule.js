@@ -8,10 +8,6 @@
   const D = () => UI.dom, K = () => UI.comp;
   const html = function () { return UI.dom.html.apply(null, arguments); };
 
-  function stdRow(L, tid) {
-    try { return PT.League.Standings.get(L).find((r) => r.tid === tid) || { w: 0, l: 0, t: 0 }; }
-    catch (e) { return { w: 0, l: 0, t: 0 }; }
-  }
   function resultOf(g, tid) {
     if (g.st !== 'F') return null;
     const us = g.h === tid ? g.hs : g.as, them = g.h === tid ? g.as : g.hs;
@@ -41,11 +37,11 @@
     const wk = g.po ? PT.C.PLAYOFF_NAMES[g.po] : 'Week ' + g.wk;
     const right = res
       ? html`<span class="res-chip res-${res.r}">${res.r}</span><b class="num sch-score">${res.us}–${res.them}</b>`
-      : thisWeek ? html`<span class="chip chip-go">Up Next</span>` : html`<span class="muted small">${home ? 'Home' : 'Away'}</span>`;
+      : thisWeek ? html`<span class="chip chip-go">Up Next</span>` : '';      // HUNT2 #20: vs/@ already says home/away
     return html`<button type="button" class="sch-row ${thisWeek ? 'now' : ''} ${g.po ? 'po' : ''}" data-action="game" data-gid="${g.gid}" data-testid="game-row-${g.gid}">
       <span class="sch-wk">${wk}</span>
       ${K().badge(opp, 's')}
-      <span class="sch-opp grow"><span class="ellip"><span class="muted">${home ? 'vs' : '@'}</span> <b>${opp.name}</b></span>${rival ? K().chip('Rival', 'rival') : ''}</span>
+      <span class="sch-opp grow"><span class="ellip"><span class="muted">${home ? 'vs' : '@'}</span> <b class="sch-full">${opp.name}</b><b class="sch-ab">${opp.abbr}</b></span>${rival ? K().chip('Rival', 'rival') : ''}</span>
       <span class="sch-res">${right}</span>
     </button>`;
   }
@@ -73,13 +69,12 @@
       rows.push(gameRow(L, g, u, now));
       if (now) nowId = 'game-row-' + g.gid;
     });
-    const r = stdRow(L, u);
     const lastWk = L.phase === 'REGULAR' ? Math.max(1, L.week - 1) : PT.C.REG_WEEKS;
+    // HUNT2 #20: no team/season/record header (HQ and Standings show it); HUNT2 #7: Sim Season moved here from HQ
     const body = html`
       <div class="sch-head">
-        ${K().badge(L.teams[u], 's')}<div class="sch-tn"><b>${L.teams[u].name}</b><span class="muted small sch-season">Season ${L.season}</span></div>
-        <div class="sch-rec num">${D().rec(r.w, r.l, r.t)}</div>
-        <div class="sch-btns">${K().btn({ label: 'Week Results', icon: 'news', action: 'results', data: { wk: lastWk }, kind: 'sec', size: 's', testid: 'btn-week-results' })}</div>
+        <div class="sch-btns">${K().btn({ label: 'Week Results', icon: 'news', action: 'results', data: { wk: lastWk }, kind: 'sec', size: 's', testid: 'btn-week-results' })}
+        ${L.phase === 'REGULAR' ? K().btn({ label: 'Sim Season', icon: 'ff', action: 'sim-end', kind: 'sec', size: 's', testid: 'btn-sim-to-end', title: 'Sim the rest of the season' }) : ''}</div>
       </div>
       ${K().pg('sch', rows, { grid: true, cls: 'sch-pg' })}`;
     D().set(el, K().layout(body, null, 'fit sched'));
@@ -107,7 +102,11 @@
         UI.go('roster', { tid: g.h === L.userTid ? g.a : g.h });
       },
       results: (el) => UI.go('results', { wk: +el.getAttribute('data-wk') }),
-      bracket: () => UI.go('playoffs')
+      bracket: () => UI.go('playoffs'),
+      'sim-end': () => {
+        UI.Modal.confirm('Sim the rest of the season?', { body: 'Your games get simmed too.', icon: 'ff' })
+          .then((ok) => { if (ok) UI.Flow.simUntil('playoffs', 'Simming the season…'); });
+      }
     }
   };
 

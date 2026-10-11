@@ -1682,3 +1682,131 @@ html.pt-coarse .htc-row { grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2f
 .lay.history .rec-sb { white-space: nowrap; }
 .lay.history .ach-card .card-h .ach-n { margin-left: auto; }
 .lay.history .ach-card .card-h .rec-seg { margin-left: 8px; }
+/* HUNT2 #20: Calendar = 40px rows, 2 columns on phones (about 10 weeks a page), buttons only in the header */
+#screen .lay.sched .sch-head { justify-content: flex-end; }
+#screen .lay.sched .sch-btns { display: flex; gap: 8px; margin-left: auto; }
+#screen .sch-pg .sch-row { min-height: 40px; padding-top: 2px; padding-bottom: 2px; gap: 6px; }
+#screen .sch-pg .sch-row .badge-s { width: 28px; height: 28px; }
+@media (max-width: 1000px) {
+  #screen .sch-pg .pg-list.pg-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 8px; }
+  #screen .sch-pg .sch-wk { width: 40px; font-size: 12px; }
+  #screen .sch-pg .sch-score { font-size: 16px; }
+  #screen .sch-pg .res-chip { width: 24px; height: 24px; font-size: 13px; }
+  #screen .sch-pg .sch-opp { font-size: 14px; }
+  #screen .sch-pg .sch-opp .ellip { white-space: normal; line-height: 1.05; }
+}
+#screen .lay.sched .sch-head { padding-right: 0; min-height: 0; margin-bottom: 6px; }
+#screen .lay.sched .sch-btns { margin-top: 0; }
+/* HUNT2 #7: scouting on the HQ game card */
+.hqz .nx-scout { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px 10px; margin-top: 8px; padding-top: 6px; border-top: 2px dashed var(--grey-2); }
+.hqz .nx-scout .chip { font-size: 13px; }
+.hqz .nx-scout p { margin: 0; display: flex; align-items: center; gap: 5px; font-weight: 700; font-size: 14px; }
+.hqz .nx-scout p .px-ic { width: 18px; height: 18px; flex: none; }
+.hqz .nx-scout p.good { color: var(--green-d); } .hqz .nx-scout p.bad { color: var(--red-d); }
+@media (orientation: landscape) and (max-height: 400px) {
+  .hqz .nx-scout { margin-top: 4px; padding-top: 3px; gap: 2px 8px; }
+  .hqz .nx-scout .nx-tags { display: none; }
+  .hqz .nx-scout p { font-size: 13px; }
+}
+/* HUNT2 #3: empty slot (New Game mode) = big NEW GAME + small import link */
+.slot-card.empty-slot { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
+.slot-card.empty-slot .slot-new { width: 100%; }
+.slot-imp { border: 0; background: none; padding: 6px 8px; min-height: 36px; font: inherit; font-size: 14px; color: var(--ink-2); text-decoration: underline; cursor: pointer; }
+@media (pointer: coarse) { .slot-imp { min-height: 44px; } }
+/* HUNT2 #4: Coach animal = 2 rows of 9 square tiles that always fit (no inner scroller); the pick keeps its size */
+#screen .ngx-sp-grid { overflow: visible; grid-auto-rows: auto; align-content: start; }
+#screen .ngx-sp-grid .sp-b { aspect-ratio: 1 / 1; height: auto; width: 100%; min-height: 0; max-height: 48px; transform: none; }
+#screen .ngx-sp-grid .sp-b.on { width: 100%; box-shadow: var(--frame-2); outline: 3px solid var(--sun); outline-offset: -1px; background: #fff3c4; }
+#screen .ngx-sp-grid .sp-b .sp-img, #screen .ngx-sp-grid .sp-b img { width: 70%; height: 70%; }
+@media (orientation: landscape) and (max-height: 400px) {
+  #screen .ngx-name .inp { min-height: 40px; font-size: 18px; padding-top: 2px; padding-bottom: 2px; }
+  #screen .ngx-picked { padding-top: 4px; padding-bottom: 4px; }
+}
+/* title: version + Credits as one small link */
+button.t-ver { border: 0; background: none; padding: 6px 4px; min-height: 32px; cursor: pointer; font-size: 12px; }
+/* HUNT2 #8: Settings tabs, each one screen */
+.lay.setx-tabs .tabs { flex: none; margin-bottom: 6px; }
+.lay.setx-tabs .setz { margin: 0; display: flex; flex-direction: column; justify-content: center; }
+.lay.setx-tabs .setz-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 18px; }
+.lay.setx-tabs .setz-row { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
+.lay.setx-tabs .setz-row .setx-ver { margin-left: auto; }
+@media (min-width: 1100px) { .lay.setx-tabs .setz-game .setz-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (orientation: landscape) and (max-height: 480px) {
+  .lay.setx-tabs .set-row { padding-top: 2px; padding-bottom: 2px; min-height: 0; }
+  .lay.setx-tabs .set-row.col-row { gap: 2px; }
+  .lay.setx-tabs .seg .btn { min-height: 36px; padding-top: 0; padding-bottom: 0; }
+  .lay.setx-tabs .setz-grid { gap: 2px 14px; }
+  .lay.setx-tabs .set-row .tiny { display: none; }
+}
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 480px) { .lay.setx-tabs .seg .btn { min-height: 40px; } }
+.lay.setx-tabs .setz { justify-content: flex-start; overflow: hidden; }
+@media (orientation: landscape) and (max-height: 480px) {
+  .lay.setx-tabs .tabs { margin-bottom: 2px; }
+  .lay.setx-tabs .tab { min-height: 40px; }
+  .lay.setx-tabs .setz { padding-top: 4px; padding-bottom: 4px; }
+  .lay.setx-tabs .set-row.col-row > b { font-size: 14px; line-height: 1.1; }
+  .lay.setx-tabs .set-row + .set-row { border-top-width: 0; }
+  .lay.setx-tabs .setz-row .btn { min-height: 40px; }
+}
+.lay.setx-tabs .set-row { border-top: 0; }
+@media (orientation: landscape) and (max-height: 480px) {
+  .lay.setx-tabs .seg .btn { font-size: 14px; padding-left: 2px; padding-right: 2px; }
+  .lay.setx-tabs .set-row:not(.col-row) { min-height: 44px; }
+  .lay.setx-tabs .toggle { transform: scale(0.85); transform-origin: right center; }
+}
+.lay.setx-tabs .setz-ctl .setz-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.lay.setx-tabs .setz-ctl .set-row b { line-height: 1.1; }
+@media (orientation: landscape) and (max-height: 480px) {
+  .lay.setx-tabs .setz-scr .setz-grid { row-gap: 0; }
+  .lay.setx-tabs .set-row.col-row { padding-top: 0; }
+}
+.lay.setx-tabs .setz.fill { flex: 0 1 auto; }
+@media (min-width: 1100px) {
+  .lay.setx-tabs .setz-game .setz-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lay.setx-tabs .page { max-width: 1000px; margin: 0 auto; width: 100%; }
+}
+/* HUNT2 #9: Power Rank header = the dark table head (light text, 12px+) */
+#screen .nc-pw.nc-pw-h { background: var(--navy) !important; color: #fff !important; font-size: 12px; font-family: var(--font); font-weight: 700; }
+#screen .nc-pw.nc-pw-h > * { color: #fff; }
+@media (max-width: 700px) {
+  #screen .nc-pws > .pg-list.pg-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 6px; }
+  #screen .nc-pw { grid-template-columns: 24px 30px minmax(0, 1fr) 46px 34px; gap: 4px; min-height: 36px; font-size: 13px; }
+  #screen .nc-pw .badge-s { width: 26px; height: 26px; }
+  #screen .nc-pw .rank { width: 24px; height: 24px; font-size: 14px; }
+}
+.nc-pw-heads { flex: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(560px, 1fr)); grid-template-rows: auto; grid-auto-rows: 0; overflow: hidden; gap: 0 12px; margin-bottom: 4px; }
+.nc-pw-heads > .nc-pw-h { margin-bottom: 0; }
+@media (orientation: landscape) and (max-height: 480px) { .nc-pw-heads { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 0 8px; } }
+@media (max-width: 700px) { #screen .nc-pw-heads { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 6px; } }
+.nc-pw-wrap { display: flex; flex-direction: column; min-height: 0; }
+.nc-pw-wrap > .pg { flex: 1 1 auto; min-height: 0; }
+.nc-pw-wrap > .nc-pw-heads { margin-right: var(--pgw, 0px); padding: 0 2px; }
+#screen .nc-pw-h .rank { background: none; box-shadow: none; color: #fff; width: auto; height: auto; font-size: 12px; }
+#screen .nc-pw-h > span { font-size: 12px; font-family: var(--font); font-weight: 700; text-transform: uppercase; }
+.nc-pw .pw-ab { display: none; }
+@media (max-width: 700px) { #screen .nc-pw .pw-full { display: none; } #screen .nc-pw .pw-ab { display: inline; } }
+/* HUNT2 #10: reward chips are labelled buttons */
+button.pgx-r { border: 0; font: inherit; cursor: pointer; min-height: 36px; }
+.pgx-r b { font-size: 18px; white-space: nowrap; }
+@media (pointer: coarse) { button.pgx-r { min-height: 40px; } }
+/* HUNT2 #11: touch devices list Action | Touch only (the Keys column could wrap under the header) */
+html.pt-touch .htc-row > .htc-k, html.pt-coarse .htc-row > .htc-k, html.pt-touch .htc-row > .htc-m, html.pt-coarse .htc-row > .htc-m,
+html.pt-touch .htc-row > .ht-pad, html.pt-coarse .htc-row > .ht-pad { display: none !important; }
+.ht-btns i { white-space: nowrap; padding-left: 2px; padding-right: 2px; font-size: 11px; }
+.ht-btns { grid-template-columns: repeat(2, auto) !important; }
+/* HUNT2 #18: news rows always full width; the week tag never collides with the badge */
+#screen .nw-pg .pg-list.pg-grid { grid-template-columns: minmax(0, 1fr); }
+#screen .nw-row .nw-wk { flex: none; min-width: 44px; text-align: right; white-space: nowrap; }
+/* HUNT2 #17: badges in the Trophy Shelf grid */
+.trophy.badge-t.locked { background: var(--grey-2); opacity: 0.75; }
+.trophy.badge-t.locked .tr-ic { filter: grayscale(1); }
+.trophy.badge-t .tr-ic .px-ic { width: 28px; height: 28px; }
+@media (orientation: landscape) and (max-height: 400px) {
+  .hqz .nx-side .stars .px-ic, .hqz .nx-side .stars svg { width: 11px; height: 11px; }
+  .hqz .nx-side .stars { gap: 0; padding: 1px 2px; }
+  .hqz .nx-meta { gap: 4px; }
+  .hqz .nx-line { font-size: 15px; }
+}
+.sch-opp .sch-ab { display: none; }
+#screen .sch-pg .pg-list > .sch-row { container-type: inline-size; }
+@container (max-width: 300px) { .sch-opp .sch-full { display: none; } .sch-opp .sch-ab { display: inline; } }

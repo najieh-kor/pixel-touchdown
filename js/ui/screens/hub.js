@@ -127,7 +127,15 @@
         ${sideOf(me, r0)}
         <div class="nx-vs"><span class="vs">${home ? 'VS' : '@'}</span>${wx ? K().wx(wx.k, wx.mph) : ''}</div>
         ${sideOf(opp, r)}
-      </div>`, 'hub-game nx-card');
+      </div>
+      ${scoutRow(L, g)}`, 'hub-game nx-card');
+  }
+
+  /** HUNT2 #7: the Pregame scouting (style tags + 2 lines) now sits on the HQ game card */
+  function scoutRow(L, g) {
+    if (!UI.Game || !UI.Game.scout) return '';
+    const sc = UI.Game.scout(L, g);
+    return html`<div class="nx-scout" data-testid="hub-scout"><span class="nx-tags">${sc.tags}</span><p>${sc.them}</p><p class="${sc.usCls}">${K().ic('shield')} ${sc.us}</p></div>`;
   }
 
   function twistCard(L) {
@@ -180,7 +188,7 @@
         return campCard(L, t);
       case 'REGULAR':
         if (!g) return K().card(html`${K().h2('Rest Week')}<div class="rest"><span class="rest-emo">${K().ic('zzz')}</span><p>Bye week. Hurt players heal.</p></div>`, 'hub-rest');
-        return gameCard(L, g, 'This week');
+        return gameCard(L, g, g.st === 'F' ? 'Last game' : 'This week');
       case 'PLAYOFFS':
         if (g) return gameCard(L, g, PT.C.PLAYOFF_NAMES[g.po]);
         return K().card(html`${K().h2(PT.C.PLAYOFF_NAMES[L.po.rd] || 'Playoffs')}
@@ -188,10 +196,12 @@
           ${K().btn({ label: 'Bracket', icon: 'bracket', action: 'go', data: { to: 'playoffs' }, kind: 'sec', testid: 'btn-hub-bracket' })}`, 'hub-po');
       default: {
         const to = UI.Flow.screenFor();
-        const names = { awards: 'Awards Night', growth: 'Growth Day', goodbyes: 'Goodbyes', resign: 'Keep Players', draft: 'Draft Day', market: 'Market' };
-        // HUNT #45: display only; the NEXT bar is the one action
+        // HUNT2 #15: the card names the screen NEXT opens (same words as the bar), with one line on what happens there
+        const names = { awards: 'Season Recap', growth: 'Season Recap', goodbyes: 'Season Recap', resign: 'Keep Players', draft: 'Draft Day', market: 'Market' };
+        const what = { awards: 'Awards, player growth and goodbyes.', growth: 'Awards, player growth and goodbyes.', goodbyes: 'Awards, player growth and goodbyes.',
+          resign: 'Offer new deals before they end.', draft: 'Pick new rookies.', market: 'Sign free agents.' };
         return K().card(html`${K().h2(names[to] || 'Offseason')}
-          <div class="rest"><span class="rest-emo">${K().ic('calendar')}</span><p>Up next: <b>${names[to] || 'Offseason'}</b></p></div>`, 'hub-off');
+          <div class="rest"><span class="rest-emo">${K().ic('calendar')}</span><p>${what[to] || 'Tap Next to go on.'}</p></div>`, 'hub-off');
       }
     }
   }
@@ -210,13 +220,31 @@
     if (lineupErr) out.push({ to: 'depth', icon: 'warn', txt: 'Lineup: fix needed', id: 'lineup' });
     else if (hurtStarters) out.push({ to: 'depth', icon: 'cross', txt: 'Lineup: ' + hurtStarters + ' hurt starter' + (hurtStarters > 1 ? 's' : ''), id: 'lineup' });
     if (L.phase === 'REGULAR' && L.week === 10) out.push({ to: 'swaps', icon: 'swap', txt: 'Swap deadline this week', id: 'swaps' });
-    if (['RESIGN', 'DRAFT', 'FREE_AGENCY'].indexOf(L.phase) >= 0) out.push({ to: 'market', icon: 'contract', txt: 'Market is open', id: 'market' });
+    // HUNT2 #5: Keep Players / Draft Day are the NEXT bar's job; the Market item only while the Market is open
+    if (L.phase === 'FREE_AGENCY') out.push({ to: 'market', icon: 'contract', txt: 'Market is open', id: 'market' });
     const pts = L.coach && typeof L.coach === 'object' ? (L.coach.pts || L.coach.sp || 0) : 0;
     if (pts > 0) out.push({ to: 'coach', icon: 'cap', txt: 'New coach skill', id: 'coach' });
-    const up = PT.C.FACILITIES.some((f) => t.fac[f] < 5 && PT.C.FACILITY_COST[f][t.fac[f]] <= t.fin.coins);
-    if (up) out.push({ to: 'shop', icon: 'cart', txt: 'Upgrade ready in the Shop', id: 'shop' });
-    return out.slice(0, 3);
+    const sig = shopSig(t);
+    const seen = shopSeen().split(',');
+    if (sig && sig.split(',').some((x) => seen.indexOf(x) < 0)) out.push({ to: 'shop', icon: 'cart', txt: 'Upgrade ready in the Shop', id: 'shop' });
+    // never repeat what the NEXT bar already does
+    let nextK = '';
+    try { const st = PT.League.Calendar.status(L); nextK = st && st.blockers && st.blockers[0] ? st.blockers[0].k : ''; } catch (e) { nextK = ''; }
+    const dup = { EVENT: 'events', ROSTER: 'lineup' }[nextK];
+    return out.filter((x) => x.id !== dup && x.to !== UI.Flow.screenFor()).slice(0, 3);
   }
+  /** HUNT2 #5: the Shop item shows once per newly affordable upgrade set (seen when you open the Shop) */
+  function shopSig(t) {
+    return PT.C.FACILITIES.filter((f) => t.fac[f] < 5 && PT.C.FACILITY_COST[f][t.fac[f]] <= t.fin.coins).map((f) => f + t.fac[f]).join(',');
+  }
+  function shopSeen() { try { return (PT.Save.prefs() || {}).shopSeen || ''; } catch (e) { return ''; } }
+  if (PT.Events && PT.Events.on) PT.Events.on('ui:navigate', (e) => {
+    if (!e || e.name !== 'shop' || !PT.App.L) return;
+    try {
+      const all = shopSeen().split(',').concat(shopSig(PT.App.L.teams[PT.App.L.userTid]).split(',')).filter(Boolean);
+      PT.Save.setPrefs({ shopSeen: all.filter((x, i) => all.indexOf(x) === i).slice(-40).join(',') });
+    } catch (err) { /* prefs off */ }
+  });
   function todoPanel(L, t) {
     const items = todoItems(L, t);
     if (!items.length) return '';
@@ -238,7 +266,12 @@
     if (L.fd && !L.fd.done) { UI.replace('fantasy'); return; }              // Fantasy Draft still running
     const t = L.teams[L.userTid];
     const showWelcome = D().memo.welcome === L.id || params.welcome;
-    const simEnd = L.phase === 'REGULAR' ? K().btn({ label: 'Sim to End', icon: 'ff', action: 'sim-end', kind: 'sec', size: 'l', testid: 'btn-sim-to-end', title: 'Sim the rest of the season', cls: 'btn-simend' }) : '';
+    // HUNT2 #7: game week = [Sim] + [Play Week N] right here (no Pregame stop); Sim Season lives on the Calendar
+    const gw = userGameThisWeek(L);
+    let first = null;
+    try { const st = PT.League.Calendar.status(L); first = st && st.blockers && st.blockers[0]; } catch (e) { first = null; }
+    const simEnd = gw && gw.po === 0 && gw.st !== 'F' && first && first.k === 'USER_GAME' && first.gid === gw.gid
+      ? K().btn({ label: 'Sim', icon: 'bolt', action: 'sim-game', data: { gid: gw.gid }, kind: 'sec', size: 'l', testid: 'btn-hub-sim', title: 'Sim this game', cls: 'btn-simend' }) : '';
     const gate = showWelcome ? welcomeCard(L, t) : seasonCardOn(L) ? newSeasonCard(L) : '';
     // UI_RULES 4: HQ = what's next only: the next game (display only), ONE To do panel, a news line, the bottom bar
     const body = html`<div class="hq hqz ${gate ? 'has-gate' : ''}">
@@ -275,10 +308,7 @@
       'welcome-ok': () => { D().memo.welcome = null; dismissSeason(); UI.refresh(); },
       'season-ok': () => { dismissSeason(); UI.refresh(); },
       practice: () => { D().memo.welcome = null; UI.go('practice', { from: 'hub' }); },
-      'sim-end': () => {
-        UI.Modal.confirm('Sim the rest of the season?', { body: 'Your games get simmed too.', icon: 'ff' })
-          .then((ok) => { if (ok) UI.Flow.simUntil('playoffs', 'Simming the season…'); });
-      }
+      'sim-game': (el) => { if (UI.Game) UI.Game.sim(+el.getAttribute('data-gid')); }
     }
   };
 })(globalThis.PT = globalThis.PT || {});

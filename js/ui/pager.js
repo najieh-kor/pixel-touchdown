@@ -35,7 +35,13 @@
     </div>`;
   };
 
+  /** fit, then publish the side pager's width as --pgw on the parent (column headers above a side-paged grid use it) */
   function fitOne(pg) {
+    fitCore(pg);
+    const ctl = pg.querySelector(':scope > .pg-ctl');
+    if (pg.parentElement && pg.classList.contains('nc-side')) pg.parentElement.style.setProperty('--pgw', ctl && !ctl.hidden ? ctl.offsetWidth + 'px' : '0px');
+  }
+  function fitCore(pg) {
     const key = scope() + pg.getAttribute('data-pg');
     const list = pg.querySelector(':scope > .pg-list'), ctl = pg.querySelector(':scope > .pg-ctl');
     if (!list) return;

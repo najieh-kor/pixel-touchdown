@@ -93,30 +93,15 @@
       <div class="legacy-top">
         <span class="coach-ava">${K().sp(c.sp)}</span>
         <div class="grow"><div class="small">Legacy</div><div class="legacy-t">${ti.t}</div></div>
-        <span class="chip chip-gold" data-testid="btn-coach" title="Coach Level">Lv ${c.lvl || 1}</span>
       </div>
       <div class="small"><b class="num">${D().int(lg.score)}</b> points${ti.next ? html` · ${D().int(ti.next[0] - lg.score)} to ${ti.next[1]}` : ''}</div>
       ${ti.next ? K().meter(lg.score - ti.min, ti.next[0] - ti.min, 'm-gold', 'Legacy') : ''}
       <div class="legacy-stats small"><span>${K().ic('football')} <b class="num">${lg.wins}</b> ${lg.wins === 1 ? 'win' : 'wins'}</span><span>${K().ic('ticket')} <b class="num">${lg.poW}</b> playoff ${lg.poW === 1 ? 'win' : 'wins'}</span><span>${K().ic('carrot')} <b class="num">${lg.bowls}</b> ${lg.bowls === 1 ? 'title' : 'titles'}</span><span>${K().ic('trophy')} <b class="num">${lg.ach}</b> ${lg.ach === 1 ? 'badge' : 'badges'}</span></div>
-      <div class="dyn">
-        <div class="dyn-i" title="Playoff seasons in a row"><b class="num">${lg.poStreak}</b><span class="tiny">Playoff run</span></div>
-        <div class="dyn-i" title="Winning seasons in a row"><b class="num">${lg.winStreak}</b><span class="tiny">Win run</span></div>
-        <div class="dyn-i ${lg.bowls5 >= 3 ? 'hot' : ''}" title="Pixel Bowl titles in the last 5 seasons"><b class="num">${lg.bowls5}</b><span class="tiny">${lg.bowls5 >= 3 ? 'Dynasty' : 'Titles, 5 yrs'}</span></div>
-      </div>
     </section>`;
   }
 
-  /** small segmented control in a panel header (Records League/Your Team, Trophies Shelf/Badges) */
-  function segCtl(cur, opts, action, prefix) {
-    return html`<span class="rec-seg">${opts.map((x) => html`<button type="button" class="rec-sb ${cur === x[0] ? 'on' : ''}" data-action="${action}" data-id="${x[0]}" data-testid="${prefix}${x[0]}">${x[1]}</button>`)}</span>`;
-  }
-  function trophiesTab(L, lg, view) {
+  function trophiesTab(L, lg) {
     const u = L.userTid;
-    const seg = segCtl(view === 'badges' ? 'badges' : 'shelf', [['shelf', 'Shelf'], ['badges', 'Badges']], 'tview', 'tro-view-');
-    if (view === 'badges') {
-      const all = achList(L), got = all.filter((a) => a.got).length;
-      return K().card(html`${K().h2('Badges', html`<span class="chip chip-gold ach-n num">${got} / ${all.length || 32}</span>${seg}`, 'medal')}${achTab(L, true)}`, 'fill ach-card');
-    }
     const shelf = [];
     lg.recs.slice().reverse().forEach((r) => {
       const s = (L.hist.seasons || []).find((x) => x.s === r.s);
@@ -131,10 +116,18 @@
     PT.League.Q.roster(L, u).forEach((p) => (p.aw || []).forEach((a) => plaques.push({ n: K().short(p), a: a })));
     (L.hist.legends || []).filter((x) => (x.tids || []).includes(u)).forEach((x) => (x.aw || []).forEach((a) => plaques.push({ n: x.fn[0] + '. ' + x.ln, a: a })));
     plaques.sort((x, y) => (y.a.s || 0) - (x.a.s || 0));
-    const items = shelf.concat(plaques.slice(0, 24).map((x) => html`<div class="trophy plaque"><span class="tr-ic">${K().ic('medal')}</span><span class="tr-tx"><b>${AWN[x.a.a] || AW[x.a.a] || x.a.a}</b><span class="small">${x.n} · ${x.a.s}</span></span></div>`));
+    // HUNT2 #17: one grid — trophies and plaques first, then badges (unlocked, then locked); no Shelf/Badges toggle
+    const al = achList(L), defs = (PT.Data.Achievements && PT.Data.Achievements.list) || [];
+    const achN = { got: al.filter((a) => a.got).length, all: al.length || 32 };
+    const badgeTiles = al.filter((a) => a.got).concat(al.filter((a) => !a.got)).map((a) => {
+      const def = defs.find((d) => d.id === a.id) || {};
+      const ic = a.got ? ((a.icon && UI.Icons.has(a.icon) ? a.icon : UI.Icons.fromEmoji(a.icon || a.emo || '')) || 'trophy') : 'lock';
+      return html`<div class="trophy badge-t ${a.got ? 'got' : 'locked'}" data-testid="ach-${a.id}" title="${a.desc || def.desc || ''}"><span class="tr-ic">${K().ic(ic)}</span><span class="tr-tx"><b>${a.name}</b><span class="small">${a.desc || def.desc || ''}</span></span></div>`;
+    });
+    const items = shelf.concat(plaques.slice(0, 24).map((x) => html`<div class="trophy plaque"><span class="tr-ic">${K().ic('medal')}</span><span class="tr-tx"><b>${AWN[x.a.a] || AW[x.a.a] || x.a.a}</b><span class="small">${x.n} · ${x.a.s}</span></span></div>`)).concat(badgeTiles);
     return html`<div class="tr-cols">
       ${legacyCard(L, lg)}
-      ${K().card(html`${K().h2('Trophy Shelf', html`${retiredRow(L)}${seg}`)}${K().pg('shelf', items, { grid: true, cls: 'shelf-pg', empty: html`<div class="trophy ghost">${vox('carrot')}<span class="tr-tx"><b>Pixel Bowl</b><span class="small">Not won yet</span></span></div>` })}`, 'fill shelf-card')}
+      ${K().card(html`${K().h2('Trophy Shelf', html`${retiredRow(L)}<span class="chip chip-gold ach-n num" title="Badges unlocked">${achN.got} / ${achN.all} badges</span>`)}${K().pg('shelf', items, { grid: true, cls: 'shelf-pg', empty: html`<div class="trophy ghost">${vox('carrot')}<span class="tr-tx"><b>Pixel Bowl</b><span class="small">Not won yet</span></span></div>` })}`, 'fill shelf-card')}
     </div>`;
   }
 
@@ -203,26 +196,12 @@
     try { if (A && A.list) return A.list(L); } catch (e) { /* data */ }
     return ((PT.Data.Achievements && PT.Data.Achievements.list) || []).map((a) => ({ id: a.id, name: a.name, desc: a.desc, coins: a.coins, got: (L.ach || {})[a.id] || null }));
   }
-  function achTab(L, noHead) {
-    const defs = (PT.Data.Achievements && PT.Data.Achievements.list) || [];
-    const list = achList(L);
-    const got = list.filter((a) => a.got).length;
-    // unlocked first, then the locked ones in book order
-    const sorted = list.filter((a) => a.got).concat(list.filter((a) => !a.got));
-    return html`${noHead ? '' : html`<div class="ach-head">${K().ic('trophy')}<b class="num">${got} / ${list.length || 32}</b><span>unlocked</span><span class="grow">${K().meter(got, list.length || 32, 'm-gold', 'Achievements')}</span></div>`}
-      ${K().pg('ach', sorted.map((a) => {
-        const def = defs.find((d) => d.id === a.id) || {};
-        const coins = a.coins != null ? a.coins : def.coins;
-        return html`<div class="ach ${a.got ? 'got' : 'locked'}" data-testid="ach-${a.id}"><span class="ach-emo">${K().ic(a.got ? ((a.icon && UI.Icons.has(a.icon) ? a.icon : UI.Icons.fromEmoji(a.icon || a.emo || '')) || 'trophy') : 'lock')}</span>
-          <span class="ach-tx"><b class="ellip">${a.name}</b><span class="small ach-d">${a.desc || def.desc || ''}</span></span>
-          <span class="ach-f">${coins ? html`<span class="stat stat-coin">${K().icon('coin')}<b class="num">${coins}</b></span>` : ''}${a.got ? html`<span class="ach-y small">${a.got}</span>` : ''}</span></div>`;
-      }), { grid: true, cls: 'ach-pg' })}`;
-  }
 
 
 
-  // Trophy Room: 3 sub-tabs in one row. Panel toggles live in the panel headers (Trophies: Shelf / Badges,
-  // Records: League / Your Team); pagers sit in the panel footers. Old ids: seasons/hof → history, numbers/ach → trophies.
+
+  // Trophy Room: 3 sub-tabs in one row. Records has a League / Your Team toggle in its panel header; the Trophy Shelf
+  // holds trophies and badges in one grid; pagers sit in the panel footers. Old ids: seasons/hof → history, numbers/ach → trophies.
   const TABS = [
     { id: 'trophies', label: 'Trophies', testid: 'tab-hist-trophies' },
     { id: 'history', label: 'History', testid: 'tab-hist-history' },
@@ -241,15 +220,13 @@
     if (!L) { UI.replace('title'); return; }
     const want = TAB_ALIAS[params.tab] || params.tab;
     const tab = TABS.some((t) => t.id === want) ? want : 'trophies';
-    if (params.tab === 'ach') params.tv = 'badges';
-    const view = tab === 'trophies' && params.tv === 'badges' ? 'badges' : '';
     let content;
     switch (tab) {
       case 'history': content = historyTab(L); break;
       case 'records': content = recordsTab(L, params); break;
-      default: content = trophiesTab(L, legacy(L), view);
+      default: content = trophiesTab(L, legacy(L));
     }
-    D().set(el, K().layout(html`${K().tabs(TABS, tab, 'tab')}${content}`, null, 'fit history hist-' + tab + (view ? ' hist-ach' : '')));
+    D().set(el, K().layout(html`${K().tabs(TABS, tab, 'tab')}${content}`, null, 'fit history hist-' + tab));
   }
 
   UI.screens.history = {
@@ -260,7 +237,6 @@
       tab: (el, ev, params) => { params.tab = el.getAttribute('data-id'); UI.refresh(); },
       coach: () => UI.go('coach'),
       rscope: (el, ev, params) => { params.rsc = el.getAttribute('data-id'); UI.refresh(); },
-      tview: (el, ev, params) => { params.tab = 'trophies'; params.tv = el.getAttribute('data-id'); UI.refresh(); },
       legend: (el) => {
         const L = PT.App.L, id = +el.getAttribute('data-id');
         const x = (L.hist.legends || []).find((y) => y.id === id);

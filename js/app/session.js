@@ -285,7 +285,10 @@
         if (S.kickAsk !== S.needSeq && PC && PC.kick) {
           S.kickAsk = S.needSeq;
           const g = S.game, snap = g.snapshot();
-          if (PT.Input.Gestures && n.minPow != null) PT.Input.Gestures.setKickZone(n.minPow, 0.95);
+          if (PT.Input.Gestures && n.minPow != null) {
+            const ET = PT.Engine && PT.Engine.T, kmax = ET && ET.KICK_POW_MAX > 0 ? ET.KICK_POW_MAX : 0.95;
+            PT.Input.Gestures.setKickZone(n.minPow, kmax, !!(snap.kick && snap.kick.outRange));
+          }
           PC.kick({ pct: n.pct != null ? n.pct : snap.kick && snap.kick.pct }).then((v) => { if (v === 'auto' && S && S.game === g && g.needs() && g.needs().k === 'KICK_AIM') g.autoKick(); });
         }
         return false;

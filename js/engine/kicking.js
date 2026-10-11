@@ -44,6 +44,9 @@
     const dist = G.kickWait === 'xp' ? K.xpDist(G) : RU.fgDist(G);
     const maxR = K.maxRange(G, ki);
     s.on = true; s.dist = dist; s.pct = Math.round(K.autoPct(G, ki, dist) * 100); s.minPow = Math.min(1, dist / maxR);
+    // a manual kick needs pow ≥ minPow and over-kicks above 0.97: past that the green zone is empty (HUNT2 #3)
+    s.outRange = s.minPow > G.T.KICK_POW_MAX;
+    if (s.outRange) s.pct = 0;
     let ang = 0;
     if (ka && ka.on && (ka.dx || ka.dy)) ang = Math.atan2(ka.dx, ka.dy * G.dir) / DEG;
     ang = PT.Util.clamp(ang, -G.T.KICK_AIM_MAX, G.T.KICK_AIM_MAX);

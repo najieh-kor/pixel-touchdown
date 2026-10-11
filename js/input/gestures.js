@@ -22,6 +22,7 @@
   function mk(tag, cls, parent) { const n = globalThis.document.createElementNS(NS, tag); if (cls) n.setAttribute('class', cls); parent.appendChild(n); return n; }
   function setAttrs(n, o) { for (const k in o) n.setAttribute(k, o[k]); }
   function powColor(p, kick) {
+    if (kick && zone && zone.out) return '#ff5a4f';
     if (kick && zone) return p > zone.hi ? '#ff5a4f' : p >= zone.lo ? '#55e07a' : '#ffd23f';
     return p >= 0.95 ? '#ff5a4f' : p >= 0.7 ? '#ffd23f' : '#55e07a';
   }
@@ -65,8 +66,11 @@
       const mx = Math.max(16, s.ox - 70), my = s.oy - 60, mh = 120;
       setAttrs(meter, { x: mx, y: my, width: 14, height: mh });
       setAttrs(meterFill, { x: mx, y: my + mh * (1 - s.pow), width: 14, height: mh * s.pow, fill: powColor(s.pow, true) });
-      if (zone) setAttrs(meterZone, { x: mx - 4, y: my + mh * (1 - zone.hi), width: 22, height: mh * (zone.hi - zone.lo) });
-      meterZone.style.display = zone ? '' : 'none';
+      // the green "enough power" band is clamped to the meter; out of range (engine snap.kick.outRange) → no band, red frame
+      const showZone = !!(zone && !zone.out && zone.hi > zone.lo);
+      if (showZone) setAttrs(meterZone, { x: mx - 4, y: my + mh * (1 - zone.hi), width: 22, height: Math.max(0, mh * (zone.hi - zone.lo)) });
+      meterZone.style.display = showZone ? '' : 'none';
+      meter.classList.toggle('out', !!(zone && zone.out));
     } else { meterFill.setAttribute('height', 0); meterZone.style.display = 'none'; }
   }
   function hide() { if (svg) svg.classList.remove('on'); }
@@ -122,7 +126,16 @@
       hide();
     },
     /** kick power band shown in green (design 8.6: dist/maxRange .. 0.95) */
-    setKickZone: function (lo, hi) { zone = lo == null ? null : { lo: lo, hi: hi == null ? 0.95 : hi }; },
+    /**
+     * Kick-meter green zone (design 8.6: dist/maxRange .. KICK_POW_MAX). Clamped to 0..1 with hi ≥ lo so it can never
+     * render inverted or outside the meter. out = engine snap.kick.outRange (too far: no zone, red meter frame).
+     */
+    setKickZone: function (lo, hi, out) {
+      if (lo == null) { zone = null; return; }
+      const c = (v) => Math.max(0, Math.min(1, +v || 0));
+      const h = c(hi == null ? 0.95 : hi), l = Math.min(c(lo), h);
+      zone = { lo: l, hi: h, out: !!out || c(lo) > h };          // same rule as the engine (minPow > KICK_POW_MAX)
+    },
     /**
      * @param {{x0:number,y0:number,x:number,y:number,t0:number}} p
      * @returns {'tap'|'swipeUp'|'swipeDown'|'swipe'|'hold'}

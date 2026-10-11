@@ -32,7 +32,7 @@
       }
       case 'ROSTER': {
         const max = L.phase === C.PHASE.PRESEASON ? C.ROSTER.MAX_SEASON : undefined;
-        const r = LG().Roster.fixIt(L, L.userTid, { max: max });
+        const r = LG().Roster.fixIt(L, L.userTid, { max: max, useFA: true });   // best free agents first (HUNT2-league #1)
         LG().Roster.autoDepth(L, L.userTid, { silent: true });
         return Object.assign({}, r, { ok: true });
       }

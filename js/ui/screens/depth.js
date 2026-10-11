@@ -110,7 +110,7 @@
   function controls(t) {
     const c = starCounts(t), max = v2() ? SMAX() : 2;
     const low = (sd) => c[sd] < (v2() ? SMIN() : 1);
-    const starsOn = st.panel && (st.panel.mode === 'stars' || st.panel.mode === 'starpick');
+    const starsOn = st.panel && (st.panel.mode === 'stars' || st.panel.mode === 'starpick' || st.panel.mode === 'replace');
     return html`<div class="ln-ctl">
       <div class="ln-seg" role="tablist">${SIDES.map((x) => html`<button type="button" class="ln-segb ${st.side === x[0] ? 'on' : ''}" role="tab" aria-selected="${st.side === x[0]}" data-action="d-side" data-side="${x[0]}" data-testid="tab-lineup-${x[0]}">${K().ic(x[2])}<span>${x[1]}</span></button>`)}</div>
       <button type="button" class="ln-stars ${starsOn ? 'on' : ''}" data-action="d-starsbox" data-testid="tab-lineup-stars" title="Your Star players">
@@ -147,12 +147,17 @@
     const spots = [spot(0, 'Starter')];
     for (let k = 1; k <= nSubs; k++) spots.push(spot(k, 'Backup ' + k));
     const cur = arr[i];
-    const list = PT.League.Q.roster(lg, t.id).filter((p) => !p.ir && p.id !== cur && (slot === 'K' ? true : p.pos !== 'K'))
+    // HUNT2 #3: players who fit the spot first (by rating there); everyone else only behind "Other positions…"
+    const all = PT.League.Q.roster(lg, t.id).filter((p) => !p.ir && p.id !== cur && (slot === 'K' ? true : p.pos !== 'K'))
       .map((p) => ({ p: p, o: slotOvr(p, slot), fit: !newSpot(p, slot) }))
       .sort((a, b) => (b.fit - a.fit) || (b.o - a.o));
+    const fits = all.filter((x) => x.fit);
+    const list = pn.all || !fits.length ? all : fits;
+    const more = !pn.all && fits.length && fits.length < all.length
+      ? html`<button type="button" class="ln-more" data-action="d-more" data-testid="depth-pick-more">${K().ic('players')} Other positions… <span class="muted">(${all.length - fits.length})</span></button>` : '';
     return html`${panelHead(label(slot), i ? 'Pick backup ' + i : 'Pick a starter', { action: 'd-close', testid: 'btn-depth-cancel', title: 'Close', icon: 'x' })}
       ${nSubs ? html`<div class="ln-bks">${spots}</div>` : ''}
-      ${K().pg('lnpick', list.map((x) => pickRow(x.p, slot, t, { action: 'd-pick', testid: 'depth-pick-' + x.p.id, ovr: x.o })), { cls: 'ln-pg tx-side-pg' })}`;
+      ${K().pg('lnpick', list.map((x) => pickRow(x.p, slot, t, { action: 'd-pick', testid: 'depth-pick-' + x.p.id, ovr: x.o })).concat(more ? [more] : []), { cls: 'ln-pg tx-side-pg' })}`;
   }
   function starsPanel(t) {
     const c = starCounts(t), max = v2() ? SMAX() : 2;
@@ -167,8 +172,7 @@
         <button type="button" class="ln-x ln-unstar" data-action="d-unstar" data-pid="${p.id}" data-testid="btn-unstar-${p.id}" title="Remove Star" aria-label="Remove Star">${K().ic('x')}</button>
       </div>`;
     });
-    return html`${panelHead('Stars ' + c.n + '/' + max, 'Off ' + c.off + ' · Def ' + c.def + ' · 2+ each', { action: 'd-close', testid: 'btn-stars-close', title: 'Close', icon: 'x' })}
-      <p class="ln-ph2">${K().ic('bolt')} +5 key skills. Full meter = Surge.</p>
+    return html`${panelHead('Your Stars', '+5 key skills · Surge', { action: 'd-close', testid: 'btn-stars-close', title: 'Close', icon: 'x' })}
       ${K().pg('lnstars', rows, { cls: 'ln-pg tx-side-pg', empty: html`<p class="muted small">No Stars yet.</p>` })}
       <div class="ln-pfoot">${K().btn({ label: 'Auto Stars', icon: 'wand', action: 'd-autostar', kind: 'sec', size: 's', testid: 'btn-stars-auto', cls: 'ln-add' })}${full
         ? K().btn({ label: 'Make Star', sub: max + '/' + max + ' full', icon: 'plus', action: 'd-addstar', kind: 'sec', size: 's', testid: 'btn-add-star', cls: 'ln-add ln-full', disabled: true, title: 'Remove a Star first' })
@@ -187,9 +191,24 @@
           sub: x.slot ? 'Starter: ' + label(x.slot) : 'Bench' });
       }), { cls: 'ln-pg tx-side-pg' })}`;
   }
+  /** HUNT2 #2: 8/8 and a new Star tapped → pick the Star he replaces (rows that would break 2 per side are off) */
+  function replacePanel(t, pn) {
+    const np = P(pn.pid), nsd = np ? K().starSide(np.pos) : '';
+    const c = starCounts(t);
+    const rows = K().teamStars(t).map(P).filter(Boolean).map((p) => {
+      const sd = K().starSide(p.pos);
+      const ok = sd === nsd || c[sd] - 1 >= SMIN();
+      const a = K().ABILITY[K().abilityKind(p.pos)];
+      return html`<button type="button" class="ln-pr" data-action="d-replace" data-pid="${p.id}" data-testid="star-replace-${p.id}" ${ok ? '' : D().raw('disabled')}>
+        ${K().portrait(p, 28, t.col.pri)}
+        <span class="ln-pr-m"><b class="ln-pr-n">${K().pname(p)}</b>${K().posChip(p.pos)}${a ? html`<span class="ln-ab">${K().ic(a.icon)}${a.name}</span>` : ''}${ok ? '' : html`<span class="ln-pr-w">Need ${SMIN()} ${sd === 'off' ? 'offense' : 'defense'} Stars</span>`}</span></button>`;
+    });
+    return html`${panelHead('Replace which Star?', np ? 'New: ' + K().pname(np) : '', { action: 'd-close', testid: 'btn-replace-cancel', title: 'Cancel', icon: 'x' })}
+      ${K().pg('lnrep', rows, { cls: 'ln-pg tx-side-pg' })}`;
+  }
   function panel(t) {
     const pn = st.panel || { mode: 'stars' };
-    const body = pn.mode === 'slot' ? slotPanel(t, pn) : pn.mode === 'starpick' ? starPickPanel(t) : starsPanel(t);
+    const body = pn.mode === 'slot' ? slotPanel(t, pn) : pn.mode === 'starpick' ? starPickPanel(t) : pn.mode === 'replace' ? replacePanel(t, pn) : starsPanel(t);
     return html`<aside class="ln-panel ${st.panel ? 'open' : ''} ln-dock-${st.panel ? st.dock : 'r'} ln-p-${pn.mode}" aria-label="Lineup panel">${body}</aside>`;
   }
 
@@ -198,7 +217,7 @@
     let v = { ok: true, errors: [] };
     try { v = PT.League.Roster.validate(lg, t.id); } catch (e) { /* ignore */ }
     if (st.panel && st.panel.mode === 'slot' && sideOf(st.panel.slot) !== st.side) st.panel = null;
-    return html`${UI.parts.teamStrip()}<div class="ln ${st.panel ? 'has-panel' : ''}">${controls(t)}<div class="ln-stage">${field(t, v)}</div>${panel(t)}</div>`;
+    return html`<div class="ln ${st.panel ? 'has-panel' : ''}">${controls(t)}<div class="ln-stage">${field(t, v)}</div>${panel(t)}</div>`;
   };
 
   // ---------------- moves ----------------
@@ -224,7 +243,19 @@
 
   const close = () => { st.panel = null; UI.refresh(); };
   UI.parts.lineupActions = {
-    'd-side': (el) => { st.side = el.getAttribute('data-side'); if (st.panel && st.panel.mode === 'slot') st.panel = null; UI.refresh(); },
+    // HUNT2 #2: any open panel closes when the side changes (Kicks has no Stars)
+    'd-side': (el) => { st.side = el.getAttribute('data-side'); st.panel = null; UI.refresh(); },
+    'd-more': () => { if (st.panel && st.panel.mode === 'slot') { st.panel.all = true; UI.pgPage('lnpick', 0); UI.refresh(); } },
+    'd-replace': (el) => {
+      const pn = st.panel; if (!pn || pn.mode !== 'replace') return;
+      const lg = L(), t = team(), out = +el.getAttribute('data-pid');
+      const list = K().teamStars(t).filter((x) => x !== out).concat([pn.pid]);
+      const r = PT.League.Roster.setStars(lg, lg.userTid, list);
+      if (r && r.ok === false) { UI.Toast.show(r.msg || 'Not now.', 'bad'); return; }
+      UI.Toast.show(K().short(P(pn.pid)) + ' is a Star · ' + K().short(P(out)) + ' is not', 'good');
+      if (PT.Events) PT.Events.emit('league:changed', { what: 'star' });
+      st.panel = null; UI.refresh();
+    },
     'd-slot': (el) => {
       const slot = el.getAttribute('data-slot'), i = +el.getAttribute('data-i') || 0;
       const pn = st.panel;
@@ -250,8 +281,10 @@
     'd-starpick': (el) => { if (toggleStar(+el.getAttribute('data-pid'), true)) st.panel = { mode: 'stars' }; UI.refresh(); },
     'd-unstar': (el) => { toggleStar(+el.getAttribute('data-pid'), false); UI.refresh(); },
     'd-startog': (el) => {
-      const pid = +el.getAttribute('data-pid');
-      toggleStar(pid, K().teamStars(team()).indexOf(pid) < 0);
+      const pid = +el.getAttribute('data-pid'), adding = K().teamStars(team()).indexOf(pid) < 0;
+      // HUNT2 #2: at 8/8 the tile star asks which Star to replace (one tap more, no dead-end toast)
+      if (adding && v2() && starCounts(team()).n >= SMAX()) { st.panel = { mode: 'replace', pid: pid }; st.dock = 'r'; UI.pgPage('lnrep', 0); UI.refresh(); return; }
+      toggleStar(pid, adding);
       UI.refresh();
     },
     'd-autostar': () => {

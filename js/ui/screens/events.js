@@ -1,7 +1,9 @@
 /* Pixel Touchdown: js/ui/screens/events.js
  * Owner: FLOW-UX (was WP5). Between-week "Team News" (design 11) as one compact card (docs/handoff/FLOW-UX.md):
  * left = art (player portrait or team badge) + title + 1–2 short lines; right = 2–3 choice buttons, each with its
- * cost / effect tags (from WeeklyEvents.pending hint). No paragraphs. Then a result card with effect tags and OK.
+ * cost / effect tags built from the event's fx (a chancy effect is ONE amber dashed "Risk 20%: …" tag). No paragraphs.
+ * A choice with a certain outcome applies at once (result line as a toast, next card); only a random outcome gets the
+ * result card with effect tags and OK.
  * testids: event-choice-{i}, btn-event-ok, btn-event-done.
  */
 (function (PT) {
@@ -36,6 +38,44 @@
     return html`<div class="fl-ev-art">${K().badge(L.teams[a.tid != null ? a.tid : L.userTid], 'l')}</div>`;
   }
 
+  /** the event definition (choices with their fx) for a pending card */
+  function defOf(ev) { const W = PT.Data && PT.Data.WeeklyEvents; return W && W.list ? W.list.find((d) => d.id === ev.id) || null : null; }
+  /** a choice has a random outcome (an fx with a chance, or a 50/50 roll) */
+  function isRandom(ch) { return !!(ch && (ch.fx || []).some((f) => f.k === 'roll' || (f.p != null && f.p < 1))); }
+  const WORD = { coins: ['coin', 'Coins'], hype: ['flame', 'Hype'], boss: ['happy', 'Boss'], spirit: ['heart', 'Spirit'], xp: ['star', 'Coach XP'], scout: ['scope', 'Scout pts'], merch: ['bag', 'Merch'] };
+  /** one fx → short text + icon (null = not shown) */
+  function fxText(f) {
+    const sg = (n) => (n > 0 ? '+' : '−') + Math.abs(n);
+    if (WORD[f.k] && typeof f.n === 'number') return [WORD[f.k][0], WORD[f.k][1] + ' ' + sg(f.n), f.n];
+    if (f.k === 'mor') return ['ok', (f.who === 'team' ? 'Team Mood ' : 'Mood ') + sg(f.n), f.n];
+    if (f.k === 'rat') return ['dumbbell', (PT.C.RATING_NAMES[f.key] || 'Skill') + ' ' + sg(f.n), f.n];
+    if (f.k === 'nx') return ['football', (f.key === 'all' || !f.key ? 'Skills ' : (PT.C.RATING_NAMES[f.key] || 'Skill') + ' ') + sg(f.n) + ' next game', f.n];
+    if (f.k === 'edge') return ['bolt', 'Edge next game', 1];
+    if (f.k === 'inj') return ['cross', 'Owie risk', -1];
+    if (f.k === 'tix') return ['ticket', 'Tickets ×' + f.n, 1];
+    if (f.k === 'snowImm') return ['snow', 'Snow-proof', 1];
+    if (f.k === 'injMult') return ['cross', 'Fewer owies', 1];
+    return null;
+  }
+  /** choice tags from the fx: certain effects green/red, chancy ones one amber "Risk 20%: …" / "50%: …" tag */
+  function choiceTags(ch) {
+    const out = [];
+    (ch.fx || []).forEach((f) => {
+      if (f.k === 'roll') {
+        const pa = Math.round((f.p == null ? 0.5 : f.p) * 100);
+        const a = (f.a || []).map(fxText).filter(Boolean).map((x) => x[1]).join(', ');
+        const b = (f.b || []).map(fxText).filter(Boolean).map((x) => x[1]).join(', ');
+        if (a) out.push(FK().tag(html`${K().ic('dice')}${pa}%: ${a}`, 'risk'));
+        if (b) out.push(FK().tag(html`${K().ic('dice')}${100 - pa}%: ${b}`, 'risk'));
+        return;
+      }
+      const x = fxText(f);
+      if (!x) return;
+      if (f.p != null && f.p < 1) { out.push(FK().tag(html`${K().ic('warn')}Risk ${Math.round(f.p * 100)}%: ${x[1]}`, 'risk')); return; }
+      out.push(FK().tag(html`${K().ic(x[0])}${x[1]}`, x[2] > 0 ? 'green' : x[2] < 0 ? 'red' : ''));
+    });
+    return out;
+  }
   /** "Coins -30 · Team Mood +4" → small tags (green = good, red = bad) */
   function tags(hint) {
     if (!hint) return '';
@@ -100,10 +140,14 @@
       return;
     }
     const ev = list[0];
+    const dv = defOf(ev);
     const choices = (ev.choices || []).map((c, i) => {
       const off = c.disabled || c.can === false;
+      const dch = dv && dv.choices ? dv.choices[i] : null;
+      const ct = dch ? choiceTags(dch) : [];
+      const tg = ct.length ? ct : tags(c.hint);
       return html`<button type="button" class="fl-choice" data-action="choose" data-iid="${ev.iid}" data-i="${i}" data-testid="event-choice-${i}" ${off ? D().raw('disabled aria-disabled="true"') : ''} title="${c.why || ''}">
-        <span class="fl-choice-l">${c.label}</span>${c.hint || c.why ? html`<span class="fl-choice-tags">${tags(c.hint)}${off && c.why ? FK().tag(c.why, 'red') : ''}</span>` : ''}</button>`;
+        <span class="fl-choice-l">${c.label}</span>${(tg && tg.length) || c.why ? html`<span class="fl-choice-tags">${tg}${off && c.why ? FK().tag(c.why, 'red') : ''}</span>` : ''}</button>`;
     });
     D().set(el, K().layout(html`
       <section class="fl-card fl-evc" data-testid="event-card">
@@ -131,9 +175,17 @@
         try { r = PT.League.WeeklyEvents.choose(L, iid, i); }
         catch (e) { r = { ok: false, msg: 'Something went wrong. Try again.' }; if (PT.Log) PT.Log.error('ui', 'event choose', e); }
         if (r && r.ok === false) { UI.Toast.show(r.msg || 'Not possible.', 'bad'); return; }
-        st.result = Object.assign({ title: ev ? ev.title : '' }, r || {});
         if (PT.Events) PT.Events.emit('league:changed', { what: 'event' });
         UI.updateHead();
+        const dv = ev ? defOf(ev) : null;
+        const ch = dv && dv.choices ? dv.choices[r && r.idx != null ? r.idx : i] : null;
+        if (ch && !isRandom(ch)) {
+          // the outcome was already on the button: one line as a toast, then the next card (one tap per event)
+          UI.Toast.show((r && r.resultText) || 'Done.', 'good', 2600);
+          if (pending(L).length) UI.refresh(); else UI.Flow.goPhase();
+          return;
+        }
+        st.result = Object.assign({ title: ev ? ev.title : '' }, r || {});
         UI.refresh();
       },
       ok: () => {

@@ -38,7 +38,7 @@
   };
   const STAFF_EMO = { off: 'football', def: 'shield', grw: 'sprout' };
   // HUNT #33: one short line each
-  const STAFF_FX = { off: '+1 Offense per Star', def: '+1 Defense per Star', grw: 'Young players grow faster' };
+  const STAFF_FX = { off: '+1 Offense per level', def: '+1 Defense per level', grw: 'Young players grow faster' };   // HUNT2 #7
 
   // ---------------- adapters ----------------
   UI.adapt = UI.adapt || {};
@@ -125,15 +125,21 @@
     </section>`;
   };
   /** captain picker (modal list, smartest first) */
-  kit.pickCaptain = function () {
+  /** HUNT2 #6: captain picker = the 6 smartest on one page (name, pos, Smarts); "Show all" pages the rest */
+  kit.pickCaptain = function (all) {
     const lg = L(), t = me();
-    const list = PT.League.Q.roster(lg, t.id).filter((p) => !p.ir).sort((a, b) => (b.r.smt - a.r.smt));
-    return UI.Modal.open({ title: 'Pick a Captain', icon: 'crown', cls: 'm-list',
-      body: K().pg('capt', list.map((p) => K().playerRow(p, { action: 'pick', testid: 'capt-pick-' + p.id, compact: true,
-        right: html`<span class="small">Smarts <b class="num">${p.r.smt}</b></span>${K().mood(p.mor)}` })), { grid: true }),
-      actions: { pick: (b, card, entry) => entry.close(+b.getAttribute('data-pid')) },
+    const list = PT.League.Q.roster(lg, t.id).filter((p) => !p.ir).sort((a, b) => (b.r.smt - a.r.smt) || (b.ovr - a.ovr));
+    const row = (p) => html`<button type="button" class="cap-r ${t.capt === p.id ? 'on' : ''}" data-action="pick" data-pid="${p.id}" data-testid="capt-pick-${p.id}">
+      ${K().portrait(p, 32, t.col.pri)}<span class="cap-n"><b>${K().pname(p)}</b>${t.capt === p.id ? html`<span class="capt">C</span>` : ''}</span>${K().posChip(p.pos)}<span class="cap-s"><span class="tiny muted">Smarts</span><b class="num">${p.r.smt}</b></span></button>`;
+    const shown = all ? list : list.slice(0, 6);
+    const body = all ? K().pg('capt', shown.map(row), { grid: true, cls: 'cap-pg' })
+      : html`<div class="cap-grid">${shown.map(row)}</div>${list.length > 6 ? html`<button type="button" class="cap-more" data-action="all" data-testid="capt-show-all">Show all ${list.length}</button>` : ''}`;
+    return UI.Modal.open({ title: 'Pick a Captain', icon: 'crown', cls: 'm-list m-capt',
+      body: html`<p class="small muted cap-h">Smart players make the best Captains.</p>${body}`,
+      actions: { pick: (b, card, entry) => entry.close(+b.getAttribute('data-pid')), all: (b, card, entry) => entry.close('all') },
       buttons: [{ label: 'Cancel', value: null, kind: 'cancel' }] })
       .then((pid) => {
+        if (pid === 'all') { kit.pickCaptain(true); return; }
         if (pid == null || pid === t.capt) return;
         const r = UI.adapt && UI.adapt.setCaptain ? UI.adapt.setCaptain(lg, t.id, pid) : null;
         if (!r) { t.capt = pid; changed('captain'); }
@@ -207,9 +213,6 @@
   }
   function pay() {
     const lg = L(), t = me();
-    const cap = safe(() => PT.League.Cap.cap(lg), C.CAP.BASE);
-    const used = safe(() => PT.League.Cap.payroll(lg, t.id), 0);
-    const dead = safe(() => PT.League.Cap.dead(lg, t.id), 0);
     const list = PT.League.Q.roster(lg, t.id).filter((p) => p.con)
       .sort((a, b) => (Math.min(2, K().yrsLeft(a, lg)) - Math.min(2, K().yrsLeft(b, lg))) || (b.con.sal - a.con.sal));
     if (!list.some((p) => p.id === pst.sel)) pst.sel = list.length ? list[0].id : null;
@@ -221,29 +224,22 @@
         <span class="tx-c-pay num">${D().money(p.con.sal)}</span>
         <span class="tx-c-yrs">${yrsWord(p, lg)}</span></button>`;
     });
-    const pctUsed = Math.max(0, Math.min(100, ((used - dead) / cap) * 100)), pctDead = Math.max(0, Math.min(100 - pctUsed, (dead / cap) * 100));
     const sel = list.find((p) => p.id === pst.sel);
     const act = sel ? kit.contractAct(sel) : null;
     const detail = sel ? html`
       <button type="button" class="tx-dhead" data-action="pay-card" data-id="${sel.id}" data-testid="pay-card" title="Open player card">
         ${K().portrait(sel, 40, t.col.pri)}<span class="tx-dname"><b>${K().pname(sel)}</b><span class="tx-dsub">${K().posChip(sel.pos)}<span class="tx-dstars">${K().stars(sel.ovr)}</span></span></span></button>
-      <div class="tx-dl"><b class="num">${D().money(sel.con.sal)}</b><span class="muted">a year</span><span class="grow"></span>${yrsWord(sel, lg)}</div>
       <p class="tx-cut small">${kit.cutText(sel)}</p>
       <div class="tx-acts">
         ${act === 'extend' ? K().btn({ label: 'Extend', icon: 'contract', action: 'pay-extend', data: { id: sel.id }, kind: 'go', size: 's', testid: 'btn-pay-extend' }) : ''}
         ${act === 'keep' ? K().btn({ label: 'Keep', icon: 'contract', action: 'pay-keep', kind: 'go', size: 's', testid: 'btn-pay-keep' }) : ''}
         ${K().btn({ label: 'Cut', icon: 'scissors', action: 'pay-release', data: { id: sel.id }, kind: 'bad', size: 's', testid: 'btn-pay-release' })}
       </div>` : K().empty('contract', 'No contracts.');
-    return html`${kit.teamStrip()}
-      <div class="tx-pay">
+    // HUNT2 #4/#5: no strip, no Pay bar (Team Cash is in the top bar); the side card only says what a Cut costs + the moves
+    return html`<div class="tx-pay">
         ${K().card(html`<div class="tx-thead tx-prow"><span class="tx-nm">Player</span><span class="tx-c-pos">Pos</span><span class="tx-c-pay">Pay</span><span class="tx-c-yrs">Left</span></div>
           ${K().pg('pay', rows, { cls: 'tx-pg tx-side-pg' })}`, 'fill tx-list')}
-        <div class="tx-side">
-          ${K().card(html`<div class="tx-capbar-h"><b>Pay</b><span class="small"><b class="num">${D().money(used)}</b> of <span class="num">${D().money(cap)}</span></span></div>
-            <div class="cash-bar tx-cash" role="img" aria-label="Team Cash used"><span class="cb-pay" style="width:${pctUsed}%"></span><span class="cb-dead" style="width:${pctDead}%"></span></div>
-            <div class="tx-legend small">${dead ? html`<span><i class="lg lg-dead"></i>Cut Costs <span class="num">${D().money(dead)}</span></span>` : ''}</div>`, 'tx-cap')}
-          ${K().card(detail, 'fill tx-detail')}
-        </div>
+        ${K().card(detail, 'fill tx-detail')}
       </div>`;
   }
 
@@ -261,7 +257,7 @@
       return K().card(html`${K().h2(title, '', icon)}<div class="tx-opts n${opts.length}">${opts}</div>`, 'fill tx-style-c');
     };
     const lock = open ? '' : html`<p class="tx-lock small">${K().ic('lock')} Change style before Week 1 or after the season.</p>`;
-    return html`${kit.teamStrip()}${lock}<div class="tx-style">
+    return html`${lock}<div class="tx-style">
       ${side('off', 'Offense', 'football', C.OFF_STYLES, OFF_BLURB, OFF_EMO)}
       ${side('def', 'Defense', 'shield', C.DEF_STYLES, DEF_BLURB, DEF_EMO)}</div>`;
   }
@@ -324,22 +320,22 @@
       const cur = safe(() => PT.League.Staff.stars(lg, t.id, role), typeof t.stf[role] === 'number' ? t.stf[role] : (t.stf[role] && t.stf[role].st) || 1);
       return html`<div class="staff">
         <span class="fac-emo">${K().ic(STAFF_EMO[role])}</span><div class="fac-m"><b>${C.STAFF_NAMES[role]}</b><div class="tiny muted">${STAFF_FX[role]}</div></div>
-        <div class="star-pick" role="radiogroup" aria-label="${C.STAFF_NAMES[role]} stars">${[1, 2, 3, 4, 5].map((n) => {
+        <div class="star-pick" role="radiogroup" aria-label="${C.STAFF_NAMES[role]} level">${[1, 2, 3, 4, 5].map((n) => {
           const delta = C.STAFF_COST[n] - C.STAFF_COST[cur];
           const can = delta <= coins || n <= cur;
-          // HUNT #33: tiles up to the current level are gold (filled stars), above it grey stars + price
-          return html`<button type="button" class="sp-star ${n <= cur ? 'on' : ''} ${n === cur ? 'cur' : ''}" role="radio" aria-checked="${n === cur}" data-action="staff" data-role="${role}" data-n="${n}" data-testid="coach-${role}-${n}" ${can ? '' : D().raw('disabled')} title="${n} ${n === 1 ? 'Star' : 'Stars'} · ${D().coins(C.STAFF_COST[n])} Coins a season"><span>${K().ic(n <= cur ? 'star' : 'star-empty')}</span><span class="tiny num">${n === cur ? 'Now' : C.STAFF_COST[n] ? D().coins(C.STAFF_COST[n]) : 'Free'}</span></button>`;
+          // HUNT #33 + HUNT2 #7: levels Lv 1-5 (not "stars"); gold up to the current level, price above it
+          return html`<button type="button" class="sp-star ${n <= cur ? 'on' : ''} ${n === cur ? 'cur' : ''}" role="radio" aria-checked="${n === cur}" data-action="staff" data-role="${role}" data-n="${n}" data-testid="coach-${role}-${n}" ${can ? '' : D().raw('disabled')} title="Level ${n} · ${D().coins(C.STAFF_COST[n])} Coins a season"><span class="sp-lv">Lv <b class="num">${n}</b></span><span class="tiny num">${n === cur ? 'Now' : C.STAFF_COST[n] ? D().coins(C.STAFF_COST[n]) : 'Free'}</span></button>`;
         })}</div>
       </div>`;
     });
     const pane = shopSt.pane;
     const tabBtn = (id, label, icon) => html`<button type="button" class="tab shop-tab ${pane === id ? 'on' : ''}" role="tab" aria-selected="${pane === id}" data-action="shop-pane" data-id="${id}" data-testid="shop-tab-${id}">${K().ic(icon)}${label}</button>`;
     D().set(el, K().layout(html`
-      <div class="shop-bar" role="tablist">${tabBtn('fac', 'Facilities', 'hammer')}${tabBtn('staff', 'Coaches', 'cap')}
+      <div class="shop-bar" role="tablist">${tabBtn('fac', 'Facilities', 'hammer')}${tabBtn('staff', 'Staff', 'players')}
         <span class="grow"></span></div>
       <div class="shop-panes">
         <div class="shop-pane ${pane === 'fac' ? 'on' : ''}">${K().pg('fac', cells(facCards.concat([party])), { grid: true, cls: 'fac-pg' })}</div>
-        <div class="shop-pane ${pane === 'staff' ? 'on' : ''}">${K().card(html`${K().h2('Coaches', html`<span class="tiny muted shop-paid">Paid every season</span>`)}${staff}`, 'staff-card')}</div>
+        <div class="shop-pane ${pane === 'staff' ? 'on' : ''}">${K().card(html`${K().h2('Staff', html`<span class="tiny muted shop-paid">Paid every season</span>`)}${staff}`, 'staff-card')}</div>
       </div>`, null, 'fit nsb shop'));
   }
 
@@ -361,7 +357,7 @@
         const S = PT.League.Staff;
         const r = S && S.setStars ? S.setStars(lg, lg.userTid, role, n) : { ok: false, msg: 'Coaches are not ready yet.' };
         if (r && r.ok === false) { UI.Toast.show(r.msg || 'Not enough Coins.', 'bad'); return; }
-        UI.Toast.show(C.STAFF_NAMES[role] + ': ' + n + (n === 1 ? ' Star' : ' Stars'), 'good');   // HUNT #16 grammar
+        UI.Toast.show(C.STAFF_NAMES[role] + ': Lv ' + n, 'good');
         UI.updateHead();
         UI.refresh();
       },

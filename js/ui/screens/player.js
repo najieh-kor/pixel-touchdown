@@ -146,11 +146,12 @@
       <div class="pc2-rate">${ovrHtml}</div>
       <div class="pc2-meta"><span class="pc2-gl" title="Growth">Growth ${K().growth(fog && shown ? '?' : gl)}</span><span>Age <b class="num">${p.age}</b></span></div>
       <div class="pc2-meta">${K().sp(p.sp)}<span>${sp ? sp.name : K().spName(p.sp)} · ${sizeWord(p.sp)}</span></div>
-      <div class="pc2-meta">${t ? K().badge(t, 's') : ''}<span>${where}</span></div>
+      ${mine ? '' : html`<div class="pc2-meta">${t ? K().badge(t, 's') : ''}<span>${where}</span></div>`}
+      ${p.con ? html`<div class="pc2-meta pc2-con" data-testid="pc-contract">${K().ic('contract')}<span><b class="num">${D().money(p.con.sal)}</b> · ${K().yrsLeft(p, L) ? D().plural(K().yrsLeft(p, L), 'yr') + ' left' : 'ends now'}${mine && UI.parts.cutCost && UI.parts.cutCost(p).per ? html` · Cut cost <b class="num">${D().money(UI.parts.cutCost(p).per)}</b>` : ''}${p.con.rk ? ' · Rookie' : ''}</span></div>` : ''}
       ${mine ? html`<div class="pc2-meta pc2-role">${K().ic(slot0 ? 'clipboard' : 'zzz')}<span>${slot0 ? 'Starts: ' + (K().SLOT_LABEL[slot0] || slot0) : 'Bench'}</span></div>` : ''}
     </section>`;
 
-    const tabs = [['overview', 'Overview'], ['skills', 'Skills'], ['stats', 'Stats']].concat(p.con ? [['pay', 'Contract']] : []);
+    const tabs = [['overview', 'Overview'], ['skills', 'Skills'], ['stats', 'Stats']];   // HUNT2 #5: contract is one line on the ID card
     let tab = pst.tab;
     if (!tabs.some((x) => x[0] === tab)) tab = 'overview';
     const nav = p.tid >= 0 ? html`<span class="pc-nav">${K().btn({ icon: 'back', action: 'p-prev', kind: 'sec', size: 's', title: 'Previous player', testid: 'btn-prev-player' })}${K().btn({ icon: 'play', action: 'p-next', kind: 'sec', size: 's', title: 'Next player', testid: 'btn-next-player' })}</span>` : '';
@@ -175,15 +176,8 @@
       pane = fog ? html`<p class="small muted">Scout him to see his skills. Speed: <b>${p.r.spd}</b></p>` :
         html`<div class="rbars two pc2-all">${PT.C.RATINGS.slice().sort((a, b) => (main.includes(b) ? 1 : 0) - (main.includes(a) ? 1 : 0)).map((k) => K().ratingBar(k, p.r[k], main.includes(k)))}</div>
         <p class="tiny muted pc2-legend">${K().ic('star')} = key skill for ${K().posLabel(p.pos)}</p>`;
-    } else if (tab === 'pay') {
-      const yrs = K().yrsLeft(p, L);
-      pane = html`<div class="pc-pay"><div><span class="tiny muted">Pay</span><b class="big num">${D().money(p.con.sal)}</b><span class="small">a year</span></div>
-        <div><span class="tiny muted">Years</span><b class="big num">${yrs}</b><span class="small">left</span></div>
-        ${p.con.rk ? html`<div>${K().chip('Rookie deal', 'blue')}</div>` : ''}</div>
-        ${mine && kit.cutText ? html`<p class="small">${kit.cutText(p)}.</p>` : ''}
-        <p class="small muted pc-dr">${dr}</p>`;
     } else {
-      pane = statsPane(L, p);
+      pane = html`${statsPane(L, p)}<p class="small muted pc-dr">${dr}</p>`;
     }
     const body = html`<div class="pc2">${hero}<div class="pc2-main">${tabBar}${K().card(pane, 'fill pc2-pane pc2-pane-' + tab)}</div></div>`;
     const foot = left.length || right.length ? html`<div class="pc2-acts">${left}<span class="grow"></span>${right}</div>` : '';

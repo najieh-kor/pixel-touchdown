@@ -103,9 +103,11 @@
             nextLabel = L.po.rd === C.PLAYOFF_ROUNDS ? 'Play the Pixel Bowl' : 'Play ' + roundName(L.po.rd);
             rosterCheck();
             blockers.push({ k: 'USER_GAME', gid: g.gid });
-          } else nextLabel = L.po.rd >= C.PLAYOFF_ROUNDS ? 'Season Recap' : 'Next Round';
+          } else if (L.po.rd >= C.PLAYOFF_ROUNDS) nextLabel = 'Season Recap';
+          else nextLabel = LG().Playoffs.alive(L, L.userTid) ? 'Next Round' : 'Sim Playoffs';   // lost: sim the rest at once
         } else if (seed && L.po.rd === 1 && seed.seed === 1) { nextLabel = 'Rest Week'; info.rest = true; }
-        else nextLabel = L.po.rd >= C.PLAYOFF_ROUNDS ? 'Watch the Bowl' : 'See Playoffs';
+        else if (!LG().Playoffs.alive(L, L.userTid)) nextLabel = L.po.rd >= C.PLAYOFF_ROUNDS ? 'Sim the Bowl' : 'Sim Playoffs';
+        else nextLabel = 'Sim Round';
         if (L.po.rd >= C.PLAYOFF_ROUNDS && LG().Playoffs.roundDone(L, L.po.rd)) nextLabel = 'Season Recap';
         break;
       }
@@ -220,6 +222,33 @@
     if (!H.Draft.status(L).done) H.Draft.simToUser(L);
   }
 
+  /** One playoff round: sim its AI games, weekly hooks, then the next round or the Season Recap. @returns {number[]} simmed */
+  function playoffRound(L) {
+    const H = LG();
+    const simmed = simStep(L, (g) => g.po === L.po.rd);
+    compactOld(L);
+    H.Injuries.weekly(L);
+    H.Economy.weekly(L);
+    H.WeeklyEvents.generate(L);
+    snapPower(L);
+    const r = H.Playoffs.advance(L);
+    if (r.done) {
+      L.phase = C.PHASE.SEASON_END; L.sub = 0;
+      L.newSeasonCard = null;                                      // the season-start card belongs to the season that just ended
+      const fin = L.sched.find((g) => g.po === C.PLAYOFF_ROUNDS);
+      L.bowl = fin ? { s: L.season, champ: r.champ, h: fin.h, a: fin.a, hs: fin.hs, as: fin.as } : null;   // for the UI's result toast
+      H.News.add(L, 'award', 'The ' + L.teams[r.champ].name + ' win the Pixel Bowl!', r.champ);
+      const summary = H.Awards.compute(L);
+      H.History.archiveSeason(L, summary);
+      H.Draft.generateClass(L);
+      // Season Recap = Awards Night + Growth Day + Goodbyes in one step (same hook order as before)
+      H.Progression.offseason(L);
+      H.Progression.retire(L);
+      H.WeeklyEvents.generate(L);
+    } else { L.week++; L.sub = L.po.rd; }
+    return simmed;
+  }
+
   /** Market days left → FA.day each, then rollover (REGULAR week 1). */
   function finishMarketDays(L) {
     while (L.phase === C.PHASE.FREE_AGENCY) {
@@ -229,6 +258,20 @@
     }
   }
 
+  /**
+   * Run Economy.season and remember the user's TV money / bills for the "New Season" card (HUNT2-league #3).
+   * tv = PT.League.K.ECO_TV (WP2) or 400 (design 10.11); bills = what else left the Coins.
+   */
+  function ecoCard(L, run) {
+    const t = L.teams[L.userTid];
+    const c0 = t.fin.coins;
+    run();
+    const tv = (PT.League.K && PT.League.K.ECO_TV) || 400;
+    const delta = t.fin.coins - c0;
+    Object.defineProperty(L, '_ecoCard', { value: { tv: tv, bills: Math.max(0, tv - delta) }, writable: true, configurable: true, enumerable: false });
+  }
+  Calendar._ecoCard = ecoCard;
+
   /** Training Camp auto-pick (ROUND6 C): the user's Focus players = highest growth potential (ceiling − OVR). */
   function autoCamp(L) {
     const P = LG().Progression;
@@ -237,7 +280,8 @@
     if (info.done) return;
     const pl = LG().Q.roster(L, L.userTid).filter((p) => p.pos !== 'K' && !p.ir)
       .sort((a, b) => ((b.pot - b.ovr) - (a.pot - a.ovr)) || (a.age - b.age) || (a.id - b.id)).slice(0, info.n || 3);
-    P.camp(L, L.userTid, pl.map((p) => ({ pid: p.id })));
+    const r = P.camp(L, L.userTid, pl.map((p) => ({ pid: p.id })));
+    return r && r.ok ? pl.map((p) => p.id) : [];
   }
 
   /**
@@ -248,11 +292,13 @@
   function startSeason(L, o) {
     const H = LG();
     if (!(o && o.keepGoal && L.boss && L.boss.goal)) H.Boss.setGoal(L);
-    autoCamp(L);
+    const camp = autoCamp(L) || [];
     prepSeason(L);
     L.phase = C.PHASE.REGULAR; L.week = 1; L.sub = 0;
     L.teams.forEach((t) => { if (t.human) H.Roster.updateStars(L, t.id); else H.Roster.autoStars(L, t.id); });
     L.newSeasonCard = { s: L.season, twist: L.twist ? L.twist.id : 'normal', goal: L.boss ? L.boss.goal : null };
+    if (L._ecoCard) { L.newSeasonCard.tv = L._ecoCard.tv; L.newSeasonCard.bills = L._ecoCard.bills; L._ecoCard = null; }
+    if (camp.length) L.newSeasonCard.camp = camp;
   }
   Calendar.startSeason = startSeason;
 
@@ -275,7 +321,7 @@
     L.sched = []; L.box = {}; L.po = { seeds: [[], []], rd: 0, champ: null }; L.draft = null; L.fa = null;
     LG().Contracts.rollover(L);
     LG().Twists.roll(L);
-    LG().Economy.season(L);
+    ecoCard(L, () => LG().Economy.season(L));
     LG().History.compact(L);
     LG().hydrate(L);
     // draft picks: drop used seasons, keep two future seasons for every original team
@@ -347,25 +393,10 @@
         } else L.week++;
         break;
       case C.PHASE.PLAYOFFS: {
-        simmed = simStep(L, (g) => g.po === L.po.rd);
-        compactOld(L);
-        H.Injuries.weekly(L);
-        H.Economy.weekly(L);
-        H.WeeklyEvents.generate(L);
-        snapPower(L);
-        const r = H.Playoffs.advance(L);
-        if (r.done) {
-          L.phase = C.PHASE.SEASON_END; L.sub = 0;
-          L.newSeasonCard = null;                                      // the season-start card belongs to the season that just ended
-          H.News.add(L, 'award', 'The ' + L.teams[r.champ].name + ' win the Pixel Bowl!', r.champ);
-          const summary = H.Awards.compute(L);
-          H.History.archiveSeason(L, summary);
-          H.Draft.generateClass(L);
-          // Season Recap = Awards Night + Growth Day + Goodbyes in one step (same hook order as before)
-          H.Progression.offseason(L);
-          H.Progression.retire(L);
-          H.WeeklyEvents.generate(L);
-        } else { L.week++; L.sub = L.po.rd; }
+        simmed = playoffRound(L);
+        // the user is out (lost or never seeded): "Sim Playoffs" plays every round left in one press (HUNT2-league #2)
+        let guard = C.PLAYOFF_ROUNDS;
+        while (L.phase === C.PHASE.PLAYOFFS && !H.Playoffs.alive(L, L.userTid) && guard-- > 0) simmed = simmed.concat(playoffRound(L));
         break;
       }
       case C.PHASE.SEASON_END:

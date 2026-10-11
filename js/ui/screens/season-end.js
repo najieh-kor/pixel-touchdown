@@ -27,6 +27,7 @@
   const recap = { tab: 'awards', key: '', name: '' };
   function recapLayout(el, lg, v) {
     FK().noSub(el);
+    FK().railOn(el, 'hub');            // part of the NEXT flow: the rail lights HQ (ui.js maps awards/goodbyes to Office)
     const S = lastSeason(lg);
     const tabs = html`<div class="fl-tabs" role="tablist">${TABS.map((t) => html`<button type="button" role="tab" class="fl-tab ${recap.tab === t.id ? 'on' : ''}" aria-selected="${recap.tab === t.id ? 'true' : 'false'}" data-action="recap-tab" data-tab="${t.id}" data-testid="recap-tab-${t.id}">${K().ic(t.icon)}<span>${t.label}</span></button>`)}</div>`;
     const head = FK().head(html`${tabs}${FK().gap()}${S ? FK().seg('', S.s + ' Season', { cls: 'fl-seg-dim', testid: 'recap-season' }) : ''}`, 'fl-head-tabs');
@@ -75,7 +76,7 @@
         <p class="fl-hero-k">${K().ic('carrot')} Pixel Bowl ${S.s}</p>
         <div class="fl-hero-row">${K().badge(champ, 'l')}<div class="fl-hero-m"><b class="fl-hero-n">${won ? 'Champions!' : champ.name}</b><span class="fl-line">${won ? 'You won it all.' : 'won the Pixel Bowl'}</span></div></div>
         ${ru ? html`<p class="fl-line">Runner-up: <b>${ru.name}</b></p>` : ''}
-        <div class="fl-mini"><span class="fl-line">${K().badge(me, 's')}<b>${me.name}</b> <b class="num">${D().rec(ur.w || 0, ur.l || 0, ur.t || 0)}</b></span></div>
+        <div class="fl-mini"><span class="fl-line fl-myrec">${K().badge(me, 's')}<b class="fl-nf">${me.name}</b> <b class="num">${D().rec(ur.w || 0, ur.l || 0, ur.t || 0)}</b></span></div>
       </section>` : html`<section class="fl-card fl-hero"><p class="fl-hero-k">${K().ic('trophy')} Awards Night</p></section>`;
     const table = F.table({ key: 'aw', cols: TWO_COLS, rows: rows, noHead: true, grid: true, cls: 'fl-t-two',
       tools: html`<span class="fl-bar-t">Winners</span>${chips([F.tag(html`${K().ic('star')}Pro Team: ${mineN} yours`, mineN ? 'gold' : '')])}` });
@@ -221,7 +222,7 @@
   }
 
   const recapScreen = (name) => ({
-    title: 'Season Recap', nav: 'history', mount: (el) => mountRecap(el, name),
+    title: 'Season Recap', nav: 'hub', mount: (el) => mountRecap(el, name),
     actions: FK().withActions({
       'recap-tab': (t) => { recap.tab = t.getAttribute('data-tab'); UI.refresh(); },
       'retire-num': (el) => retireNum(el)

@@ -79,8 +79,14 @@
 .tx-c-por { display: flex; align-items: center; }
 .tx-c-por .portrait { width: 26px !important; height: 26px !important; margin: 0 2px; }
 .tx-c-age, .tx-c-pay { text-align: right; font-size: 17px; }
-.tx-c-tags { display: flex; align-items: center; justify-content: flex-end; gap: 4px; min-width: 0; }
+.tx-c-tags { display: flex; align-items: center; justify-content: flex-start; gap: 4px; min-width: 0; }
 .tx-c-tags .chip { margin: 0; }
+.tx-hurt { display: flex; align-items: center; justify-content: flex-end; gap: 2px; color: var(--red-d); }
+.tx-hurt .px-ic { width: 12px; height: 12px; }
+.tx-hurt b { font-weight: 400; }
+.tx-star { display: inline-flex; align-items: center; gap: 2px; height: 20px; padding: 0 5px 0 3px; background: var(--sun); box-shadow: var(--frame-2); font-family: var(--font-d); font-size: 14px; line-height: 1; white-space: nowrap; }
+.tx-star .px-ic { width: 13px; height: 13px; }
+.tx-star b { font-weight: 400; }
 .tx-c-tags .chip-hurt-s { font-size: 13px; min-height: 18px; padding: 0 4px; }
 .tx-c-tags .mood .px-ic { width: 18px; height: 18px; }
 .tx-c-rate { white-space: nowrap; }
@@ -518,4 +524,36 @@
 }
 @media (orientation: landscape) and (max-height: 400px) {
   .lay.shop .shop-paid { display: none; }
+  .pc2-por .portrait { width: 72px !important; height: 72px !important; }
+  .pc2-hero { gap: 3px 8px; }
 }
+
+/* ======================= HUNT2 additions ======================= */
+/* Lineup picker: "Other positions…" row */
+.ln-more { flex: none; display: flex; align-items: center; gap: 6px; width: 100%; min-height: 34px; padding: 3px 6px; margin: 4px 0 0; border: 0; cursor: pointer; background: var(--cream-2); color: var(--ink); box-shadow: var(--frame-2); font: inherit; font-weight: 700; font-size: 14px; text-align: left; }
+.ln-more .px-ic { width: 16px; height: 16px; }
+.ln-pr:disabled { cursor: default; opacity: 0.55; }
+/* Contracts: the detail card sits beside the list (no Pay bar) */
+.tx-pay > .tx-detail { align-self: start; margin-bottom: 12px; }
+/* Player card: one contract line on the ID card */
+.pc2-con .px-ic { width: 15px; height: 15px; }
+.pc2-con b { font-weight: 400; font-size: 15px; }
+/* Captain picker: the 6 smartest, 2 columns, one page */
+.m-capt .cap-h { margin: 0 0 6px; }
+.cap-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 10px; }
+.cap-pg .pg-list.pg-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 10px; }
+.cap-r { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 6px; width: 100%; min-height: 44px; padding: 3px 8px 3px 3px; margin: 3px 3px 6px; border: 0; cursor: pointer; background: var(--paper); color: var(--ink); box-shadow: var(--frame-2), 0 3px 0 0 var(--ink); font: inherit; text-align: left; }
+.cap-r.on { background: var(--sun); }
+.cap-r .portrait { width: 32px !important; height: 32px !important; margin: 0; }
+.cap-n { min-width: 0; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.cap-n b { font-size: 15px; line-height: 1.1; }
+.cap-s { display: flex; flex-direction: column; align-items: flex-end; line-height: 1; }
+.cap-s b { font-weight: 400; font-size: 20px; }
+.cap-more { display: block; width: calc(100% - 6px); min-height: 36px; margin: 4px 3px 2px; border: 0; cursor: pointer; background: var(--cream-2); box-shadow: var(--frame-2); font-family: var(--font-d); font-size: 17px; text-transform: uppercase; color: var(--ink); }
+/* Shop › Staff: levels, not stars */
+.lay.shop .sp-lv { font-family: var(--font-d); font-size: 15px; line-height: 1; white-space: nowrap; }
+.lay.shop .sp-lv b { font-weight: 400; font-size: 18px; }
+.lay.shop .sp-star:not(.on) .sp-lv { color: var(--ink-soft); }
+.pc2-meta.pc2-con { flex-wrap: nowrap; align-items: flex-start; }
+.pc2-con > span { min-width: 0; }
+.lay.shop .sp-star.on .sp-lv, .lay.shop .sp-star.on .tiny { color: var(--ink); }

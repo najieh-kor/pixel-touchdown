@@ -143,7 +143,7 @@
     // season start (ROUND6 C): Twist (year 1 = 'normal'), bills / TV money, then Boss goal, Training Camp, roster prep
     // → REGULAR week 1 with the "New Season" card
     PT.League.Twists.roll(L);
-    PT.League.Economy.season(L);
+    PT.League.Calendar._ecoCard(L, () => PT.League.Economy.season(L));
     L.scout.pts = League.scoutPoints(L);
     PT.League.Calendar.startSeason(L);
     const ut = L.teams[userTid];

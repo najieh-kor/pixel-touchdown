@@ -150,13 +150,16 @@
 
     const badges = achNew.map((id) => (achDefs.find((x) => x.id === id) || { name: id }).name);
 
+    // HUNT2 #10: every reward chip says what it is, and a tap explains it in one line
+    const chip = (cls, ic, txt, why, id) => html`<button type="button" class="pgx-r ${cls}" data-action="rew" data-why="${why}" data-testid="pgm-rew-${id}">${K().ic(ic)}<b class="num">${txt}</b></button>`;
+    const hurtW = (p) => { const i = (box.inj || []).find((x) => x.pid === p.id); const w = (i && (i.w || i.wk)) || (p.inj && p.inj.w) || 0; return w ? ' (' + w + ' wk)' : ''; };
     const rewards = html`<section class="pgx-rew" data-testid="pgm-rewards">
-      ${coinsGot != null ? html`<span class="pgx-r">${K().icon('coin')}<b class="num">${coinsGot > 0 ? '+' : ''}<span data-countup="${Math.max(0, coinsGot)}" data-fmt="int">${coinsGot}</span></b><span class="tiny">Coins</span></span>` : ''}
-      ${xpGot != null ? html`<span class="pgx-r">${K().ic('star')}<b class="num">${xpGot > 0 ? '+' : ''}<span data-countup="${Math.max(0, xpGot)}" data-fmt="int">${xpGot}</span></b><span class="tiny">XP</span></span>` : ''}
-      ${hypeD ? html`<span class="pgx-r ${hypeD < 0 ? 'bad' : ''}">${K().ic('flame')}<b class="num">${hypeD > 0 ? '+' : ''}${hypeD}</b><span class="tiny">Hype</span></span>` : ''}
-      ${lvlUp ? html`<span class="pgx-r pgx-gold">${K().ic('grad')}<b>Level ${L.coach.lvl}</b></span>` : ''}
-      ${badges.length ? html`<span class="pgx-r pgx-gold" title="${badges.join(', ')}">${K().ic('trophy')}<b class="ellip">${badges.length === 1 ? badges[0] : badges.length + ' badges'}</b></span>` : ''}
-      ${hurt.length ? html`<span class="pgx-r bad" title="${hurt.map((p) => K().short(p)).join(', ')}">${K().ic('cross')}<b class="ellip">${hurt.length === 1 ? K().short(hurt[0]) : hurt.length + ' hurt'}</b><span class="tiny">${hurt.length === 1 ? 'Hurt' : ''}</span></span>` : ''}
+      ${coinsGot != null ? chip('', 'coin', (coinsGot > 0 ? '+' : '') + D().int(coinsGot) + ' Coins', 'Coins buy Shop upgrades and staff.', 'coins') : ''}
+      ${xpGot != null ? chip('', 'grad', (xpGot > 0 ? '+' : '') + D().int(xpGot) + ' XP', 'Coach XP. Each level gives a coach skill point.', 'xp') : ''}
+      ${hypeD ? chip(hypeD < 0 ? 'bad' : '', 'flame', 'Hype ' + (hypeD > 0 ? '+' : '−') + Math.abs(hypeD), 'Hype fills the stands: more ticket money.', 'hype') : ''}
+      ${lvlUp ? chip('pgx-gold', 'grad', 'Level ' + L.coach.lvl, 'New coach level: pick a skill in Office > Coach.', 'lvl') : ''}
+      ${badges.length ? chip('pgx-gold', 'trophy', badges.length === 1 ? badges[0] : badges.length + ' badges', 'New badges: ' + badges.join(', ') + '.', 'ach') : ''}
+      ${hurt.length ? chip('bad', 'cross', hurt.length === 1 ? 'Hurt: ' + K().short(hurt[0]) + hurtW(hurt[0]) : hurt.length + ' hurt', 'Hurt: ' + hurt.map((p) => K().short(p) + hurtW(p)).join(', ') + '. See Team > Hurt.', 'hurt') : ''}
     </section>`;
     // HUNT #44: one Box Score button (Scoring is a tab inside it)
     const foot = html`${K().btn({ label: 'Box Score', icon: 'chart', action: 'box', kind: 'sec', size: 'm', testid: 'btn-pgm-box' })}
@@ -178,7 +181,17 @@
     noRefresh: true,
     mount: mount,
     actions: {
-      cont: () => { UI.Flow.goPhase(); },
+      // HUNT2 #6: after a regular-season game Continue goes straight on to next week (sims the other games);
+      // a Team News / roster stop still opens first (Flow.next routes blockers)
+      cont: () => {
+        const L = PT.App.L;
+        let st = null;
+        try { st = L && L.phase === 'REGULAR' ? PT.League.Calendar.status(L) : null; } catch (e) { st = null; }
+        const g = L && L.phase === 'REGULAR' ? L.sched.find((x) => x.po === 0 && x.wk === L.week && (x.h === L.userTid || x.a === L.userTid)) : null;
+        if (st && g && g.st === 'F' && !(st.blockers && st.blockers.length)) { UI.Flow.next(); return; }
+        UI.Flow.goPhase();
+      },
+      rew: (el) => UI.Toast.show(el.getAttribute('data-why'), 'info', 2600),
       box: (b, ev, params) => overlay('box', boxOf(params)),
       scoring: (b, ev, params) => overlay('scoring', boxOf(params))
     }

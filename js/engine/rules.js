@@ -34,7 +34,7 @@
   RU.situation = function (G, out) {
     out = out || {};
     const T = G.T;
-    out.q = G.q; out.clk = Math.ceil(RU.clockLeft(G)); out.hs = G.score[0]; out.as = G.score[1];
+    out.q = G.q; out.clk = Math.ceil(G.rescue ? G.clk : RU.clockLeft(G)); out.rescue = !!G.rescue; out.hs = G.score[0]; out.as = G.score[1];
     out.poss = G.poss === 0 ? 'h' : 'a'; out.possTid = G.tids[G.poss]; out.y = G.los; out.dir = G.dir;
     out.down = G.down; out.togo = G.togo; out.ballOn = PT.Util.fmtYardLine(G.los, G.dir);
     if (!out.tos) out.tos = [0, 0];
@@ -45,7 +45,7 @@
     const kp = G.kicker(G.poss);
     const dist = RU.fgDist(G);
     out.fgDist = dist;
-    out.fgOk = !!kp && dist <= k.maxRange(G, kp) && !G.tryTwo;
+    out.fgOk = !!kp && dist <= k.maxRange(G, kp) * G.T.KICK_POW_MAX && !G.tryTwo;   // reachable by the kick meter too
     out.fgPct = out.fgOk ? Math.round(k.autoPct(G, kp, dist) * 100) : 0;
     out.expiring = G.clk - G.pend <= 0 && G.pend > 0;
     out.lead = (G.score[G.poss] - G.score[1 - G.poss]);
@@ -81,20 +81,36 @@
     G.clk -= G.pend;
     PT.Box.team(G.box, G.tids[G.pendTeam], 'top', Math.round(Math.min(G.pend, before)));
     G.pend = 0;
-    const W = RU.warnT(G);
-    if ((G.q === 2 || G.q === 4) && before > W && G.clk <= W && G.clk > 0) {
-      G.clk = W;
-      G.em.emit('minuteWarning', { q: G.q, t: W });
-      G.em.emit('twoMinute', { q: G.q, t: W });          // alias (older HUD)
-    }
+    // (the one-minute warning is applied at the whistle — RU.warnAtWhistle — so the clock never jumps back up here)
     if (G.clk <= 0) { G.clk = 0; return true; }
     return false;
   };
 
-  /** Can the user still stop a pending runoff that would end the half (timeout or spike)? */
+  /**
+   * One-minute warning at the WHISTLE (HUNT2 #1): when the pending runoff would cross min(60, qLen/3) in Q2/Q4, the clock
+   * stops at the warning during the dead ball (the tray then shows 1:00 and nothing jumps back up at the snap).
+   */
+  RU.warnAtWhistle = function (G) {
+    const W = RU.warnT(G);
+    if ((G.q === 2 || G.q === 4) && G.clk > W && G.clk - G.pend <= W) {
+      PT.Box.team(G.box, G.tids[G.pendTeam], 'top', Math.round(G.clk - W));
+      G.clk = W; G.pend = 0;
+      G.em.emit('minuteWarning', { q: G.q, t: W });
+      G.em.emit('twoMinute', { q: G.q, t: W });          // alias (older HUD)
+    }
+  };
+
+  /**
+   * Would a timeout / spike help the user before a pending runoff ends the half (HUNT2 #2)? Only then does the play tray
+   * open at 0:00 (G.rescue): the user has the ball and a timeout or a spike, and in Q4/OT he is not ahead; or he is on
+   * defense, trailing in Q4/OT, with a timeout.
+   */
   RU.userCanRescue = function (G) {
-    if (G.userIdx < 0 || !RU.halfEndQ(G)) return false;
-    return G.tos[G.userIdx] > 0 || G.poss === G.userIdx;
+    const u = G.userIdx;
+    if (u < 0 || !RU.halfEndQ(G)) return false;
+    const diff = G.score[u] - G.score[1 - u], late = G.q >= 4;
+    if (G.poss === u) return !(late && diff > 0) && (G.tos[u] > 0 || G.down < 4);
+    return late && diff < 0 && G.tos[u] > 0;
   };
 
   /** AI timeout logic (design 8.3) after a play whose runoff is R. Returns the (possibly reduced) runoff. */
@@ -285,6 +301,8 @@
           RU.firstDown(G);
           G.em.emit('firstDown', { y: G.los });
         } else {
+          // short of the line: never describe it as a gain that reaches it (9.78 yd on 1st & 10 = "Gain of 9", HUNT2 #7)
+          if (res.k !== 'inc' && yds > 0 && !P.sack) desc = 'Gain of ' + Math.max(0, Math.floor((res.y - los0) * dirO));
           G.down++;
           G.togo = Math.max(1, Math.round(Math.abs(G.fdY - G.los)));
           if (G.down > 4) {
@@ -416,6 +434,7 @@
     }
     P.result = result; P.desc = desc; P.yds = yds;
     G.phase = 'DEAD'; G.pt = 0; G.deadT = (G.fast || G.idle) ? (scored ? T.FAST.DEAD_TD_T : T.FAST.DEAD_T) : deadT;
+    RU.warnAtWhistle(G);                         // the clock stops at the warning during this dead ball
     G.ctl = -1;
     P.td = result === 'td';
     if (desc && !G.fast) PT.Engine.Snapshot.fx(G, 'text', G.ball.x, G.ball.y, 2, 1, -1, desc);
@@ -447,8 +466,10 @@
       return game._kickoff(G.kickTeam);
     }
     // next scrimmage call
-    if (G.clk - G.pend <= 0 && !G.untimed && !RU.userCanRescue(G)) {
-      if (RU.applyPending(G) && RU.periodEnd(G)) return;
+    G.rescue = false;
+    if (G.clk - G.pend <= 0 && !G.untimed) {
+      if (!RU.userCanRescue(G)) { if (RU.applyPending(G) && RU.periodEnd(G)) return; }
+      else G.rescue = true;                     // the tray opens only to call TIMEOUT (or SPIKE)
     }
     game._toCall();
   };
@@ -459,6 +480,8 @@
    */
   RU.periodEnd = function (G) {
     const game = G.api, T = G.T;
+    PT.Engine.Stars.refund(G);                  // a Surge armed for a snap that never happened is given back (HUNT2 #4)
+    G.rescue = false;
     G.em.emit('quarterEnd', { q: G.q, half: RU.half(G) });
     if (G.q === 2 || G.q >= 4) G.em.emit('halfEnd', { half: RU.half(G) });
     G.untimed = false;
@@ -510,7 +533,7 @@
   RU.lateFG = function (G, forUser) {
     if (G.tryTwo || !RU.halfEndQ(G) || RU.clockLeft(G) > G.T.FG_LATE) return false;
     const kp = G.kicker(G.poss), dist = RU.fgDist(G);
-    if (!kp || dist > PT.Engine.Kicking.maxRange(G, kp) || RU.toGoal(G) >= 50) return false;
+    if (!kp || dist > PT.Engine.Kicking.maxRange(G, kp) * (forUser ? G.T.KICK_POW_MAX : 1) || RU.toGoal(G) >= 50) return false;
     if (forUser) return true;
     const diff = G.score[G.poss] - G.score[1 - G.poss];
     return G.q === 2 || (diff >= -3 && diff <= 0);
@@ -821,15 +844,29 @@
     }
   };
 
+  /** Give back any Surge that was armed but never fired (period/game ended at the snap, or the play never ran). */
+  ST.refund = function (G) {
+    const P = G.P;
+    if (!P || !P.ab) return;
+    for (let ti = 0; ti < 2; ti++) {
+      const ab = P.ab[ti];
+      if (!ab || ab.fired) continue;
+      G.meter[ti][ab.side] = 100; G.abUse[ti]--;
+      if (ti === G.userIdx && G.ustats) G.ustats.abilities--;
+      P.ab[ti] = null;
+    }
+  };
+
   /** Meter fill at the whistle (STAR_ABILITIES 2). info = {firstDown, td, turnover, sack, pd, tfl, starCatch} */
   ST.playEnd = function (G, info) {
     const P = G.P, T = G.T;
     if (P.kind !== 'scrim' || !P.ab) return;
     const off = P.off, def = 1 - off;
+    ST.refund(G);
     for (let ti = 0; ti < 2; ti++) {
       const ab = P.ab[ti];
       if (!ab) continue;
-      if (!ab.fired) { G.meter[ti][ab.side] = 100; G.abUse[ti]--; if (ti === G.userIdx && G.ustats) G.ustats.abilities--; P.ab[ti] = null; continue; }   // never triggered: refund
+      if (!ab.fired) continue;                    // never triggered: refunded below
       for (const m of ab.mem) stopMember(G, m);
       ab.on = false;
     }

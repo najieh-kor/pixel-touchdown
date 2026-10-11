@@ -396,8 +396,14 @@
     if (G.down === 4 && !G.tryTwo) {
       out.push({ id: 'punt', name: 'Punt', k: 'special', type: 'SPECIAL', icon: 'boot', desc: 'Kick it away.', tag: 'Special', sug: false, best: false, hint: null, tip: false });
     }
-    if (!G.tryTwo && (G.down === 4 || s.toGoal < 50)) {
-      const late = PT.Engine.Rules.lateFG(G, true);
+    if (G.rescue) {
+      // 0:00 with a runoff pending (HUNT2 #2): only a TIMEOUT (or a SPIKE) can help; no field goal (no time to line up)
+      for (const c of out) { c.sug = false; c.best = false; }
+      if (G.tos[o] > 0) out.unshift({ id: 'timeout', name: 'Timeout', k: 'special', type: 'CLOCK', icon: 'clock', desc: 'Stop the clock (' + G.tos[o] + ' left).',
+        tag: 'Clock', sug: true, best: true, hint: null, tip: false });
+    }
+    if (!G.tryTwo && !G.rescue && (G.down === 4 || s.toGoal < 50)) {
+      const late = s.fgOk && PT.Engine.Rules.lateFG(G, true);
       const fg = { id: 'fg', name: 'Field Goal', k: 'special', type: 'SPECIAL', icon: 'posts', desc: s.fgOk ? 'Chance: ' + s.fgPct + '%' : 'Too far!',
         tag: 'Special', sug: late, best: late, hint: null, tip: false, ok: s.fgOk, pct: s.fgPct };
       if (late) {
@@ -416,7 +422,8 @@
       }
       if (halfEnd && s.clk <= (s.warn || 60) && G.pend > 3 && G.down < 4) {
         const k = B.byId('spike');
-        out.push({ id: 'spike', name: k.name, k: 'special', type: 'CLOCK', icon: k.icon, desc: k.desc, tag: 'Clock', sug: false, best: false, hint: null, tip: false });
+        const sp = { id: 'spike', name: k.name, k: 'special', type: 'CLOCK', icon: k.icon, desc: k.desc, tag: 'Clock', sug: !!G.rescue, best: !!G.rescue && !G.tos[o], hint: null, tip: false };
+        if (G.rescue) out.splice(G.tos[o] > 0 ? 1 : 0, 0, sp); else out.push(sp);
       }
     }
     return out;
@@ -441,13 +448,23 @@
     const st = G.sugD;
     if (st.no !== G.playNo) { st.prev = st.cur; st.no = G.playNo; }
     const ok = (c) => PC.unlockedD(G, c);
+    // what the offense is likely to do: its situation mix, blended with the types it ran over its last 3 plays (HUNT2 #5)
+    const mix = PC.typeMix(G.teams[G.poss].tend.off, s), recent = G.hist[G.poss].slice(-3);
+    const expM = (id) => {
+      let v = 0, w = 0;
+      for (const t in mix) { v += mix[t] * PC.matrix(id, t, s.togo); w += mix[t]; }
+      v = w ? v / w : 0;
+      if (recent.length) { let r = 0; for (const t of recent) r += PC.matrix(id, t, s.togo); v = 0.6 * v + 0.4 * r / recent.length; }
+      return v;
+    };
     const sc = D.list.filter(ok).map((c) => {
-      let v = PC.matrix(c.id, lt, s.togo) * 2 + (base[c.id] || 0) / 10 + rng.range(0, 1.2);
+      let v = expM(c.id) * 2 + (base[c.id] || 0) / 20 + rng.range(0, 1.6) + PC.matrix(c.id, lt, s.togo) * 0.5;
       if (has(c, 'goal')) v += toGoal <= 5 ? 3 : -50;
       if (has(c, 'prevent')) v += late ? 3 : c.id === 'prevent' ? -50 : -1;
-      if (s.down >= 3 && s.togo >= 8 && has(c, 'run')) v -= 3;
-      if (s.togo <= 2 && toGoal > 3 && has(c, 'run')) v += 1.5;
-      if (st.prev.indexOf(c.id) >= 0) v -= 0.6;
+      if (s.down >= 3 && s.togo >= 8) { if (has(c, 'run')) v -= 3; if (has(c, 'cover') || has(c, 'zone')) v += 2; }
+      if (s.togo <= 2 && toGoal > 3 && has(c, 'run')) v += 3;
+      if (st.prev[0] === c.id) v -= 1.5;                 // last snap's Coach Pick
+      else if (st.prev.indexOf(c.id) >= 0) v -= 0.6;
       return { c: c, sc: v };
     });
     sc.sort((a, b) => b.sc - a.sc);

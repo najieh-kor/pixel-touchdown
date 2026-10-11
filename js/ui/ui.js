@@ -205,10 +205,26 @@
       cur.view.innerHTML = String(D().html`<div class="lay"><div class="scroll">${K().empty('question', 'This screen failed to load.')}</div></div>`);
     }
     updateHead();                      // title + Coins/Hype can change on refresh too (e.g. HQ title follows the phase)
+    updateDots();                      // HUNT2 #14: rail dots follow a refresh too (Auto-Fix clears the TEAM dot)
     if (UI.fit) { try { UI.fit(cur.view); } catch (e) { fail(e, 'fit'); } }   // ROUND6: no scrolling — page long lists
   }
 
   function titleOf(scr, params) { return typeof scr.title === 'function' ? scr.title(params || {}) : (scr.title || ''); }
+  /**
+   * HUNT2 #19: a screen reached by a section sub-tab is titled by its section (your team's name, League, Office);
+   * only drill-ins with a back arrow (player card, Swaps, Draft Day, Week Results…) keep their own title.
+   */
+  function headTitle(name, scr, params) {
+    const lg = L();
+    const other = lg && params && params.tid != null && params.tid !== lg.userTid && (name === 'roster' || name === 'player');
+    if (lg && !lg.tmp && !other) {
+      const sec = Object.keys(SECTIONS).find((k) => SECTIONS[k].some((x) => x.to === name));
+      if (sec === 'team') return lg.teams[lg.userTid].name;
+      if (sec === 'league') return 'League';
+      if (sec === 'office') return 'Office';
+    }
+    return titleOf(scr, params);
+  }
 
   function frame(top, scr, chrome) {
     const h = D().html;
@@ -222,7 +238,7 @@
     const navOn = otherTeam ? 'league' : (SECTION_OF[top.name] || SECTION_OF[scr.nav] || scr.nav || top.name);
     const head = h`<header class="topbar">
       <div class="tb-l">${back}${!back && lg && !lg.tmp ? K().badge(lg.teams[lg.userTid], 's') : ''}</div>
-      <h1 class="tb-title ellip">${titleOf(scr, top.params)}</h1>
+      <h1 class="tb-title ellip">${headTitle(top.name, scr, top.params)}</h1>
       <div class="tb-r" data-head-stats>${lg && !lg.tmp ? headStats(lg) : ''}</div>
     </header>`;
     const full = chrome === 'full' && lg && !lg.tmp;
@@ -260,10 +276,19 @@
     const hs = box.querySelector('[data-head-stats]');
     if (hs && lg && !lg.tmp) D().set(hs, headStats(lg));
     const tt = box.querySelector('.tb-title');
-    if (tt && cur) { const t = titleOf(cur.scr, cur.params); if (tt.textContent !== t) tt.textContent = t; }
+    if (tt && cur) { const t = headTitle(cur.name, cur.scr, cur.params); if (tt.textContent !== t) tt.textContent = t; }
   }
   UI.updateHead = updateHead;
 
+  function updateDots() {
+    const lg = L();
+    if (!lg || !roots.screen) return;
+    D().$$('.navbar .nav-i[data-id]', roots.screen).forEach((b) => {
+      const on = badgeFor(b.getAttribute('data-id'), lg);
+      const dot = b.querySelector('.dot');
+      if (on && !dot) { const d = globalThis.document.createElement('span'); d.className = 'dot'; b.appendChild(d); } else if (!on && dot) dot.remove();
+    });
+  }
   /** attention dots on nav items (design 18.1) */
   function badgeFor(id, lg) {
     try {
@@ -476,14 +501,38 @@
       if (b.k === 'DRAFT_PICK') return { text: 'On the Clock', sub: 'Make your pick', icon: 'grad' };
       if (b.k === 'FANTASY') return { text: 'Fantasy Draft', sub: '', icon: 'dice' };
     }
+    const away = awayFromPhase();
+    if (away) return away.label;
     return { text: st.nextLabel || 'Next', sub: subFor(st), icon: 'play' };
   };
+  /**
+   * HUNT2 #2: in the offseason NEXT first opens the phase screen (Season Recap, Keep Players, Draft Day, Market)
+   * when you are somewhere else (HQ after Continue, a Team screen…). It never advances past a screen you have not seen.
+   * @returns {{to:string, label:{text,sub,icon}}|null}
+   */
+  function awayFromPhase() {
+    const lg = L();
+    if (!lg || ['SEASON_END', 'RESIGN', 'DRAFT', 'FREE_AGENCY'].indexOf(lg.phase) < 0) return null;
+    const to = Flow.screenFor();
+    const cur = UI.current();
+    if (!to || to === 'hub' || to === 'fantasy' || (cur && cur.name === to)) return null;
+    let sub = '';
+    if (to === 'resign') {
+      let n = 0;
+      try { n = (PT.League.Contracts.expiring(lg, lg.userTid) || []).length; } catch (e) { n = 0; }
+      sub = n === 1 ? '1 deal ending' : n + ' deals ending';
+    }
+    const NAMES = { awards: ['Season Recap', 'trophy'], growth: ['Season Recap', 'trophy'], goodbyes: ['Season Recap', 'trophy'],
+      resign: ['Keep Players', 'contract'], draft: ['Draft Day', 'grad'], market: ['Market', 'cart'] };
+    const nm = NAMES[to] || ['Next', 'play'];
+    return { to: to, label: { text: nm[0], sub: sub, icon: nm[1] } };
+  }
   function subFor(st) {
     const lg = L();
     if (st.phase === 'REGULAR') {
       const g = lg.sched.find((x) => x.po === 0 && x.wk === lg.week && (x.h === lg.userTid || x.a === lg.userTid));
       if (!g) return '';
-      if (g.st === 'F') return 'Sim the other games';
+      if (g.st === 'F') return lg.week < PT.C.REG_WEEKS ? 'Go to week ' + (lg.week + 1) : 'Playoffs next';
     }
     if (st.phase === 'FREE_AGENCY') return 'Players answer offers';
     return '';
@@ -548,7 +597,13 @@
     const b = st.blockers && st.blockers[0];
     if (b) {
       switch (b.k) {
-        case 'USER_GAME': UI.go('pregame', { gid: b.gid }); return Promise.resolve(null);
+        case 'USER_GAME': {
+          // HUNT2 #7: a regular-season game starts straight from HQ; playoff games keep the Pregame card
+          const g = gameOf(b.gid);
+          if (g && !g.po && UI.Game && UI.current() && UI.current().name === 'hub') UI.Game.play(b.gid);
+          else UI.go('pregame', { gid: b.gid });
+          return Promise.resolve(null);
+        }
         case 'EVENT': UI.go('events'); return Promise.resolve(null);
         case 'DRAFT_PICK': if (!UI.current() || UI.current().name !== 'draft') UI.reset('draft'); else UI.Toast.show("You're on the clock.", 'info'); return Promise.resolve(null);
         case 'FANTASY': UI.reset('fantasy'); return Promise.resolve(null);
@@ -557,6 +612,8 @@
         default: UI.Toast.show('Finish this first.', 'bad'); return Promise.resolve(null);
       }
     }
+    const away = awayFromPhase();
+    if (away) { UI.reset(away.to); return Promise.resolve(null); }
     if (lg.phase === 'SEASON_END' && lg.sub === 0) snapshotGrowth(lg);
     const before = { phase: lg.phase, sub: lg.sub, week: lg.week, season: lg.season };
     setBusy(true);
@@ -574,6 +631,12 @@
     if (before.season !== lg.season) UI.Toast.show('Season ' + lg.season + ' begins', 'good', 3000);
     else if (before.phase === 'REGULAR' && lg.phase === 'REGULAR') UI.Toast.show('Week ' + lg.week, 'good');
     else if (lg.phase === 'PLAYOFFS' && before.phase !== 'PLAYOFFS') UI.Toast.show('Playoffs begin', 'good', 3000);
+    else if (before.phase === 'PLAYOFFS' && lg.phase !== 'PLAYOFFS' && lg.bowl && lg.bowl.champ != null && lg.teams[lg.bowl.champ]) {
+      // round 2: one press sims the rest of the playoffs — say who won the Pixel Bowl
+      const b = lg.bowl, w = lg.teams[b.champ], loser = lg.teams[b.champ === b.h ? b.a : b.h];
+      const ws = b.champ === b.h ? b.hs : b.as, ls = b.champ === b.h ? b.as : b.hs;
+      UI.Toast.show((b.champ === lg.userTid ? 'You won the Pixel Bowl! ' : 'Pixel Bowl: ') + w.name + ' ' + ws + '-' + ls + (loser ? ' over the ' + loser.name : ''), b.champ === lg.userTid ? 'good' : 'info', 3500);
+    }
     else if (lg.phase === 'DRAFT' && before.phase === 'DRAFT') {
       const ds = PT.League.Draft && PT.League.Draft.status ? PT.League.Draft.status(lg) : null;
       if (ds && ds.userOnClock) UI.Toast.show("You're on the clock", 'good');
@@ -583,8 +646,11 @@
 
   function rosterHelp(b) {
     const errs = (b.errors || []).map((e) => e.msg);
+    // round 2: say exactly what Auto-Fix will do (signings / cuts with names, OVR and dead pay)
+    let plan = '';
+    try { const lg = L(); const fp = PT.League.Roster.fixPlan && PT.League.Roster.fixPlan(lg, lg.userTid, { useFA: true }); plan = (fp && fp.text) || ''; } catch (e) { plan = ''; }
     return UI.Modal.open({ title: 'Roster Issues', icon: 'clipboard',
-      body: D().html`<ul class="bul">${errs.map((m) => D().html`<li>${m}</li>`)}</ul><p class="muted small">Fix it yourself or use Auto-Fix.</p>`,
+      body: D().html`<ul class="bul">${errs.map((m) => D().html`<li>${m}</li>`)}</ul>${plan ? D().html`<p class="small"><b>Auto-Fix:</b> ${plan}</p>` : ''}<p class="muted small">Fix it yourself or use Auto-Fix.</p>`,
       buttons: [{ label: 'Auto-Fix', value: 'fix', kind: 'go', testid: 'btn-fix-roster' }, { label: 'Go to Lineup', value: 'go', kind: 'sec' }, { label: 'Later', value: null, kind: 'cancel' }] })
       .then((v) => {
         if (v === 'fix') { PT.League.Auto.resolve(L(), b); UI.Toast.show('Roster fixed', 'good'); if (PT.Events) PT.Events.emit('league:changed', { what: 'roster' }); UI.refresh(); }

@@ -1,6 +1,6 @@
 /* Pixel Touchdown: js/ui/screens/roster.js
  * Owner: WP5 (TEAM-UX redesign). Team › Roster: who is on the team. One paged table that fills the height:
- * portrait · full name · pos · rating (stars + small number) · age · tags (STAR, hurt, mood). One filter row on top.
+ * portrait · full name · pos · rating (stars + small number) · age (hurt: weeks out, red) · tags (STAR, mood only when low).
  * Sort = tap a column head. Tap a row → player card. params.tid → any team (read-only for AI teams; strip has Swap).
  * testids: player-row-{pid}, roster-filter-{id}, roster-sort-{stars|pos|age}, btn-captain-pick (strip), btn-team-swap.
  */
@@ -31,6 +31,14 @@
     return p.pos === f;
   }
 
+  /** HUNT2 #1: a hurt player shows his weeks out (red) where the age goes; the full text is the tooltip */
+  function hurtCell(p) {
+    if (p.ir || p.inj) {
+      const w = p.inj ? (p.inj.w >= 90 || p.inj.sev >= 4 ? 'Out' : p.inj.w > 0 ? p.inj.w + 'w' : 'Ouch') : 'IR';
+      return html`<span class="tx-c-age tx-hurt" title="${p.ir ? 'Hurt List · ' : ''}${K().injuryText(p) || 'Hurt'}">${K().ic('cross')}<b class="num">${p.ir && !p.inj ? 'IR' : w}</b></span>`;
+    }
+    return html`<span class="tx-c-age"><span class="num">${p.age}</span><span class="tx-u">yrs</span></span>`;
+  }
   function row(L, t, p, mine) {
     const star = K().isStar(L, p);
     const capt = t.capt === p.id;
@@ -39,8 +47,8 @@
       <span class="tx-nm"><b>${K().pname(p)}</b>${capt ? D().raw('<span class="capt" title="Captain">C</span>') : ''}</span>
       <span class="tx-c-pos">${K().posChip(p.pos)}</span>
       <span class="tx-c-rate">${K().stars(p.ovr)}</span>
-      <span class="tx-c-age"><span class="num">${p.age}</span><span class="tx-u">yrs</span></span>
-      <span class="tx-c-tags">${star ? K().starTag() : ''}${p.ir ? html`<span class="chip chip-hurt tiny" title="Hurt List">IR</span>` : p.inj ? K().hurtShort(p) : ''}${mine ? K().mood(p.mor) : ''}</span>
+      ${hurtCell(p)}
+      <span class="tx-c-tags">${star ? html`<span class="tx-star" title="Star player">${K().ic('star')}<b>STAR</b></span>` : ''}${mine && p.mor < 50 ? K().mood(p.mor) : ''}</span>
     </button>`;
   }
 

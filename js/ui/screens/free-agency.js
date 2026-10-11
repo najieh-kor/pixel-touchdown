@@ -35,6 +35,11 @@
   const FACE = { likely: { face: 'happy', word: 'Likely', cls: 'good' }, maybe: { face: 'meh', word: 'Maybe', cls: 'warn' }, unlikely: { face: 'sad', word: 'Unlikely', cls: 'bad' } };
   /** signing chance at his Ask on a spread-out 0..100 scale (score 80 → 0, 110 → 100) so the meter tells players apart */
   function chance(score) { return Math.max(0, Math.min(100, Math.round(((score != null ? score : 95) - 80) / 30 * 100))); }
+  /** AI teams with an open offer for him (FA.list counts every team's offers; mine is x.mine) */
+  function rivals(x) { return Math.max(0, (x.offers || 0) - (x.mine ? 1 : 0)); }
+  /** meter value: his score at the Ask. AI teams bid at day end (FA.day), so even an offer at his Ask can lose:
+   * never 5/5; 3/5 at most while other teams already bid on him. */
+  function chanceOf(x) { const c = chance(x.score); return Math.min(c, rivals(x) ? 60 : 80); }
   function faceOf(score) { return score >= 105 ? FACE.likely : score >= 90 ? FACE.maybe : FACE.unlikely; }
 
   /** offers I sent this offseason (UI memo), so answered ones can show "Signed" / "Said no" after the day ends */
@@ -55,6 +60,14 @@
     }).filter(Boolean).reverse();
   }
 
+  /** "Free Agents | Swaps" switch for the header strip (same place on both screens, in and out of season) */
+  function mkToggle(on) {
+    return html`<span class="fl-segtog" role="tablist" aria-label="Market">
+      <button type="button" role="tab" class="fl-seg fl-seg-btn ${on === 'fa' ? 'on' : ''}" aria-selected="${on === 'fa' ? 'true' : 'false'}" data-action="go-market" data-testid="btn-go-market">${K().ic('contract')}<b class="fl-sv"><span class="fl-nf">Free Agents</span><span class="fl-ns">FA</span></b></button>
+      <button type="button" role="tab" class="fl-seg fl-seg-btn ${on === 'sw' ? 'on' : ''}" aria-selected="${on === 'sw' ? 'true' : 'false'}" data-action="swaps" data-testid="btn-go-swaps">${K().ic('swap')}<b class="fl-sv">Swaps</b></button>
+    </span>`;
+  }
+
   // ---------------- Market ----------------
   function header(lg, m) {
     const F = FK();
@@ -63,10 +76,10 @@
       const n = myOffers(lg).length;
       void n;
       // Swaps stays one tap away (it is not a step of the flow, so it lives in the header, not the bottom bar)
-      const swaps = html`<button type="button" class="fl-seg fl-seg-btn" data-action="swaps" data-testid="btn-go-swaps">${K().ic('swap')}<b class="fl-sv">Swaps</b></button>`;
-      return F.head(html`${F.seg('Market Day', (lg.sub + 1) + '/' + PT.C.FA_DAYS, { icon: 'contract', cls: 'fl-seg-t', testid: 'fa-day' })}${F.seg('Offers today', used + '/' + MAX_OFFERS_DAY, { cls: used >= MAX_OFFERS_DAY ? 'fl-seg-warn' : '' })}${F.gap()}${swaps}`);
+      const swaps = mkToggle('fa');
+      return F.head(html`${F.seg('Market Day', (lg.sub + 1) + '/' + PT.C.FA_DAYS, { icon: 'contract', cls: 'fl-seg-t', testid: 'fa-day' })}${F.seg(html`<span class="fl-nf">Offers today</span><span class="fl-ns">Offers</span>`, used + '/' + MAX_OFFERS_DAY, { cls: used >= MAX_OFFERS_DAY ? 'fl-seg-warn' : '' })}${F.gap()}${F.needSeg(lg)}${swaps}`);
     }
-    if (m === 'sign') return F.head(html`${F.seg('', 'Free Agents', { icon: 'contract', cls: 'fl-seg-t' })}${F.seg('Sign now', 'at his Ask', { cls: 'fl-seg-dim' })}`);
+    if (m === 'sign') return F.head(html`${F.seg('', 'Free Agents', { icon: 'contract', cls: 'fl-seg-t' })}${F.gap()}${mkToggle('fa')}`);
     return F.head(html`${F.seg('', 'Market Closed', { icon: 'lock', cls: 'fl-seg-t' })}${F.seg('Opens', 'after Draft Day', { cls: 'fl-seg-dim' })}`);
   }
 
@@ -78,7 +91,7 @@
     return { id: p.id, testid: 'fa-row-' + p.id, sel: mk.sel === p.id, cls: offered ? 'sent' : '',
       cells: { name: FK().name(p), pos: K().posChip(p.pos), stars: FK().stars(p.ovr), age: html`<span class="num">${p.age}</span>`,
         ask: html`<span class="fl-ask"><b class="num">${D().money(x.ask.sal)}</b><span class="dim">${x.ask.yrs}y</span></span>`,
-        int: offered ? FK().tag(html`${K().ic('hourglass')}Sent`, 'gold') : FK().meter(chance(x.score), f.cls, f.word) } };
+        int: offered ? FK().tag(html`${K().ic('hourglass')}Sent`, 'gold') : FK().meter(chanceOf(x), rivals(x) ? 'warn' : f.cls, rivals(x) ? 'Other teams want him' : f.word) } };
   }
 
   function detail(lg, x, m) {
@@ -89,7 +102,7 @@
     const w = K().WANT[p.want];
     const who = html`<div class="fl-who">${K().portrait(p, 56)}<div class="fl-who-t"><b class="fl-pn">${p.fn} ${p.ln}</b>
       <span class="fl-pm">${K().posChip(p.pos)}<span class="fl-hide-s">${K().stars(p.ovr, { noNum: true })}</span><span class="dim">Age ${p.age}</span>${w ? html`<span class="fl-want" title="Wants ${w[1]}">${K().ic(w[0])}<span class="fl-nf">Wants </span>${w[1]}</span>` : ''}</span></div></div>`;
-    const asks = html`<p class="fl-note fl-asks"><span>Asks <b class="num">${D().money(x.ask.sal)}</b> × ${D().plural(x.ask.yrs, 'yr')}</span></p>`;
+    const asks = html`<p class="fl-note fl-asks"><span>Asks <b class="num">${D().money(x.ask.sal)}</b> × ${D().plural(x.ask.yrs, 'yr')}</span></p>${rivals(x) ? html`<p class="fl-note fl-warn warn" data-testid="fa-rivals">${K().ic('warn')} Other teams want him</p>` : ''}`;
     if (m === 'closed') return html`<aside class="fl-card fl-side" data-testid="fa-detail">${who}${asks}<p class="fl-note dim">${K().ic('lock')} The Market opens after Draft Day.</p></aside>`;
     const key = 'fa:' + p.id + ':' + lg.sub;
     if (mine) FK().offerState(key, { sal: mine.sal, yrs: mine.yrs });
@@ -100,7 +113,8 @@
         if (m === 'sign') return sal >= x.ask.sal ? { face: 'happy', word: 'Will sign', cls: 'good' } : { face: 'angry', word: 'Too low', cls: 'bad' };
         let s = 95;
         try { s = PT.League.FA.score(lg, p.id, lg.userTid, { sal: sal, yrs: yrs, gift: 0 }); } catch (e) { s = 95; }
-        return faceOf(s);
+        const f = faceOf(s);
+        return rivals(x) && f === FACE.likely ? FACE.maybe : f;
       } });
     return html`<aside class="fl-card fl-side has-offer" data-testid="fa-detail">${who}${asks}${full ? html`<p class="fl-note bad">${K().ic('no')} 5 offers a day. Try tomorrow.</p>` : ''}${offer}</aside>`;
   }
@@ -117,8 +131,9 @@
     myOffers(lg).forEach((o) => { offered[o.pid] = 1; });
     if (mk.sel == null || !rowsX.concat(list(lg)).some((x) => x.p.id === mk.sel)) mk.sel = rowsX.length ? rowsX[0].p.id : null;
     const selX = mk.sel != null ? (rowsX.find((x) => x.p.id === mk.sel) || list(lg).find((x) => x.p.id === mk.sel)) : null;
+    const short = FK().shortPos(lg);
     const filter = FK().filter({ value: mk.filter, title: 'Position',
-      list: [{ id: '', label: 'All' }].concat(PT.C.POS.map((pos) => ({ id: pos, label: pos, title: K().posLabel(pos) }))),
+      list: [{ id: '', label: 'All' }].concat(PT.C.POS.map((pos) => ({ id: pos, label: pos, dot: short.indexOf(pos) >= 0, title: K().posLabel(pos) + (short.indexOf(pos) >= 0 ? ' (need)' : '') }))),
       testid: (id) => 'fa-filter-' + (id || 'all'), pick: (v) => setFilter(v) });
     const table = FK().table({ key: 'fa', cols: COLS, rows: rowsX.map((x) => rowOf(lg, x, !!offered[x.p.id])), tools: filter, cls: 'fl-t-fa', empty: html`<p class="fl-empty">No free agents.</p>` });
     const tip = m === 'offer' ? FK().tip('fl-market', 'Send offers, then Finish Market. Players answer at day end.') : '';
@@ -137,7 +152,7 @@
       foot = FK().foot(info, sec, pri);
     }
     else if (['RESIGN', 'DRAFT'].includes(lg.phase)) foot = FK().foot('', '', FK().next());
-    else foot = FK().foot('', '', FK().pri({ label: 'Swaps', icon: 'swap', action: 'swaps', testid: 'btn-foot-swaps' }));
+    else foot = null;                 // in season: signing happens in the card; Swaps is the header switch (no 2nd primary)
     D().set(el, K().layout(body, foot, 'fit flow fl-market'));
     FK().paintOffer(el);
   }
@@ -170,6 +185,16 @@
     const lg = L(), F = UI.Flow;
     const st = F && F.status ? F.status() : null;
     if (!PT.League.Calendar.finishMarket || (st && st.blockers && st.blockers.length)) { if (F) F.next(); return; }
+    const short = FK().shortPos(lg);
+    if (short.length) {
+      UI.Modal.open({ title: 'You still need ' + short.join(', '), icon: 'warn', body: 'Finish anyway? You can sign a walk-on before Week 1.',
+        buttons: [{ label: 'Back', value: null, kind: 'cancel', testid: 'btn-finish-back' }, { label: 'Finish anyway', value: 'ok', kind: 'go' }] })
+        .then((v) => { if (v === 'ok') runFinish(lg, F); });
+      return;
+    }
+    runFinish(lg, F);
+  }
+  function runFinish(lg, F) {
     const busy = UI.Modal.busy('Finishing the Market…');
     setTimeout(() => {
       let r = null;
@@ -192,6 +217,7 @@
       row: (el) => { mk.sel = +el.getAttribute('data-pid'); UI.refresh(); },
       filter: (el) => setFilter(el.getAttribute('data-pos')),
       'fl-send': () => send(),
+      'go-market': () => {},
       swaps: () => UI.go('swaps'),
       finish: () => finishMarket()
     })
@@ -260,7 +286,7 @@
     const mine = PT.League.Q.roster(lg, u).slice().sort((a, b) => b.ovr - a.ovr);
     const theirs = PT.League.Q.roster(lg, sw.tid).slice().sort((a, b) => b.ovr - a.ovr);
     const F = FK();
-    const head = F.head(html`<span class="fl-seg fl-seg-t">${K().badge(me, 's')}<b class="fl-sv">${F.team(me)}</b></span>${F.seg('', 'swap with', { cls: 'fl-seg-dim' })}<button type="button" class="fl-seg fl-seg-t fl-seg-btn" data-action="sw-pick" data-testid="btn-swap-team" title="Pick a team">${K().badge(them, 's')}<b class="fl-sv">${F.team(them)}</b><i class="fl-caret fl-caret-w" aria-hidden="true"></i></button>${F.gap()}`);
+    const head = F.head(html`<span class="fl-seg fl-seg-t">${K().badge(me, 's')}<b class="fl-sv">${F.team(me)}</b></span>${F.seg('', 'swap with', { cls: 'fl-seg-dim' })}<button type="button" class="fl-seg fl-seg-t fl-seg-btn" data-action="sw-pick" data-testid="btn-swap-team" title="Pick a team">${K().badge(them, 's')}<b class="fl-sv">${F.team(them)}</b><i class="fl-caret fl-caret-w" aria-hidden="true"></i></button>${F.gap()}${mkToggle('sw')}`);
     const give = F.table({ key: 'swmine', cols: SW_COLS, rows: swapRows(lg, mine, 'mine', sw.give), action: 'sw-toggle', cls: 'fl-t-swap fl-give',
       tools: html`<span class="fl-sw-h"><b>You give</b><span class="fl-sw-n num">${sw.give.length}/3</span></span>` });
     const get = F.table({ key: 'swtheirs', cols: SW_COLS, rows: swapRows(lg, theirs, 'theirs', sw.get), action: 'sw-toggle', cls: 'fl-t-swap fl-get',
@@ -301,6 +327,8 @@
     actions: FK().withActions({
       'sw-team': (el) => { sw.tid = +el.getAttribute('data-tid'); sw.get = []; if (UI.pgPage) UI.pgPage('swtheirs', 0); UI.refresh(); },
       'sw-pick': () => teamSheet(),
+      'go-market': () => { const c = UI.current(); if (UI.depth() > 1 && c && c.name === 'swaps') UI.back(); if (!UI.current() || UI.current().name !== 'market') UI.replace('market'); },
+      swaps: () => {},
       'sw-toggle': (el) => {
         const side = el.getAttribute('data-side'), pid = +el.getAttribute('data-pid');
         const arr = side === 'mine' ? sw.give : sw.get;

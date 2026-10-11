@@ -81,7 +81,12 @@
     const n = game.needs();
     if (!n) return false;
     const G = game._G, RU = PT.Engine.Rules;
-    if (n.k === 'PLAYCALL') return game.callPlay(game.options(n.side)[0].id);
+    if (n.k === 'PLAYCALL') {
+      // the first card that is actually callable (a disabled "Too far" FG card must never stall the Autopilot)
+      const cards = game.options(n.side);
+      for (let i = 0; i < cards.length; i++) { if (cards[i].ok === false) continue; if (game.callPlay(cards[i].id)) return true; }
+      return false;
+    }
     if (n.k === 'FOURTH') return game.fourth(RU.ai4th(G));
     if (n.k === 'PAT') return game.choosePAT(RU.aiPAT(G, G.patTeam));
     return false;

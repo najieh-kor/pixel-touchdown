@@ -70,9 +70,9 @@
     const champRow = champ ? html`<div class="nc-champ" style="${K().teamVars(champ)}">${K().badge(champ, 'm')}<div class="grow"><div class="small">Champions ${L.season}</div><div class="champ-n">${champ.name}</div></div><span class="champ-carrot" aria-hidden="true">${K().ic('carrot')}</span></div>` : '';
     const bowlCard = html`<section class="card bowl-card nc-bowl ${champ ? 'champ-card' : ''}">${K().h2('Pixel Bowl', null, 'trophy')}
       <div class="bowl">${bowl ? match(L, bowl, u) : emptyMatch()}${champRow || (started ? '' : html`<p class="small muted center">Playoffs start in Week ${PT.C.REG_WEEKS + 1}.</p>`)}</div></section>`;
-    // HUNT #49: before any seeds exist, one empty state instead of three pages of TBD slots
-    if (!started && !champ && [0, 1].every((c) => projected(L, c).length < PT.C.PLAYOFF_PER_CONF)) {
-      D().set(el, K().layout(K().card(K().empty('bracket', 'The bracket fills in once games are played. Playoffs start in Week ' + (PT.C.REG_WEEKS + 1) + '.'), 'fill nc-empty'), null, 'fit playoffs nc'));
+    // HUNT2 #16: until the bracket exists this tab shows the Playoff Picture (seeds 1-7 and the playoff line)
+    if (!started && !champ && UI.leagueParts && UI.leagueParts.picture) {
+      D().set(el, K().layout(UI.leagueParts.picture(L, u), null, 'fit playoffs standings nc'));
       return;
     }
     const body = html`<div class="fill">${K().pg('bk', champ ? [bowlCard, confBracket(L, 0, br, u, started), confBracket(L, 1, br, u, started)] : [confBracket(L, 0, br, u, started), confBracket(L, 1, br, u, started), bowlCard], { grid: true, cls: 'nc-side nc-bks' + (champ ? ' nc-champd' : '') })}</div>`;

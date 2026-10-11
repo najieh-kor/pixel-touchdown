@@ -552,3 +552,8 @@ input[type="range"].rng::-moz-range-thumb { width: 22px; height: 30px; backgroun
 .badge-xl .badge-img { height: calc(100% - 24px); }
 .badge-xl .badge-ab { height: 23px; font-size: 20px; }
 .badge-s .badge-img { height: 92%; top: 4%; }
+/* HUNT2 #13: on flow screens (Draft Day, Keep Players, Market…) toasts sit top-centre under the head bar, off the tables */
+@media (orientation: landscape) and (max-height: 480px) {
+  #toast.t-flow { justify-content: flex-start; align-items: center; padding: calc(50px + var(--sat)) 12px 0; }
+  #toast.t-flow .toast { max-width: 60vw; }
+}

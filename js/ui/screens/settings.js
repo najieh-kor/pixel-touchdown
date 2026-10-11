@@ -79,40 +79,55 @@
   }
   let qNote = false;   // set after stepping up from Fast in this session (the lower-res buffers stay until a reload)
   /**
-   * Settings: the basics up front, everything else under "More options". Client: Settings is the ONE screen that may
-   * scroll (touch-friendly), so nothing here is ever cut off.
+   * HUNT2 #8: Settings = 3 short tabs that each fit one screen (no long scroll list):
+   *   Game (difficulty, quarter length, game speed, defense speed) + one button row,
+   *   Controls (aim style, easy throw, left-handed, auto-start D, auto kick, penalties, auto lineup), Sound & Screen (music, sound, vibration, graphics, text, motion).
+   * Without a franchise (from the title) only the options that exist there are shown.
    */
-  function mount(el) {
+  const SET = { tab: 'game' };
+  function mount(el, params) {
     const p = prefs();
     const L = PT.App && PT.App.L;
     const s = (L && L.settings) || {};
-    const sec = (title, icon, inner, cls) => K().card(html`${K().h2(title, null, icon)}<div class="setz-grid">${inner}</div>`, 'setz ' + (cls || ''));
-    const basics = html`${basicRows(p)}
-      ${L ? seg('diff', L.diff, (PT.C.DIFFS || ['Beginner', 'Normal', 'Expert', 'Legend']).map((n, i) => [i, n]), 'Difficulty', 'L') : ''}
-      ${L ? seg('qLen', s.qLen || 180, [[120, '2 min'], [180, '3 min'], [300, '5 min']], 'Quarter length', 'L') : ''}`;
-    const more = html`${L ? seg('watch', s.watch && s.watch !== 3 ? s.watch : 0.8, [[0.8, '0.8×'], [1, '1×'], [1.5, '1.5×']], 'Defense speed', 'L') : ''}
-      ${L ? toggle('autoDef', !!s.autoDef, 'Auto-start defense', 'Coach calls and starts the play', 'L') : ''}
-      ${seg('quality', p.quality || 'auto', [['auto', 'Auto'], ['high', 'High'], ['med', 'Med'], ['low', 'Low']], 'Graphics', 'P')}
-      ${L ? seg('aimMode', s.aimMode || 'sling', [['sling', 'Slingshot'], ['point', 'Point']], 'Aim style', 'L') : ''}
-      ${L ? toggle('lefty', s.lefty, 'Left-handed', 'Swap stick and buttons', 'L') : ''}
-      ${L ? toggle('easyThrow', s.easyThrow, 'Easy Throw', 'Numbered throw badges', 'L') : ''}
-      ${L ? toggle('autoKick', s.autoKick, 'Auto Kick', 'Kicks are automatic', 'L') : ''}
-      ${L ? toggle('penalties', s.penalties !== false, 'Penalties', 'Flags on the field', 'L') : ''}
-      ${L ? toggle('autoLineup', s.autoLineup, 'Auto Lineup', 'Best players start', 'L') : ''}
-      ${toggle('reduceMotion', p.reduceMotion, 'Reduce Motion', 'Less shake and bounce', 'P')}
-      ${seg('textSize', p.textSize || 'normal', [['normal', 'Normal'], ['big', 'Big']], 'Text size', 'P')}
-      ${qNote ? html`<p class="tiny muted set-note" data-testid="set-quality-note">Restart to get full sharpness.</p>` : ''}`;
-    const data = html`<div class="setz-btns">
-        ${L ? K().btn({ label: 'Save Now', icon: 'save', action: 'save', kind: 'go', size: 'm', testid: 'btn-save' }) : ''}
-        ${K().btn({ label: 'Save Slots', icon: 'folder', action: 'slots', kind: 'sec', size: 'm', testid: 'btn-set-slots' })}
-        ${K().btn({ label: 'How to Play', icon: 'question', action: 'controls', kind: 'sec', size: 'm', testid: 'btn-controls' })}
-        ${L ? K().btn({ label: 'Quit to Title', icon: 'home', action: 'quit', kind: 'sec', size: 'm', testid: 'btn-quit-title' }) : ''}
-        ${K().btn({ label: 'Credits', icon: 'heart', action: 'credits', kind: 'ghost', size: 'm', testid: 'btn-credits' })}
-      </div><p class="tiny muted setx-ver">Pixel Touchdown v${PT.VERSION || '0.1'}</p>`;
-    const body = html`${sec('Basics', 'gear', basics, 'setz-basic')}
-      ${sec('More options', 'plus', more, 'setz-more')}
-      ${K().card(html`${K().h2('Saves & help', null, 'save')}${data}`, 'setz')}`;
-    D().set(el, K().layout(body, null, 'settings-scroll'));
+    const tabs = [{ id: 'game', label: 'Game', testid: 'tab-set-game' }];
+    if (L) tabs.push({ id: 'controls', label: 'Controls', testid: 'tab-set-controls' });
+    tabs.push({ id: 'screen', label: 'Sound & Screen', testid: 'tab-set-screen' });
+    let tab = params.tab || SET.tab;
+    if (!tabs.some((t) => t.id === tab)) tab = 'game';
+    SET.tab = tab;
+    const grid = (inner, cls) => K().card(html`<div class="setz-grid">${inner}</div>`, 'setz fill ' + (cls || ''));
+    let body;
+    if (tab === 'controls') {
+      body = grid(html`${seg('aimMode', s.aimMode || 'sling', [['sling', 'Slingshot'], ['point', 'Point']], 'Aim style', 'L')}
+        ${toggle('easyThrow', s.easyThrow, 'Easy Throw', 'Numbered throw badges', 'L')}
+        ${toggle('lefty', s.lefty, 'Left-handed', 'Swap stick and buttons', 'L')}
+        ${toggle('autoDef', !!s.autoDef, 'Auto-start defense', 'Coach calls and starts the play', 'L')}
+        ${toggle('autoKick', s.autoKick, 'Auto Kick', 'Kicks are automatic', 'L')}
+        ${toggle('penalties', s.penalties !== false, 'Penalties', 'Flags on the field', 'L')}
+        ${toggle('autoLineup', s.autoLineup, 'Auto Lineup', 'Best players start', 'L')}`, 'setz-ctl');
+    } else if (tab === 'screen') {
+      body = grid(html`${seg('music', volCur(p.music), VOL, 'Music', 'P')}
+        ${seg('sfx', volCur(p.sfx), VOL, 'Sound', 'P')}
+        ${seg('haptics', p.haptics !== false ? 1 : 0, [[0, 'Off'], [1, 'On']], 'Vibration', 'P')}
+        ${seg('quality', p.quality || 'auto', [['auto', 'Auto'], ['high', 'High'], ['med', 'Med'], ['low', 'Low']], 'Graphics', 'P')}
+        ${seg('textSize', p.textSize || 'normal', [['normal', 'Normal'], ['big', 'Big']], 'Text size', 'P')}
+        ${toggle('reduceMotion', p.reduceMotion, 'Reduce Motion', 'Less shake and bounce', 'P')}
+        ${qNote ? html`<p class="tiny muted set-note" data-testid="set-quality-note">Restart to get full sharpness.</p>` : ''}`, 'setz-scr');
+    } else {
+      const autosaveOff = !!(L && PT.App.tainted) || (PT.Save && PT.Save.available && !PT.Save.available());
+      body = html`${grid(html`${L ? seg('diff', L.diff, (PT.C.DIFFS || ['Beginner', 'Normal', 'Expert', 'Legend']).map((n, i) => [i, n]), 'Difficulty', 'L') : ''}
+        ${L ? seg('qLen', s.qLen || 180, [[120, '2 min'], [180, '3 min'], [300, '5 min']], 'Quarter length', 'L') : ''}
+        ${seg('speed', p.speed || 0.8, [[0.7, 'Relaxed'], [0.8, 'Normal'], [1, 'Fast']], 'Game speed', 'P')}
+        ${L ? seg('watch', s.watch && s.watch !== 3 ? s.watch : 0.8, [[0.8, '0.8×'], [1, '1×'], [1.5, '1.5×']], 'Defense speed', 'L') : ''}`, 'setz-game')}
+        <div class="setz-btns setz-row">
+          ${L && autosaveOff ? K().btn({ label: 'Save Now', icon: 'save', action: 'save', kind: 'go', size: 's', testid: 'btn-save' }) : ''}
+          ${K().btn({ label: 'Save Slots', icon: 'folder', action: 'slots', kind: 'sec', size: 's', testid: 'btn-set-slots' })}
+          ${K().btn({ label: 'How to Play', icon: 'question', action: 'controls', kind: 'sec', size: 's', testid: 'btn-controls' })}
+          ${L ? K().btn({ label: 'Quit to Title', icon: 'home', action: 'quit', kind: 'sec', size: 's', testid: 'btn-quit-title' }) : ''}
+          <span class="tiny muted setx-ver">v${PT.VERSION || '0.1'}</span>
+        </div>`;
+    }
+    D().set(el, K().layout(html`${K().tabs(tabs, tab, 'set-tab')}${body}`, null, 'fit setx-tabs'));
   }
 
 
@@ -134,7 +149,7 @@
       ${K().card(html`${K().h2('All the buttons')}<div class="htc-row htc-head"><span></span><span>Touch</span><span class="htc-m">Mouse</span><span class="htc-k">Keys</span><span class="ht-pad">Gamepad</span></div>
         ${K().pg('ht-ctl', [
     ctlRow('Run', 'Drag left side', 'Hold + point', ['W', 'A', 'S', 'D'], 'Left stick'),
-    ctlRow('Sprint', 'Push stick all the way', 'Hold Shift', ['Shift'], 'Hold RT'),
+    ctlRow('Sprint', 'SPRINT button (or push the stick all the way)', 'Hold Shift', ['Shift'], 'Hold RT'),
     ctlRow('Hike', 'HIKE button', 'Click HIKE', ['Space'], 'A'),
     ctlRow('Throw', 'Pull back + let go', 'Drag + let go', ['1', '2', '3', '4'], 'Right stick, then RT'),
     ctlRow('Lob', 'Hold LOB', 'Right button', ['Shift'], 'Hold LT'),
@@ -241,6 +256,7 @@
     chrome: 'full',
     mount: mount,
     actions: {
+      'set-tab': (el, ev, params) => { params.tab = el.getAttribute('data-id'); UI.refresh(); },
       tog: (el) => applyTog(el),
       seg: (el) => { applySeg(el); UI.refresh(); },
       save: () => { const r = PT.App.save({}); UI.Toast.show(r && r.ok === false ? 'Save failed' : 'Saved', r && r.ok === false ? 'bad' : 'good'); },
@@ -251,8 +267,7 @@
         if (!UI.current() || UI.current().name !== 'title') { UI.reset(); UI.replace('title'); }
       }),
       slots: () => UI.go('slots', { mode: 'load' }),
-      controls: () => UI.go('howto'),
-      credits: () => UI.Modal.alert('Pixel Touchdown', html`<p>Thanks for playing.</p><p class="small muted">Version ${PT.VERSION || '0.1'}</p>`, 'heart')
+      controls: () => UI.go('howto')
     },
     onInput: (el) => {
       if (el.type !== 'range') return;

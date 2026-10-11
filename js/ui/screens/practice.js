@@ -47,8 +47,8 @@
       ['Click HIKE. The handoff is automatic.', 'Hold the mouse button to run toward the pointer. Gain 5 yards.'],
       ['Press Space. The handoff is automatic.', 'Steer with WASD. Shift = sprint. Gain 5 yards.'],
       ['Press A. The handoff is automatic.', 'Steer with the left stick. Gain 5 yards.']],
-    defense: [['Pick a defense, then tap GO.', 'Watch your Star’s gold ring. Tap the field when it turns GREEN.'],
-      ['Pick a defense, then click GO.', 'Watch your Star’s gold ring. Click when it turns GREEN.'],
+    defense: [['Pick a defense, then tap GO.', 'Watch your Star’s gold ring. Tap TAP! when it turns GREEN.'],
+      ['Pick a defense, then click GO.', 'Watch your Star’s gold ring. Click TAP! when it turns GREEN.'],
       ['Pick a defense (1–3), then press Enter.', 'Watch your Star’s gold ring. Press Space when it turns GREEN.'],
       ['Pick a defense, then press A.', 'Watch your Star’s gold ring. Press A when it turns GREEN.']],
     kick: [['It is 4th down: tap Field Goal.', 'Pull BACK from the kicker to aim between the posts. Let go in the green.'],
@@ -70,7 +70,7 @@
     steer: ['Steer · JUKE · SPIN · DIVE', 'Steer · JUKE · SPIN · DIVE', 'WASD · Q R E to dodge', 'Stick · A B X to dodge'],
     run: ['Steer with the stick', 'Hold the mouse to run', 'WASD to run', 'Left stick to run'],
     go: ['Tap GO', 'Click GO', 'Enter = GO', 'A = GO'],
-    star: ['Tap on GREEN', 'Click on GREEN', 'Space on GREEN', 'A on GREEN'],
+    star: ['Tap TAP! on GREEN', 'Click TAP! on GREEN', 'Space on GREEN', 'A on GREEN'],
     fourth: ['Pick Field Goal', 'Pick Field Goal', 'K = Field Goal', 'Pick Field Goal'],
     kick: ['Pull back, let go', 'Drag back, let go', 'Hold Space, let go', 'Hold A, let go']
   };
@@ -79,7 +79,7 @@
     throw: { inc: 'Incomplete. Throw to the catcher with the most space.', int: 'Picked off. Throw away from defenders.', sack: 'Sacked. Throw a bit sooner.', none: 'Throw it to a catcher.' },
     run: { nocatch: 'Catch it first, then dodge.', nomove: 'Caught! Now tap JUKE, SPIN or DIVE while you run.', quick: 'Tackled right away. Throw to the open catcher, then dodge.' },
     handoff: { short: 'Short of 5 yards. Look for a gap.', none: 'Hike it and run.' },
-    defense: { whiff: 'Too early. Wait for the GREEN ring.', none: 'No Star Play. Tap the moment the ring turns GREEN.' },
+    defense: { whiff: 'Too early. Wait for the GREEN ring.', none: 'No Star Play. Tap TAP! the moment the ring turns GREEN.' },
     kick: { miss: 'No good. Aim between the posts.', wrong: 'On 4th down, pick Field Goal.' }
   };
   const SETTLE = 0.9;              // game seconds the play runs on after a verdict before the card (or the whistle)
@@ -374,7 +374,7 @@
         <ol class="pr-how">${how.map((h) => html`<li>${h}</li>`)}</ol>
         <div class="pr-btns">
           ${leaveBtn}
-          ${K().btn({ label: lastStep ? 'Finish' : 'Skip', icon: ic('ff'), action: 'pr-next', kind: 'sec', size: 's', testid: 'btn-practice-next' })}
+          ${K().btn({ label: 'Skip', icon: ic('ff'), action: 'pr-next', kind: 'sec', size: 's', testid: 'btn-practice-next' })}
           ${K().btn({ label: 'Start', icon: ic('play'), action: 'pr-start', kind: 'go', size: 'm', testid: 'btn-practice-start' })}
         </div>`);
       return;
@@ -386,7 +386,7 @@
       const btns = r.ok || r.last
         ? html`${K().btn({ label: 'Again', icon: ic('replay') || ic('back'), action: 'pr-retry', kind: 'sec', size: 's', testid: 'btn-practice-retry' })}
             ${K().btn({ label: lastStep ? 'Finish' : 'Next', icon: ic('next'), action: 'pr-next', kind: 'go', size: 'm', testid: 'btn-practice-next' })}`
-        : html`${K().btn({ label: lastStep ? 'Finish' : 'Skip', icon: ic('ff'), action: 'pr-next', kind: 'sec', size: 's', testid: 'btn-practice-next' })}
+        : html`${K().btn({ label: 'Skip', icon: ic('ff'), action: 'pr-next', kind: 'sec', size: 's', testid: 'btn-practice-next' })}
             ${K().btn({ label: 'Try again', icon: ic('replay') || ic('play'), action: 'pr-retry', kind: 'go', size: 'm', testid: 'btn-practice-retry' })}`;
       D().set(c, html`${head}
         <p class="pr-brief pr-res ${r.ok ? 'pr-good' : 'pr-bad'}" data-testid="practice-result" data-ok="${r.ok ? '1' : '0'}">${title}</p>
@@ -396,7 +396,7 @@
     }
     if (P.done) { D().set(c, ''); return; }
     const tryN = P.tries > 0 ? html`<span class="pr-try">${P.tries + 1}/${P.step.max || 4}</span>` : '';      // only from the 2nd try
-    D().set(c, html`<p class="pr-text" aria-live="polite">${t}</p>${tryN}${K().btn({ label: lastStep ? 'Finish' : 'Skip', icon: ic('ff'), action: 'pr-next', kind: 'sec', size: 's', testid: 'btn-practice-next' })}`);
+    D().set(c, html`<p class="pr-text" aria-live="polite">${t}</p>${tryN}${K().btn({ label: 'Skip', icon: ic('ff'), action: 'pr-next', kind: 'sec', size: 's', testid: 'btn-practice-next' })}`);
   }
 
   /**
@@ -502,7 +502,11 @@
     render(true);
     const hasFr = !!(PT.App._stash && PT.App._stash.L);
     const btns = [{ label: hasFr ? 'Back to My Team' : 'Back', value: 'back', kind: 'go', testid: 'btn-practice-done', icon: ic('home') }];
+    let anySave = false;
+    try { const m = PT.Save.meta && PT.Save.meta(); anySave = !!(m && m.slots && Object.keys(m.slots).some((k) => { const x = m.slots[k]; return !!(x && (x.main || x.auto)); })); } catch (e) { anySave = false; }
+    if (!hasFr && !anySave) btns.unshift({ label: 'New Game', value: 'new', kind: 'go', testid: 'btn-practice-new', icon: ic('sparkle') });
     if (!hasFr) btns.push({ label: 'Quick Game', value: 'quick', kind: 'sec', testid: 'btn-practice-quick', icon: ic('ball') });
+    if (!hasFr && !anySave) btns[1].kind = 'sec';
     const n = P.passed.filter(Boolean).length;
     const my = P;
     UI.Modal.open({ title: 'Practice Complete', icon: ic('trophy') || '', dismiss: false,   // a stray tap must not drop the player out
@@ -511,6 +515,7 @@
       if (P !== my) return;
       cleanup();
       if (v === 'quick') { UI.theme(); UI.applyPrefs(); UI.replace('quick'); return; }
+      if (v === 'new') { UI.theme(); UI.applyPrefs(); UI.replace('title'); UI.go('slots', { mode: 'new' }); return; }
       goBack();
     });
   }

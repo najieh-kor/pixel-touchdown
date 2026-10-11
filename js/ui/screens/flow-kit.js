@@ -34,6 +34,17 @@
     if (s) s.remove();
   };
 
+  /** light this rail item (flow steps of the NEXT chain belong to HQ, whatever section their old screen name maps to) */
+  FK.railOn = function (el, id) {
+    const fr = el && el.closest ? el.closest('.frame') : null;
+    if (!fr) return;
+    fr.querySelectorAll('.navbar .nav-i').forEach((b) => {
+      const on = b.getAttribute('data-id') === id;
+      b.classList.toggle('on', on);
+      if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+    });
+  };
+
   /** name that is never cut: the full name; on narrow layouts the CSS shows "J. Lastname" instead */
   FK.name = function (p) {
     if (!p) return '';
@@ -59,6 +70,13 @@
   /** one small dismissible coach line (first visit only) */
   FK.tip = function (id, text) {
     if (K().tipSeen && K().tipSeen(id)) return '';
+    // short phones: the tip would steal a row from the table and the detail card, so it shows once as a toast
+    const mm = globalThis.matchMedia;
+    if (mm && mm('(max-height: 480px)').matches) {
+      if (K().tipDone) K().tipDone(id);
+      setTimeout(() => UI.Toast.show(text, 'info', 4000), 300);
+      return '';
+    }
     return html`<div class="fl-tip" role="note">${K().ic('cap')}<span class="fl-tip-t">${text}</span><button type="button" class="fl-tip-x" data-action="fl-tip" data-id="${id}" data-testid="tip-ok-${id}" aria-label="Got it">${K().ic('x')}</button></div>`;
   };
 
@@ -121,6 +139,21 @@
   /** two-line cell: line 1 = full name (+ something on the right), line 2 = details. Names wrap, never cut. */
   FK.two = (name, sub, right) => html`<span class="fl-l2"><span class="fl-l2a"><b>${name}</b>${right ? html`<span class="fl-l2r">${right}</span>` : ''}</span><span class="fl-l2b">${sub}</span></span>`;
 
+  /** positions your roster is short of (Roster.validate TOO_FEW_<pos>), e.g. ['QB', 'K'] */
+  FK.shortPos = function (lg) {
+    try {
+      const v = PT.League.Roster.validate(lg, lg.userTid);
+      const out = [];
+      (v.errors || []).forEach((e) => { if (e.pos && out.indexOf(e.pos) < 0) out.push(e.pos); });
+      return out;
+    } catch (e) { return []; }
+  };
+  /** red header segment "Need QB, K" (empty when the roster is fine) */
+  FK.needSeg = function (lg) {
+    const sp = FK.shortPos(lg);
+    return sp.length ? FK.seg('Need', sp.join(', '), { icon: 'warn', cls: 'fl-seg-warn', testid: 'need-pos' }) : '';
+  };
+
   // ---------------- small pieces ----------------
   /** 5-block interest / fairness meter. v 0..100 */
   FK.meter = function (v, cls, title) {
@@ -138,13 +171,15 @@
 
   // ---------------- inline offer control (Market + Keep Players) ----------------
   const MIN = () => PT.C.CAP.MIN_SAL, MAX = () => PT.C.CAP.MAX_SAL;
-  const offerSt = { key: null, sal: 0, yrs: 2 };
+  const offerSt = { key: null, sal: 0, yrs: 2, step: 100 };
   /** state for the player in the panel (reset when another player is picked) */
   FK.offerState = function (key, ask) {
     if (offerSt.key !== key) {
       offerSt.key = key;
       offerSt.sal = Math.max(MIN(), Math.round(((ask && ask.sal) || MIN()) / 100) * 100);
       offerSt.yrs = Math.max(1, Math.min(5, (ask && ask.yrs) || 2));
+      // one tap = about 10% of his Ask ($100K for cheap players, $500K for a $4.8M star)
+      offerSt.step = Math.max(100, Math.round(((ask && ask.sal) || 1000) * 0.1 / 100) * 100);
     }
     return offerSt;
   };
@@ -159,7 +194,7 @@
     const step = (label, d, tid, cls) => html`<button type="button" class="fl-step ${cls || ''}" data-action="fl-pay" data-d="${d}" data-testid="${tid}" aria-label="${d > 0 ? 'More pay' : 'Less pay'}">${label}</button>`;
     return html`<div class="fl-offer" data-offer>
       <div class="fl-of-row"><span class="fl-ol">Pay / yr</span>
-        <div class="fl-pay">${step('−1M', -1000, 'offer-pay-m1', 'big')}${step('−', -100, 'offer-pay-down')}<b class="fl-pv num" data-v="sal">${D().money(st.sal)}</b>${step('+', 100, 'offer-pay-up')}${step('+1M', 1000, 'offer-pay-p1', 'big')}</div></div>
+        <div class="fl-pay">${step('−1M', -1000, 'offer-pay-m1', 'big')}${step('−', -1, 'offer-pay-down')}<b class="fl-pv num" data-v="sal">${D().money(st.sal)}</b>${step('+', 1, 'offer-pay-up')}${step('+1M', 1000, 'offer-pay-p1', 'big')}</div></div>
       <div class="fl-of-row"><span class="fl-ol">Years</span><div class="fl-yrs" role="group" aria-label="Years">${yrs}</div></div>
       <div class="fl-of-v"><span class="fl-face" data-v="face"></span><span class="fl-left"><span class="fl-nf">Cash left</span><span class="fl-ns">Left</span> <b class="num" data-v="left"></b></span></div>
       <div class="fl-of-act">${o.extra || ''}${K().btn({ label: o.submitHtml || o.submit || 'Send Offer', icon: 'contract', action: 'fl-send', kind: 'go', size: 'm', testid: o.testid || 'btn-offer-submit', disabled: !!o.disabled, cls: 'fl-send', title: o.why || '' })}</div>
@@ -183,6 +218,7 @@
     D().set(f, v ? html`${K().ic(v.face)}<span>${v.word}</span>` : '');
     const sub = box.querySelector('.fl-send');
     if (sub && !o.disabled) sub.disabled = left < 0;
+    if (sub) { sub.classList.remove('v-good', 'v-warn', 'v-bad'); if (v && !o.disabled) sub.classList.add('v-' + v.cls); }
   };
   /** current offer values */
   FK.offerValue = () => ({ sal: offerSt.sal, yrs: offerSt.yrs, gift: 0 });
@@ -192,7 +228,11 @@
     return {
       'fl-tip': (t) => { if (K().tipDone) K().tipDone(t.getAttribute('data-id')); UI.refresh(); },
       'fl-pos': () => posSheet(),
-      'fl-pay': (t) => { offerSt.sal = Math.max(MIN(), Math.min(MAX(), offerSt.sal + +t.getAttribute('data-d'))); FK.paintOffer(t.closest('#screen') || globalThis.document); },
+      'fl-pay': (t) => {
+        const d = +t.getAttribute('data-d');
+        offerSt.sal = Math.max(MIN(), Math.min(MAX(), offerSt.sal + (Math.abs(d) === 1 ? d * offerSt.step : d)));
+        FK.paintOffer(t.closest('#screen') || globalThis.document);
+      },
       'fl-yrs': (t) => { offerSt.yrs = +t.getAttribute('data-y'); FK.paintOffer(t.closest('#screen') || globalThis.document); }
     };
   };

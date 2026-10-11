@@ -483,7 +483,7 @@
     const tgt = target != null ? target : P.tgt;
     P.incDesc = reason === 'drop' ? 'Dropped!' : reason === 'defended' ? 'Broken up!' : reason === 'out' ? 'Out of bounds' : 'Incomplete';
     G.em.emit('incomplete', { target: tgt >= 0 ? G.ents[tgt].pid : null, reason: reason });
-    PT.Engine.Snapshot.fx(G, 'text', G.ball.x, G.ball.y, 2, 1, -1, reason === 'drop' ? 'DROP!' : 'INCOMPLETE');
+    if (!(P.pen && (P.pen.kind === 'pi' || P.pen.kind === 'rough'))) PT.Engine.Snapshot.fx(G, 'text', G.ball.x, G.ball.y, 2, 1, -1, reason === 'drop' ? 'DROP!' : 'INCOMPLETE');
     G.ball.st = 'dead';
     G.whistle('inc', P.off, P.los0, false);
   };

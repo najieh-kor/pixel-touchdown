@@ -52,7 +52,8 @@
   function opened(slot, r) {
     try { if (PT.Save.setPrefs) PT.Save.setPrefs({ lastSlot: slot }); } catch (e) { /* ignore */ }
     UI.theme(); UI.applyPrefs();
-    UI.reset();
+    // HUNT2 #2: land on the phase screen (Keep Players, Draft Day…), not always HQ
+    if (UI.Flow && UI.Flow.goPhase) UI.Flow.goPhase(); else UI.reset();
     // QA1: a save made mid-game (tab closed / crash) → "Game interrupted · Sim the rest" like App.open does;
     // before, Continue dropped you on HQ with the game half-started and replayable from kickoff.
     if (r && r.interrupted && PT.App.checkInterrupted) PT.App.checkInterrupted();
@@ -91,10 +92,10 @@
           </div>
         </div>
         <div class="t-corner">
-          ${K().btn({ icon: 'question', action: 'howto', kind: 'ghost', size: 's', testid: 'btn-howto', title: 'How to Play', label: 'Help' })}
+          ${K().btn({ icon: 'question', action: 'howto', kind: 'ghost', size: 's', testid: 'btn-howto', title: 'How to Play', label: 'How to Play' })}
           ${K().btn({ icon: 'gear', action: 'settings', kind: 'ghost', size: 's', testid: 'btn-settings', title: 'Settings' })}
         </div>
-        <p class="t-ver">v${PT.VERSION || '0.1'}</p>
+        <button type="button" class="t-ver" data-action="credits" data-testid="btn-credits">v${PT.VERSION || '0.1'} · Credits</button>
       </div>
     </div>`);
     if (PT.Render && PT.Render.setScene) { try { PT.Render.setScene('menu'); } catch (e) { /* ignore */ } }
@@ -107,12 +108,18 @@
     mount: mount,
     actions: {
       continue: () => { const s = newestSave(); if (s) UI.loadSlot(s.slot, s.which === 'auto'); },
-      new: () => UI.go('slots', { mode: 'new' }),
+      // HUNT2 #3: with no saves at all, skip the slot picker and start in slot 1
+      new: () => {
+        let any = false;
+        try { const m = PT.Save.meta(); any = Object.keys(m.slots || {}).some((k) => m.slots[k] && (m.slots[k].main || m.slots[k].auto)); } catch (e) { any = true; }
+        if (any) UI.go('slots', { mode: 'new' }); else UI.go('newgame', { slot: 1 });
+      },
       load: () => UI.go('slots', { mode: 'load' }),
       settings: () => UI.go('settings'),
       howto: () => UI.go('howto'),
       quick: () => UI.go('quick'),
-      practice: () => UI.go('practice', { from: 'title' })
+      practice: () => UI.go('practice', { from: 'title' }),
+      credits: () => UI.Modal.alert('Pixel Touchdown', html`<p>Thanks for playing.</p><p class="small muted">Version ${PT.VERSION || '0.1'}</p>`, 'heart')
     },
     keys: (ev) => {
       if (ev.key === 'Enter' && globalThis.document.activeElement === globalThis.document.body) {

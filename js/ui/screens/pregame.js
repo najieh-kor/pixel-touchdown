@@ -43,6 +43,44 @@
     </div>`;
   }
 
+  /** UI_RULES 6: the opponent's two style tags + ONE short line each (also shown on the HQ game card, HUNT2 #7) */
+  function scout(L, g) {
+    const u = L.teams[L.userTid];
+    const opp = L.teams[g.h === L.userTid ? g.a : g.h];
+    const ml = matchLine(u, opp);
+    const love = (LOVE[opp.style && opp.style.off] || 'Mixing it up').toLowerCase();
+    const them = html`${K().ic('eye')} They love ${love}.`;
+    const us = ml[2] <= -0.5 ? 'Your offense has the edge.' : ml[3] <= -0.5 ? 'Their offense has the edge.'
+      : ml[3] >= 0.5 ? 'Your defense has the edge.' : ml[2] >= 0.5 ? 'Their defense has the edge.' : 'Even matchup.';
+    const usCls = ml[2] <= -0.5 || ml[3] >= 0.5 ? 'good' : ml[3] <= -0.5 || ml[2] >= 0.5 ? 'bad' : '';
+    const tags = html`<span class="chip chip-blue">${K().ic('football')} ${C.OFF_STYLES[opp.style && opp.style.off] || 'Balanced'}</span><span class="chip chip-red">${K().ic('shield')} ${C.DEF_STYLES[opp.style && opp.style.def] || 'Balanced'}</span>`;
+    return { them: them, us: us, usCls: usCls, tags: tags };
+  }
+
+  /**
+   * HUNT2 #7: start or sim the user's game from anywhere (HQ bottom bar, Pregame for playoff games).
+   * replace=true swaps the current screen (Pregame) for the game; HQ pushes it.
+   */
+  function playGame(gid, replace) {
+    const L = PT.App.L;
+    if (blocked(L)) return;
+    const p = Object.assign({ gid: gid }, snapshot(L));
+    if (replace) UI.replace('game', p); else UI.go('game', p);
+  }
+  function simGame(gid) {
+    const L = PT.App.L;
+    if (blocked(L)) return;
+    const snap = snapshot(L);
+    const busy = UI.Modal.busy('Simming the game…');
+    setTimeout(() => {
+      Promise.resolve().then(() => PT.App.simGame(gid)).then((box) => {
+        busy.close();
+        UI.replace('postgame', Object.assign({ gid: gid, box: box, sim: true }, snap));
+      }).catch((e) => { busy.close(); if (PT.Log) PT.Log.error('ui', 'simGame', e); UI.Toast.show('Could not sim the game.', 'bad'); });
+    }, 30);
+  }
+  UI.Game = { play: playGame, sim: simGame, scout: scout };
+
   function mount(el, params) {
     const L = PT.App.L;
     const g = L.sched.find((x) => x.gid === params.gid);
@@ -53,7 +91,6 @@
     let cfg = null;
     try { cfg = PT.League.Games.config(L, g.gid); } catch (e) { cfg = null; }
     const wx = cfg && cfg.weather;
-    const ml = matchLine(u, opp);
     const kc = K().kitCols(g.h, g.a);
     let rival = u.rival === opp.id, hot = false;
     try {
@@ -64,13 +101,8 @@
     } catch (e) { /* keep fixed rival */ }
     const title = g.po ? C.PLAYOFF_NAMES[g.po] : 'Week ' + g.wk;
     const done = g.st === 'F';
-    // UI_RULES 6: two style tags + ONE short single line per side, no wrapped sentences
-    const love = (LOVE[opp.style && opp.style.off] || 'Mixing it up').toLowerCase();
-    const them = html`${K().ic('eye')} They love ${love}.`;
-    const us = ml[2] <= -0.5 ? 'Your offense has the edge.' : ml[3] <= -0.5 ? 'Their offense has the edge.'
-      : ml[3] >= 0.5 ? 'Your defense has the edge.' : ml[2] >= 0.5 ? 'Their defense has the edge.' : 'Even matchup.';
-    const usCls = ml[2] <= -0.5 || ml[3] >= 0.5 ? 'good' : ml[3] <= -0.5 || ml[2] >= 0.5 ? 'bad' : '';
-    const tags = html`<span class="chip chip-blue">${K().ic('football')} ${C.OFF_STYLES[opp.style && opp.style.off] || 'Balanced'}</span><span class="chip chip-red">${K().ic('shield')} ${C.DEF_STYLES[opp.style && opp.style.def] || 'Balanced'}</span>`;
+    const sc = scout(L, g);
+    const them = sc.them, us = sc.us, usCls = sc.usCls, tags = sc.tags;
     const body = html`<div class="prex prez">
       <section class="card pg-match">
         ${side(L, u, home ? 'HOME' : 'AWAY', home ? kc.hn : kc.an, true)}
@@ -119,23 +151,8 @@
     nav: 'hub',
     mount: mount,
     actions: {
-      play: (el, ev, params) => {
-        const L = PT.App.L;
-        if (blocked(L)) return;
-        UI.replace('game', Object.assign({ gid: params.gid }, snapshot(L)));
-      },
-      sim: (el, ev, params) => {
-        const L = PT.App.L;
-        if (blocked(L)) return;
-        const snap = snapshot(L);
-        const busy = UI.Modal.busy('Simming the game…');
-        setTimeout(() => {
-          Promise.resolve().then(() => PT.App.simGame(params.gid)).then((box) => {
-            busy.close();
-            UI.replace('postgame', Object.assign({ gid: params.gid, box: box, sim: true }, snap));
-          }).catch((e) => { busy.close(); if (PT.Log) PT.Log.error('ui', 'simGame', e); UI.Toast.show('Could not sim the game.', 'bad'); });
-        }, 30);
-      },
+      play: (el, ev, params) => playGame(params.gid, true),
+      sim: (el, ev, params) => simGame(params.gid),
       result: (el, ev, params) => UI.replace('postgame', { gid: params.gid })
     },
     keys: (ev) => {

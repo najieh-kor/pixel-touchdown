@@ -83,6 +83,7 @@ html.pt-coarse #touch[data-mode="return"] .pt-joy { opacity: 0.32; }
 .pt-aim.cancel .pt-aim-ring { fill: rgba(255,90,95,0.25); stroke: var(--red, #ff5a5f); }
 .pt-aim.cancel .pt-aim-band { stroke: rgba(255,90,95,0.6); }
 .pt-kick-meter { fill: rgba(27,31,58,0.55); stroke: #fff; stroke-width: 2; }
+.pt-kick-meter.out { stroke: #ff5a4f; stroke-width: 3; }
 .pt-kick-zone { fill: rgba(85,224,122,0.35); stroke: #55e07a; stroke-width: 2; }
 .pt-kick-fill { stroke: none; }
 

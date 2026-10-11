@@ -82,7 +82,7 @@
       hist: [[], []], histP: [[], []], dhist: [[], []], typeCount: [{}, {}], offPlays: [0, 0], teamPlays: [0, 0],
       hurry: [false, false], aiHurry: [false, false], flipNext: false, autoDef: !!(cfg.settings && cfg.settings.autoDef),
       ctl: -1, apTick: -9, kickReq: false, kickAimSaved: 0, kickPowSaved: 0, selO: null, selD: null, fourthDone: false, kickWait: null, tryTwo: false, patChosen: false, waitSnap: false,
-      canOnside: false, onsideReq: false, untimed: false, untimedNext: false, close: false, playNo: 0, driveStart: 0,
+      canOnside: false, onsideReq: false, rescue: false, untimed: false, untimedNext: false, close: false, playNo: 0, driveStart: 0,
       ot: { poss: [0, 0] }, star: { idx: -1, ring: 'none', t: 0, win: 0.4, left: 0, superJump: false, whiffD: false },
       dec: { act: 'none', tx: 0, ty: 0, lob: false, mx: 0, my: 0, tgt: -1 }, tmpFl: { t: 0, apex: 0, d: 0 },
       sitCache: { tos: [0, 0] }, res: { k: '', team: 0, y: 0, oob: false, good: false }, apAct: blankAction(), lastAct: blankAction(),
@@ -434,6 +434,8 @@
         G.los = y; RU.firstDown(G);
       } else RU.enforce(G, ti, yds, ti !== o);
       G.pend = Math.max(G.pend, 0); G.pendTeam = o;
+      RU.warnAtWhistle(G);
+      E.Snapshot.fx(G, 'text', G.ball.x, G.ball.y, 2.4, 2, G.tids[ti], 'FLAG! ' + txt.toUpperCase());   // the ruling, at full size (HUNT2 #6)
       if (ti !== o && RU.halfEndQ(G) && G.clk - G.pend <= 0) G.untimed = true;
       P.result = 'penalty'; P.desc = txt;
       G.phase = 'DEAD'; G.pt = 0; G.deadT = (G.fast || G.idle) ? T.FAST.DEAD_T : T.DEAD_TURN_T; G.next = 'call';
@@ -445,6 +447,7 @@
 
     function doSnap() {
       const P = G.P;
+      G.rescue = false;
       if (P.kind === 'scrim' && presnapFlag()) return;
       if (P.kind === 'spike') G.pend = 0;       // the spike stops the clock right away (its own runoff is 3 s)
       if (!G.untimed) {
@@ -490,7 +493,8 @@
       G.phase = 'KICK'; G.pt = 0;
     }
     function startFG(kind, manual) {
-      if (kind === 'fg' && RU.applyPending(G) && RU.periodEnd(G)) return;
+      // an untimed down (HUNT2 #2) kicks even at 0:00; otherwise the pending runoff may end the period first
+      if (kind === 'fg') { if (G.untimed) G.untimed = false; else if (RU.applyPending(G) && RU.periodEnd(G)) return; }
       const lined = G.P && G.P.kind === kind && G.P.fgLined;
       if (!lined) G.P = newPlay(kind, G.poss);
       G.P.fgLined = lined;
@@ -521,6 +525,7 @@
 
     function final() {
       if (G.over) return;
+      E.Stars.refund(G);
       G.over = true; G.phase = 'FINAL'; G.setCtl(-1);
       PT.Box.finalize(G.box);
       E.Snapshot.write(G);
@@ -921,7 +926,7 @@
       callPlay: function (id) {
         if (G.phase !== 'CALL' || G.kickWait || G.over) return false;
         if (userIdx >= 0 && G.poss === userIdx && !G.selO) {
-          if (id === 'punt' || id === 'fg') return game.fourth(id);
+          if (id === 'punt' || id === 'fg' || id === 'timeout') return game.fourth(id);
           const p = PT.Data.Playbook.byId(id);
           if (!p) return false;
           G.fourthDone = true;
@@ -950,10 +955,13 @@
         if (G.phase !== 'CALL' || G.poss !== userIdx || G.kickWait || G.selO) return false;
         if (choice === 'go') { G.fourthDone = true; return true; }
         if (choice === 'punt') { if (G.down !== 4) return false; G.fourthDone = true; startPunt(); return true; }
+        if (choice === 'timeout') return game.timeout(G.tids[userIdx]);
         if (choice === 'fg') {
           // client: a field goal on ANY down once past midfield (and in range)
           const s = RU.situation(G, {});
           if (!s.fgOk || (G.down !== 4 && s.toGoal >= 50)) return false;
+          // no time left (and not an untimed down): the clock runs out before the kick — never show the aim screen
+          if (!G.untimed && G.clk - G.pend <= 0) { G.rescue = false; if (RU.applyPending(G) && RU.periodEnd(G)) return true; }
           G.fourthDone = true; prepKick('fg'); return true;
         }
         return false;
@@ -968,6 +976,7 @@
         if (!(G.phase === 'CALL' || G.phase === 'PRESNAP' || G.phase === 'DEAD')) return false;
         G.tos[ti]--;
         if (G.pend > T.RUN_STOP) G.pend = T.RUN_STOP;
+        if (G.clk - G.pend > 0) G.rescue = false;          // time is back on the clock: normal play calling
         em.emit('timeout', { tid: tid, auto: false, left: G.tos[ti] });
         return true;
       },

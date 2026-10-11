@@ -83,12 +83,13 @@
     const form = (f) => (f ? html`<span class="pw-form">${f.split('').map((c) => html`<i class="pw-f pw-${c.toLowerCase()}" title="${c === 'W' ? 'Win' : c === 'L' ? 'Loss' : 'Tie'}">${c}</i>`)}</span>` : html`<span class="muted">–</span>`);
     const wk = L.pr && L.pr.s === L.season && L.pr.wk ? 'after week ' + Math.min(L.pr.wk, PT.C.REG_WEEKS) : 'before the season';
     const rows = list.map((x) => html`<button type="button" class="nc-pw ${x.tid === u ? 'me' : ''}" data-action="team-view" data-tid="${x.tid}" data-testid="pw-row-${x.tid}">
-      <span class="rank ${x.rank <= 3 ? 'top' : ''}">${x.rank}</span>${mv(x)}${teamCell(L, x.tid)}<span class="num nc-pw-rec">${D().rec(x.w, x.l, x.t)}</span>
+      <span class="rank ${x.rank <= 3 ? 'top' : ''}">${x.rank}</span>${mv(x)}<span class="tcell">${K().badge(L.teams[x.tid], 's')}<span class="ellip pw-full">${L.teams[x.tid].name}</span><b class="pw-ab">${L.teams[x.tid].abbr}</b></span><span class="num nc-pw-rec">${D().rec(x.w, x.l, x.t)}</span>
       <span class="num nc-pw-d ${x.diff > 0 ? 'pw-pos' : x.diff < 0 ? 'pw-neg' : ''}" title="Point difference">${x.diff > 0 ? '+' : ''}${x.diff}</span><span class="nc-pw-f">${form(x.form)}</span><span class="nc-pw-s">${K().stars(x.ovr, { team: true })}</span></button>`);
     void wk;
     const headRow = html`<div class="nc-pw nc-pw-h" aria-hidden="true"><span class="rank">#</span><span class="pw-mv">Move</span><span class="tcell">Team</span><span class="num nc-pw-rec">W-L</span><span class="num nc-pw-d">+/-</span><span class="nc-pw-f">Form</span><span class="nc-pw-s">Stars</span></div>`;
-    return html`${headRow}
-      <div class="fill">${K().pg('pw', rows, { grid: true, cls: 'nc-side nc-pws' })}</div>`;
+    // HUNT2 #9: one header over each column of the paged grid (the extra one collapses when there is one column)
+    return html`<div class="fill nc-pw-wrap"><div class="nc-pw-heads">${headRow}${headRow}</div>
+      ${K().pg('pw', rows, { grid: true, cls: 'nc-side nc-pws' })}</div>`;
   }
 
   /** 32 teams, one division per row (shared with the 'teams' screen in stats.js) */
@@ -105,20 +106,23 @@
   UI.leagueParts = UI.leagueParts || {};
   UI.leagueParts.teamsGrid = teamsGrid;
   UI.leagueParts.powerList = powerList;
+  UI.leagueParts.picture = pictureTab;
 
+  // HUNT2 #16: one inner tab row (Divisions | Power). The Playoff Picture lives on the Playoffs sub-tab until the
+  // bracket exists; every team row already opens that team (the 32-team grid stays reachable as the 'teams' screen).
   const TABS = [
     { id: 'div', label: 'Divisions', testid: 'tab-std-div' },
-    { id: 'picture', label: 'Playoff Picture', testid: 'tab-std-picture' },
-    { id: 'power', label: 'Power Rank', testid: 'tab-std-power' },
-    { id: 'teams', label: 'Teams', testid: 'tab-std-teams' }
+    { id: 'power', label: 'Power Rank', testid: 'tab-std-power' }
   ];
 
   function mount(el, params) {
     const L = PT.App.L;
     if (!L) { UI.replace('title'); return; }
     const u = L.userTid;
+    if (params.tab === 'picture') { UI.replace('playoffs'); return; }
+    if (params.tab === 'teams') { UI.replace('teams'); return; }
     const tab = TABS.some((t) => t.id === params.tab) ? params.tab : 'div';
-    const content = tab === 'picture' ? pictureTab(L, u) : tab === 'power' ? powerTab(L, u) : tab === 'teams' ? teamsGrid(L, u) : divTab(L, u);
+    const content = tab === 'power' ? powerTab(L, u) : divTab(L, u);
     const head = html`<div class="row between wrap std-top">${K().tabs(TABS, tab, 'tab')}</div>`;   // HUNT #32: no Bracket button (Playoffs sub-tab)
     D().set(el, K().layout(html`${head}${content}`, null, 'fit standings nc'));
   }

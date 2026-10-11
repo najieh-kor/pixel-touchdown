@@ -38,6 +38,10 @@ button.fl-seg-btn { position: relative; border: 0; border-radius: 0; margin: 0; 
 button.fl-seg-btn:active { transform: translateY(2px); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.18); }
 button.fl-seg-btn .fl-sv { color: #fff; }
 .fl-caret-w { border-top-color: #fff; }
+.fl-segtog { display: inline-flex; gap: 3px; flex: none; }
+.fl-segtog .fl-seg-btn.on { background: var(--sun); box-shadow: var(--frame-2); }
+.fl-segtog .fl-seg-btn.on .fl-sv { color: var(--ink); }
+.fl-segtog .fl-seg-btn.on .px-ic { filter: none; }
 .fl-clock .badge { margin: 0; }
 .fl-clock .fl-sv { color: #fff; }
 .fl-clock.me { background: var(--sun); animation: flPulse 1.2s steps(2) infinite; }
@@ -134,6 +138,7 @@ button.fl-seg-btn .fl-sv { color: #fff; }
 .fl-tag.green { background: var(--green); }
 .fl-tag.ink { background: var(--navy); color: #fff; }
 .fl-tag.blue { background: #cfe3ff; }
+.fl-tag.risk { background: #ffe7b8; color: #7a4a00; box-shadow: none; outline: 2px dashed #c98a00; outline-offset: -2px; }
 .fl-meter { display: inline-flex; gap: 2px; align-items: center; }
 .fl-meter i { width: 8px; height: 12px; background: #ddd6c2; box-shadow: 0 0 0 1px rgba(27, 31, 58, 0.35); }
 .fl-meter.good i.on { background: var(--green); }
@@ -203,6 +208,9 @@ button.fl-seg-btn .fl-sv { color: #fff; }
 .fl-left b { font-size: 17px; }
 .fl-of-act { display: flex; align-items: flex-end; gap: 6px; }
 .fl-of-act .fl-send { flex: 1 1 auto; min-width: 0; margin: 3px 3px 7px; }
+.fl-send.v-good { background: var(--green); color: var(--ink); }
+.fl-send.v-warn { background: var(--orange); color: var(--ink); }
+.fl-send.v-bad { background: var(--red); color: #fff; }
 .fl-of-act .fl-letgo { flex: none; align-self: auto; }
 
 /* ---------------- bottom bar ---------------- */
@@ -332,6 +340,16 @@ button.fl-seg-btn .fl-sv { color: #fff; }
 
 .fi-why { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin: 4px 0 2px; font-weight: 700; color: var(--red-d); }
 .fi-why .px-ic { width: 16px; height: 16px; }
+
+/* "N players will leave" sheet (Keep Players DONE) */
+.m-leave .mcard { width: min(680px, 100%); }
+.m-leave .mbtns, .m-leave .mbtns.stack { display: flex; flex-direction: row; gap: 8px; }
+.m-leave .mbtns .btn { flex: 1 1 0; min-width: 0; min-height: 44px; font-size: 20px; padding: 2px 8px 4px; }
+.fl-lv { display: flex; align-items: center; gap: 6px; min-height: 34px; padding: 2px 6px; box-shadow: inset 0 -2px 0 0 var(--line); }
+.fl-lv .pos { margin: 0; }
+.fl-lv-n { font-weight: 700; font-size: 15px; min-width: 0; overflow-wrap: break-word; }
+.fl-lv-r { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; flex: none; }
+.fl-lv-r .num { font-size: 17px; }
 
 /* ---------------- Star Draft summary ---------------- */
 .fl-stars-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 8px; flex: 1 1 auto; min-height: 0; align-content: start; }
@@ -510,7 +528,7 @@ button.fl-seg-btn .fl-sv { color: #fff; }
   .fl-t-draft { --cols: minmax(0, 1fr) 30px 90px 22px 32px 38px; }
   .fl-t-draft.done { --cols: minmax(0, 1fr) 30px 66px 22px 28px 50px; }
   .fl-t-fa { --cols: minmax(0, 1fr) 30px 76px 70px 56px; }
-  .fl-t-keep { --cols: minmax(0, 1fr) 30px 54px 70px 80px; }
+  .fl-t-keep { --cols: minmax(0, 1fr) 30px 54px 64px 70px; }
   .fl-t-keep .fl-sn { display: none; }
   .fl-c.c-hs { display: none; }
   .fl-t-swap { --cols: 26px minmax(0, 1fr) 30px 76px; }
@@ -529,5 +547,5 @@ button.fl-seg-btn .fl-sv { color: #fff; }
 @container flside (max-height: 330px) { .fl-who .portrait { display: none; } .fl-more { display: none !important; } }
 @container flside (max-height: 260px) { .fl-f-sch, .fl-hint { display: none !important; } .fl-ol { display: none; } .fl-of-row { justify-content: center; } }
 @container flside (max-height: 230px) { .fl-asks { display: none !important; } .fl-pm .stars, .fl-pm .mood-w { display: none; } }
-@container flside (max-height: 205px) { .fl-of-v { display: none; } }
-@container flside (max-height: 175px) { .fl-pm { display: none; } }
+@container flside (max-height: 205px) { .fl-pm { display: none; } }
+@container flside (max-height: 175px) { .fl-who { display: none; } }

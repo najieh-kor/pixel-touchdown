@@ -20,7 +20,7 @@
 
   let host = null, on = false, cfg = null, userIdx = 0, els = {}, last = {}, subs = [];
   let mode = 'none', paused = false, quitReq = false, ffOn = false, lastBan = { t: '', at: 0 }, banTimer = 0;
-  let lastSnap = null, audUsed = false, kickPlay = false, comboSeen = {}, armedFlag = false;
+  let lastSnap = null, audUsed = false, kickPlay = false, comboSeen = {}, armedFlag = false, armedPlay = false, halfFlag = false, pendMove = null;
 
   // ---------------- pixel icons (no emoji) ----------------
   // PT.UI.Icons.get(name) (UI art system) when present, else these tiny 8×8 pixel SVGs.
@@ -154,9 +154,9 @@
   }
   function teamBlock(gt, side, idx, col) {
     return html`<div class="hud-sb-tm hud-sb-${side} ${idx === userIdx ? 'hud-me' : ''}" data-h="${side}" style="${K().teamVars({ col: col || gt.col })}">
-      <span class="hud-sb-ab">${idx === userIdx ? html`<span class="hud-sb-you" aria-label="Your team">${ic('star')}</span>` : ''}<span class="hud-sb-ball" aria-label="has the ball">${ic('ball')}</span> ${abbrOf(gt)}</span>
+      <span class="hud-sb-nm"><span class="hud-sb-ab">${idx === userIdx ? html`<span class="hud-sb-you" aria-label="Your team">${ic('star')}</span>` : ''}<span class="hud-sb-ball" aria-label="has the ball">${ic('ball')}</span> ${abbrOf(gt)}</span>
+        <span class="hud-sb-to" data-h="${side}t" aria-label="Timeouts"></span></span>
       <b class="hud-sb-sc num" data-h="${side}s">0</b>
-      <span class="hud-sb-to" data-h="${side}t" aria-label="Timeouts"></span>
     </div>`;
   }
 
@@ -173,7 +173,7 @@
     const ut = cfg.userTid != null ? cfg.userTid : (L ? L.userTid : -1);
     userIdx = cfg.away && cfg.away.tid === ut ? 1 : 0;
     unsub();
-    last = {}; els = {}; paused = false; quitReq = false; ffOn = false; mode = 'none'; lastSnap = null; comboSeen = {};
+    last = {}; els = {}; paused = false; quitReq = false; ffOn = false; mode = 'none'; lastSnap = null; comboSeen = {}; halfFlag = false; pendMove = null; armedFlag = false;
     const home = cfg.home || { abbr: 'HOM', col: { pri: 0x3a86ff, sec: 0xffffff }, sp: 'dog' };
     const away = cfg.away || { abbr: 'AWY', col: { pri: 0xff5a5f, sec: 0xffffff }, sp: 'cat' };
     const kits = kitsNow();
@@ -188,6 +188,7 @@
       </div>
       <div class="hud-dd" data-h="ddrow"><span class="hud-dd-chip" data-h="dd"></span><span class="hud-dd-bo"><span data-h="bo"></span><span class="hud-dd-wx" data-h="wx"></span></span></div>
       <div class="hud-meters" data-h="meters" hidden>
+        <span class="hud-mt-h" data-testid="hud-surge-title">SURGE</span>
         <div class="hud-mt" data-h="mtoff"><span class="hud-mt-l">ATK</span><span class="hud-mt-bar"><i data-h="mtoffbar"></i></span></div>
         <div class="hud-mt" data-h="mtdef"><span class="hud-mt-l">DEF</span><span class="hud-mt-bar"><i data-h="mtdefbar"></i></span></div>
       </div>
@@ -195,14 +196,15 @@
       <div class="hud-aimt" data-h="aimt" data-testid="hud-aim-target" hidden></div>
       <div class="hud-ret" data-h="ret" data-testid="hud-ret" hidden></div>
       <div class="hud-warn" data-h="warn" data-testid="hud-warn" hidden></div>
+      <div class="hud-note" data-h="note" data-testid="hud-note" hidden></div>
       <button type="button" class="hud-star" data-h="star" data-hact="star" data-testid="btn-star" hidden>TAP!</button>
       <div class="hud-kick" data-h="kick" hidden></div>
       <div class="hud-ban" data-h="ban" aria-live="assertive"></div>
       <div class="hud-pops" data-h="pop"></div>
       <div class="hud-ctl2" data-h="ctl2">
-        <button type="button" class="hud-skipd" data-hact="skipdrive" data-testid="btn-skip-drive" data-h="skipd" hidden>${ic('ff')}<span class="hud-skipd-t">Skip Drive</span><span class="hud-kbd">D</span></button>
+        <button type="button" class="hud-skipd" data-hact="skipdrive" data-testid="btn-skip-drive" data-h="skipd" hidden>${ic('robot')}<span class="hud-skipd-t">Sim drive</span><span class="hud-kbd">D</span></button>
         <button type="button" class="hud-aud" data-hact="audible" data-testid="btn-audible" data-h="aud" hidden>${ic('swap')}<span class="hud-aud-t">Audible</span><span class="hud-kbd">V</span></button>
-        <button type="button" class="hud-ab" data-hact="ability" data-testid="btn-ability" data-h="ab" hidden disabled aria-label="Star ability">
+        <button type="button" class="hud-ab" data-hact="ability" data-testid="btn-ability" data-h="ab" hidden disabled aria-label="Surge">
           <span class="hud-ab-ring"></span><span class="hud-ab-ic">${ic('star')}</span><span class="hud-ab-t" data-h="abt">SURGE</span><span class="hud-ab-n" data-h="abn" hidden></span><span class="hud-kbd">G</span>
         </button>
       </div>
@@ -248,6 +250,7 @@
     clearTimeout(halfT);
     const hf = host && host.querySelector('.hud-half');
     if (hf) hf.remove();
+    halfFlag = false;
     if (halfPaused) { halfPaused = false; try { if (PT.Session && PT.Session.resume && !paused) PT.Session.resume(); } catch (e) { /* ignore */ } }
     Hud.flushBanners();
   }
@@ -267,6 +270,14 @@
     const row = (lab, k) => html`<tr><td class="num">${ta[k] || 0}</td><th>${lab}</th><td class="num">${th[k] || 0}</td></tr>`;
     const old = els.root.querySelector('.hud-half');
     if (old) old.remove();
+    // HUNT2 #8: nothing from the first half stays up behind the card (controls, FG card, Surge, down chip, Q3 clock)
+    halfFlag = true; armedFlag = false; pendMove = null;
+    Hud.setControls('none');
+    if (els.kick) els.kick.hidden = true;
+    last.kick = undefined;
+    ['warn', 'note', 'aimt', 'ret'].forEach((k) => { if (els[k]) els[k].hidden = true; });
+    if (els.star) els.star.hidden = true;
+    last.ring = undefined;
     const d = globalThis.document.createElement('div');
     d.className = 'hud-half';
     d.setAttribute('data-testid', 'hud-halftime');
@@ -322,9 +333,10 @@
     if (!on || !hud) return;
     lastSnap = snap || lastSnap;
     // 4 quarters (client decision): Q1–Q4, OT after
-    setText('q', hud.q > 4 ? 'OT' : 'Q' + hud.q);
+    setText('q', halfFlag ? '' : hud.q > 4 ? 'OT' : 'Q' + hud.q);
+    if (setKey('halfRow', halfFlag) && els.ddrow) els.ddrow.hidden = halfFlag;
     updateAim(snap);
-    setText('clk', PT.Util.fmtClock(hud.clk));
+    setText('clk', halfFlag ? 'HALF' : PT.Util.fmtClock(hud.clk));
     setText('hs', String(hud.hs));
     setText('as', String(hud.as));
     const tos = hud.tos || [3, 3];
@@ -337,13 +349,17 @@
       if (els.a) els.a.classList.toggle('hud-ball', hud.poss === 1);
     }
     let dd = '';
-    if (hud.down >= 1 && hud.down <= 4) {
+    if (halfFlag) dd = '';
+    else if (hud.two) dd = '2-PT TRY';   // HUNT2 #11: not "1st & Goal" on a 2-point try
+    else if (hud.down >= 1 && hud.down <= 4) {
       const goal = snap ? (snap.dir > 0 ? snap.los + hud.togo >= 110 : snap.los - hud.togo <= 10) : false;
-      dd = PT.Util.ordinal(hud.down) + ' & ' + (goal ? 'Goal' : Math.max(1, Math.round(hud.togo)));
+      dd = PT.Util.ordinal(hud.down) + ' & ' + (goal ? 'Goal' : hud.togo < 0.5 ? 'inches' : Math.max(1, Math.round(hud.togo)));
     }
     if (setKey('ddv', dd) && els.ddrow) els.ddrow.classList.toggle('hud-empty', !dd);
     setText('dd', dd);
-    setText('bo', hud.ballOn ? 'Ball on ' + hud.ballOn : '');
+    // HUNT2 #6: "Ball on" from the USER's side with team abbreviations (BLZ 29 / FLP 35), never OWN/OPP
+    const boY = snap && snap.los != null ? yardFor(snap.los) : hud.ballOn;
+    setText('bo', halfFlag || hud.two || !boY ? '' : 'Ball on ' + boY);
     if (setKey('wxk', hud.wx || '') && els.wx) { els.wx.innerHTML = hud.wx ? String(ic(WX_ICON[hud.wx] || 'sun')) : ''; els.wx.title = (K().WX[hud.wx] || ['', ''])[1]; }
     if (snap && setKey('phase', snap.phase)) host.setAttribute('data-phase', snap.phase);
     // Star Play ring (R9)
@@ -362,6 +378,7 @@
       }
     }
     updateStar(hud, snap);
+    updateMoves(snap);
     // return hint pill ('fc' fair catch, 'tb' touchback)
     const rh = hud.retHint || '';
     if (setKey('ret', rh) && els.ret) {
@@ -370,10 +387,48 @@
     }
     // FG aim / kick preview
     const kk = snap && snap.kick;
-    const kOn = !!(kk && kk.on);
-    const kTxt = kOn ? String(kk.pct == null ? '' : kk.pct) : '';
+    const kOn = !!(kk && kk.on) && !halfFlag;
+    const kTxt = kOn ? String(kk.pct == null ? '' : kk.pct) + (kk.outRange ? ':far' : '') : '';
     if (setKey('kick', kOn + ':' + kTxt)) renderKick(kOn, kk);
   };
+
+  /** field y (0..120) → 'BLZ 29' | 'FLP 35' | '50', counted from the user's own goal line (snap.udir) */
+  function yardFor(y) {
+    const udir = (lastSnap && lastSnap.udir) || (userIdx === 1 ? -1 : 1);
+    const yl = Math.round(Math.max(0, Math.min(100, udir >= 0 ? y - 10 : 110 - y)));
+    if (yl === 50) return '50';
+    const me = userIdx === 1 ? cfg.away : cfg.home, them = userIdx === 1 ? cfg.home : cfg.away;
+    return yl < 50 ? abbrOf(me) + ' ' + yl : abbrOf(them) + ' ' + (100 - yl);
+  }
+  Hud.yardFor = yardFor;
+
+  /** HUNT2 #1: Juke/Spin/Dive/Sprint are dimmed (and a tap is held, see act) until the user's team has the ball */
+  function userHasBall(snap) {
+    const es = snap && snap.ents;
+    if (!es) return true;
+    for (let i = 0; i < es.length; i++) { const e = es[i]; if (e && e.tm === userIdx && e.ball) return true; }
+    return false;
+  }
+  function updateMoves(snap) {
+    const wait = mode === 'carrier' && !userHasBall(snap);
+    if (setKey('mvWait', wait) && els.ctl) els.ctl.classList.toggle('hud-moves-wait', wait);
+    if (!wait && pendMove && mode === 'carrier') {
+      const pm = pendMove; pendMove = null;
+      if (D().now() - pm.t <= 500) press(pm.a);
+    }
+  }
+
+  /** small pill in the top band under the scorebug (Surge set, first-time Surge tip) */
+  let noteT = 0;
+  function note(text, ms, cls) {
+    if (!on || !els.note) return;
+    els.note.className = 'hud-note' + (cls ? ' ' + cls : '');
+    els.note.innerHTML = String(html`${ic('bolt')}<span>${text}</span>`);
+    els.note.hidden = false;
+    clearTimeout(noteT);
+    noteT = setTimeout(() => { if (els.note) els.note.hidden = true; }, ms || 1800);
+  }
+  Hud.note = note;
 
   /** snap.aim.tgt: the receiver the throw drag is locking onto → a subtle "To #18 Mudsley" pill (render may ring him) */
   function playerName(pid) {
@@ -435,6 +490,17 @@
     let n = 0;
     (snap.ents || []).forEach((e) => { if (e && e.tm === userIdx && (e.star === 1 || e.star === 3)) n++; });
     if (setKey('abN', n) && els.abn) { els.abn.textContent = n ? 'x' + n : ''; els.abn.hidden = !n; }
+    // HUNT2 #3: one-time tip the first time a meter fills (what SURGE and xN mean)
+    if (show && n > 0 && (off >= 100 || def >= 100) && !surgeTipSeen() && !choiceOpen()) {
+      surgeTip = true;
+      try { if (PT.Save && PT.Save.setPrefs) PT.Save.setPrefs({ surgeTip: 1 }); } catch (e) { /* ignore */ }
+      note('SURGE full! x' + n + ' = your Stars on the field get a boost.', 4200, 'hud-note-tip');
+    }
+  }
+  let surgeTip = null;
+  function surgeTipSeen() {
+    if (surgeTip == null) { try { surgeTip = !!(PT.Save && PT.Save.prefs && PT.Save.prefs().surgeTip); } catch (e) { surgeTip = true; } }
+    return surgeTip;
   }
 
   function windInfo() {
@@ -450,8 +516,10 @@
     e.hidden = !kOn;
     if (!kOn) return;
     const w = windInfo();
-    e.innerHTML = String(html`<div class="hud-kick-card"><span class="hud-kick-t">Field Goal</span>
-      ${kk.pct != null ? html`<span class="hud-kick-pct num">${kk.pct}%</span>` : ''}
+    // engine round 2: snap.kick.outRange → "Too far" (grey card, no %)
+    const far = !!kk.outRange;
+    e.innerHTML = String(html`<div class="hud-kick-card ${far ? 'hud-kick-far' : ''}" data-testid="hud-kick-card"><span class="hud-kick-t">Field Goal</span>
+      ${far ? html`<span class="hud-kick-pct">Too far</span>` : kk.pct != null ? html`<span class="hud-kick-pct num">${kk.pct}%</span>` : ''}
       ${w ? html`<span class="hud-kick-wind"><i class="hud-wind" style="transform:rotate(${w.ang}deg)">${ic('up')}</i><b class="num">${w.mph}</b> mph</span>` : html`<span class="hud-kick-wind muted">No wind</span>`}</div>`);
     if (mode === 'kick') renderControls();
   }
@@ -465,10 +533,10 @@
       { id: 'spin', label: 'Spin', icon: 'spin', testid: 'btn-spin', key: 'R' },
       { id: 'dive', label: 'Dive', icon: 'dive', testid: 'btn-dive', key: 'E' },
       { id: 'sprint', label: 'Sprint', icon: 'bolt', testid: 'btn-sprint', hold: true, key: 'Shift' }], hint: '' },
-    defense: { big: true, aud: true, btns: [{ id: 'snap', label: 'GO!', icon: 'shield', testid: 'btn-go', key: 'Enter' }], hint: 'Tap a defender to make them your Star.' },
+    defense: { big: true, aud: true, btns: [{ id: 'snap', label: 'GO!', icon: 'shield', testid: 'btn-go', key: 'Enter' }], hint: 'Tap a defender to control him.' },
     watch: { row: true, btns: [
       { id: 'ff', label: '2×', icon: 'ff', testid: 'btn-ff', toggle: true, key: 'F', title: 'Fast (2×)' },
-      { id: 'skip', label: 'Skip', icon: 'skip', testid: 'btn-skip', key: 'X' }], hint: '' },
+      { id: 'skip', label: 'End play', icon: 'skip', testid: 'btn-skip', key: 'X', title: 'Jump to the end of this play' }], hint: '' },
     kick: { big: true, btns: [{ id: 'autokick', label: 'Auto', icon: 'boot', testid: 'btn-auto-kick', key: 'A' }], hint: 'Drag back to aim, let go to kick' }
   };
   CTL.defensePlay = CTL.watch;
@@ -478,8 +546,9 @@
     if (!e) return;
     const m = CTL[mode];
     host.setAttribute('data-mode', mode);
-    if (!m) { e.innerHTML = ''; e.className = 'hud-ctl'; setText('hint', ''); if (els.aud) els.aud.hidden = true; if (els.skipd) els.skipd.hidden = true; return; }
+    if (!m) { e.innerHTML = ''; e.className = 'hud-ctl'; last.mvWait = undefined; setText('hint', ''); if (els.aud) els.aud.hidden = true; if (els.skipd) els.skipd.hidden = true; return; }
     e.className = 'hud-ctl ' + (m.big ? 'hud-ctl-big' : m.row ? 'hud-ctl-row' : 'hud-ctl-cluster') + ' hud-n' + m.btns.length;
+    last.mvWait = undefined;
     const pct = lastSnap && lastSnap.kick && lastSnap.kick.pct != null ? lastSnap.kick.pct : (UI.PlayCall && UI.PlayCall._kickPct != null ? UI.PlayCall._kickPct : null);
     let hint = m.hint || '';
     if (mode === 'qb' && qbHintCount(0) > QB_HINTS) hint = '';
@@ -522,7 +591,9 @@
     switch (a) {
       case 'half-ok': closeHalftime(); break;
       case 'snap': press('snap'); break;
-      case 'juke': case 'spin': case 'dive': press(a); break;
+      case 'juke': case 'spin': case 'dive':
+        if (mode === 'carrier' && lastSnap && !userHasBall(lastSnap)) { pendMove = { a: a, t: D().now() }; if (t) t.classList.add('hud-held'); setTimeout(() => t && t.classList.remove('hud-held'), 500); break; }
+        press(a); break;
       case 'star': press('star'); break;
       case 'ability': press('ability'); break;
       case 'skipdrive': if (!sess('simDrive')) press('simDrive'); if (els.skipd) els.skipd.hidden = true; break;
@@ -629,12 +700,13 @@
     if (!on || choiceOpen()) return;
     const now = D().now();
     const fresh = banQ.splice(0).filter((x) => now - x.at < 4000);
-    fresh.forEach((x, i) => setTimeout(() => { if (on) Hud.banner(x.text, x.style, x.ms); }, i * 900));
+    fresh.forEach((x, i) => setTimeout(() => { if (on) Hud.banner(x.text, x.style, x.ms, x.sub); }, i * 900));
   };
-  Hud.banner = function (text, style, ms) {
+  /** @param {string} [sub] optional smaller second line (e.g. the penalty ruling under FLAG!) */
+  Hud.banner = function (text, style, ms, sub) {
     if (!on || !els.ban || !text) return;
     if (choiceOpen()) {     // queue until the choice closes (never on top of cards / HIKE / GO)
-      if (!banQ.some((x) => x.text === text)) banQ.push({ text: text, style: style, ms: ms, at: D().now() });
+      if (!banQ.some((x) => x.text === text)) banQ.push({ text: text, style: style, ms: ms, sub: sub, at: D().now() });
       while (banQ.length > 3) banQ.shift();
       return;
     }
@@ -645,7 +717,7 @@
     const b = globalThis.document.createElement('div');
     b.className = 'hud-bn hud-bn-' + style + (String(text).length > 11 ? ' hud-bn-long' : '');
     b.setAttribute('data-testid', 'hud-banner');
-    b.innerHTML = String(html`<span class="hud-bn-t">${text}</span>`);
+    b.innerHTML = String(html`<span class="hud-bn-t">${text}${sub ? html`<small class="hud-bn-sub">${sub}</small>` : ''}</span>`);
     els.ban.innerHTML = '';
     els.ban.appendChild(b);
     clearTimeout(banTimer);
@@ -676,6 +748,12 @@
     if (!E) return;
     const on_ = (n, fn) => subs.push(E.on(n, inPlayFx(fn)));
     on_('game:touchdown', (p) => {
+      // HUNT2 #7: confetti and a green pop only for the user's TD; an opponent TD (pick-six too) is a red banner
+      if (!isUser(p.tid)) {
+        Hud.banner('THEY SCORE', 'turnover', 1800);
+        if (p.yds) Hud.pop(p.yds + ' yd TD', 'bad');
+        return;
+      }
       Hud.banner('TOUCHDOWN!', 'td', 2400);
       const gt = teamOf(p.tid);
       if (els.root) K().confetti(els.root, 70, gt ? [D().hex(gt.col.pri), D().hex(gt.col.sec), '#ffd23f', '#ffffff'] : null);
@@ -683,7 +761,10 @@
     });
     on_('game:turnover', (p) => {
       const t = p.kind === 'int' ? 'PICK!' : p.kind === 'downs' ? 'TURNOVER ON DOWNS!' : 'FUMBLE!';
-      Hud.banner(t, isUser(p.tid) ? 'good' : 'turnover');
+      const style = isUser(p.tid) ? 'good' : 'turnover';
+      // HUNT2 #10: the renderer draws 'INTERCEPTED!' / 'FUMBLE!' in the world for 1.0 s; the banner waits until it is gone
+      if (p.kind === 'int' || p.kind === 'fumble') setTimeout(() => { if (on) Hud.banner(t, style); }, 1050);
+      else Hud.banner(t, style);
       // a user pick / fumble recovery in a live play: the user runs it back → carrier controls
       if (isUser(p.tid) && p.kind !== 'downs' && lastSnap && lastSnap.phase === 'LIVE') Hud.setControls('carrier');
     });
@@ -695,6 +776,10 @@
       else Hud.pop('+1 Extra point', 'good');
     });
     on_('game:safety', () => Hud.banner('SAFETY!', 'turnover'));
+    // engine round 2: a penalty that replaces the play → one FLAG! banner with the engine's own ruling text
+    // (FLAG! + the ruling on a 2nd line: same words as the world text 'FLAG! …', which the renderer drops when it is
+    // longer than Fx.MAX_TEXT 12, so the banner is the one place the ruling shows)
+    on_('game:playEnd', (p) => { if (p.result === 'penalty') Hud.banner('FLAG!', 'flag', 2000, String(p.desc || '').replace(/^flag!?\s*/i, '')); });
     on_('game:sack', () => Hud.banner('SACK!', 'bad'));
     on_('game:edge', (p) => {
       // INT: the real engine draws p.txt in the world at the line (fx 'text'); a full-width banner 0.3 s into a
@@ -715,13 +800,13 @@
     on_('game:record', () => Hud.banner('NEW RECORD!', 'record', 2200));
     subs.push(E.on('render:kits', (p) => { if (on && p && p.home && p.away) applyKits([p.home, p.away]); }));
     on_('game:ability', (p) => {
-      const list = Array.isArray(p.names) ? p.names : Array.isArray(p.abilities) ? p.abilities.map((a) => (a && (a.name || a.k)) || a) : [p.name || 'Star Power'];
+      const list = Array.isArray(p.names) ? p.names : Array.isArray(p.abilities) ? p.abilities.map((a) => (a && (a.name || a.k)) || a) : [p.name || 'Surge'];
       const uniq = list.filter((x, i) => x && list.indexOf(x) === i);
       const nm = uniq.map((x) => String(x).toUpperCase()).join(' + ') + '!';
       const mine = p.user || isUser(p.tid);
       if (mine) {
         // the user's own Surge always gets the banner (one banner, PERFECT first when timed in the green ring)
-        armedFlag = false;
+        armedFlag = false; armedPlay = false;
         Hud.banner((p.perfect ? 'PERFECT! ' : '') + nm, 'super', 1500);
         return;
       }
@@ -733,22 +818,32 @@
       comboSeen[key] = 1;
       Hud.pop('THEIR ' + nm, 'bad');
     });
-    on_('game:abilityWarn', () => warn('Their Star is powered up!'));
+    on_('game:abilityWarn', () => warn('Their Surge is ready!'));
     // INT2: an offense Star armed pre-snap fires on the catch / handoff / throw — say so (it was silent before)
     on_('game:abilityArmed', (p) => {
       if (!(p.user || isUser(p.tid))) return;
-      armedFlag = true;
-      const when = /magnet/i.test(p.name || '') ? 'on the catch' : /turbo/i.test(p.name || '') ? 'on the handoff' : 'on the throw';
-      Hud.pop(String(p.name || 'Star').toUpperCase() + ' READY ' + when, 'good');
+      armedFlag = true; armedPlay = true;
+      // HUNT2 #5: a short pill under the scorebug (the mid-field line hid the formation); no per-power trigger text
+      note('SURGE SET!' + (p.count > 1 ? ' x' + p.count : ''), 1800, 'hud-note-set');
     });
+    // HUNT2 #5: the armed Surge never fired (no Star got the ball) → the engine refunds the meter; say so
+    on_('game:abilityRefund', (p) => { if (!p || p.user || isUser(p.tid)) refundNote(); });
     on_('game:audibleCall', () => { audUsed = true; if (els.aud) els.aud.hidden = true; });
     // one audible per play (INT2): reset only when a new play is called / the old one ends. Resetting on a mode
     // change brought the button back after the audible's re-lineup, and the engine then refused the 2nd audible.
-    on_('game:call', () => { audUsed = false; armedFlag = false; });
-    on_('game:playEnd', () => { audUsed = false; armedFlag = false; });
+    on_('game:call', () => { audUsed = false; armedFlag = false; armedPlay = false; halfFlag = false; });
+    on_('game:kickoff', () => { halfFlag = false; });
+    on_('game:playEnd', () => { if (armedPlay) refundNote(); audUsed = false; armedFlag = false; armedPlay = false; pendMove = null; });
     // Yards / incomplete text is drawn in the 3D world by the renderer (engine fx 'text' = play desc), so the HUD
     // adds no second "+N yds" / "No catch" line (too much text at once). Only the big banners above stay.
     on_('game:gameEnd', () => { Hud.setControls('none'); Hud.banner('FINAL!', 'record', 2600); });
+  }
+  let refundAt = 0;
+  function refundNote() {
+    const now = D().now();
+    if (now - refundAt < 1500) return;
+    refundAt = now;
+    note('Surge saved: no Star got the ball', 2200);
   }
   let warnT = 0;
   /** small warning pill in the top band (enemy Star ready) */

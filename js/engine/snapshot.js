@@ -17,7 +17,7 @@
       ball: { x: C.FIELD.MID_X, y: 60, z: 0, px: C.FIELD.MID_X, py: 60, pz: 0, st: 'spot', car: -1, sp: 0, tx: 0, ty: 0, kind: '', tp: 0 },
       los: 35, fd: 45, dir: 1, udir: 1, poss: 0,
       aim: { on: false, x: 0, y: 0, ok: true, apex: 3, t: 0.9, sig: 0, arc: 1, lob: false, max: 50, tgt: -1 },
-      kick: { on: false, x: 0, y: 0, pct: 0, ang: 0, pow: 0, minPow: 0, dist: 0, kx: 0, ky: 0 },
+      kick: { on: false, x: 0, y: 0, pct: 0, ang: 0, pow: 0, minPow: 0, dist: 0, kx: 0, ky: 0, outRange: false },
       star: { idx: -1, ring: 'none', t: 0, win: 0.4 },
       cam: { mode: 'presnap', fx: C.FIELD.MID_X, fy: 60, lead: 6, zoom: 1, shake: 0 },
       routes: [], routeA: null,

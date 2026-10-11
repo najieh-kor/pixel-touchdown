@@ -185,14 +185,25 @@
     const it = App.interrupted;
     if (!it || !App.L) return null;
     const M = UI().Modal;
+    // HUNT2 #1: the player chooses (no backdrop dismiss). The engine state isn't saved, so the choice is
+    // "play it again from kickoff" or "sim the rest" — nothing is recorded without a tap.
+    let v = true;
     if (M && M.open) {
-      await M.open({ title: 'Game interrupted', body: 'Your game vs ' + it.opp + ' was interrupted.',
-        buttons: [{ label: 'Sim the rest', value: true, kind: 'primary', testid: 'btn-sim-interrupted' }] });
+      v = await M.open({ title: 'Game interrupted', body: 'Your game vs ' + it.opp + ' was interrupted.', dismiss: false,
+        buttons: [{ label: 'Sim the Game', value: true, kind: 'sec', testid: 'btn-sim-interrupted' },
+          { label: 'Play from Kickoff', value: 'replay', kind: 'primary', testid: 'btn-replay-interrupted' }] });
     }
     if (App.interrupted !== it) return null;
     App.interrupted = null;
     const g = App.L.sched.find((x) => x.gid === it.gid);
     if (!g || g.st === 'F') return null;
+    if (v === 'replay') {
+      g.st = 'S';                                     // back to scheduled (weather kept); no box was stored yet
+      App.save({ auto: true });
+      if (UI().go) UI().go('pregame', { gid: it.gid });
+      return null;
+    }
+    if (v !== true) return null;
     const box = PT.League.Games.simUserGame(App.L, it.gid);
     App.save({ auto: true });
     const u = App.L.userTid, us = g.h === u ? box.hs : box.as, them = g.h === u ? box.as : box.hs;

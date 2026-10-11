@@ -100,7 +100,8 @@
         return sal >= need ? { face: 'happy', word: 'Will sign', cls: 'good' } : sal >= need * 0.9 ? { face: 'meh', word: 'Maybe', cls: 'warn' } : { face: 'angry', word: 'Too low', cls: 'bad' };
       } });
     return html`<aside class="fl-card fl-side has-offer" data-testid="resign-detail">${who}
-      <p class="fl-note fl-asks">${a ? html`<span>Asks <b class="num">${D().money(a.sal)}</b> × ${D().plural(a.yrs, 'yr')}</span>` : ''}${tries === 1 ? html`<span class="bad">Last try: Mood −5</span>` : ''}</p>
+      <p class="fl-note fl-asks">${a ? html`<span>Asks <b class="num">${D().money(a.sal)}</b> × ${D().plural(a.yrs, 'yr')}</span>` : ''}</p>
+      ${tries === 1 ? html`<p class="fl-note fl-warn bad">${K().ic('warn')} Last try: Mood −5</p>` : ''}
       ${offer}
     </aside>`;
   }
@@ -125,7 +126,7 @@
       tools: html`<span class="fl-bar-t">${inPhase ? 'Last year of deal' : 'Deals ending this season'}</span>`,
       empty: html`<p class="fl-empty">All set. Nobody's deal is ending.</p>` });
     const body = html`${head}${F.tip('fl-keep', 'Tap a player. Green face = he signs.')}<div class="fl-main">${table}${detail(lg, selP, kind, inPhase)}</div>`;
-    const foot = inPhase ? F.foot('', ls.open.length ? F.sec({ label: 'Auto keep', icon: 'robot', action: 'auto', testid: 'btn-auto-keep' }) : '', F.next({ label: 'Done' })) : null;
+    const foot = inPhase ? F.foot('', ls.open.length ? F.sec({ label: 'Auto keep', icon: 'robot', action: 'auto', testid: 'btn-auto-keep' }) : '', F.pri({ label: 'Done', sub: (UI.Flow && UI.Flow.status && UI.Flow.status() ? UI.Flow.status().nextLabel : '') || '', icon: 'play', action: 'done', testid: 'btn-next' })) : null;
     D().set(el, K().layout(body, foot, 'fit flow fl-keep'));
     F.paintOffer(el);
   }
@@ -145,6 +146,45 @@
       UI.Toast.show(p.fn + ' wants ' + D().money(r.counter.sal) + '. One more try.', 'bad', 3000);
     } else UI.Toast.show((r && r.msg) || 'No deal.', 'bad');
     UI.refresh();
+  }
+
+  /** a deal that can still be kept now: he is willing and his Ask fits Team Cash */
+  function keepable(lg, p) {
+    const a = askOf(lg, p.id);
+    return !!a && statusOf(lg, p, a).k !== 'no' && space(lg) >= a.need;
+  }
+  /** DONE: deals still open walk at Draft Day. Never let that happen silently (HUNT2 #1). */
+  function done() {
+    const lg = L();
+    const F = UI.Flow;
+    const t = lg.teams[lg.userTid];
+    const open = lists(lg).open.slice().sort((a, b) => (!!K().startSlot(t, b.id) - !!K().startSlot(t, a.id)) || (b.ovr - a.ovr));
+    if (!open.length) { if (F) F.next(); return; }
+    const can = open.filter((p) => keepable(lg, p));
+    const rows = open.map((p) => { const a = askOf(lg, p.id), s = statusOf(lg, p, a);
+      return html`<div class="fl-lv">${K().posChip(p.pos)}<b class="fl-lv-n">${p.fn} ${p.ln}</b>${K().startSlot(t, p.id) ? FK().tag('Starter', 'gold') : ''}<span class="fl-lv-r">${FK().stars(p.ovr)}<b class="num">${a ? D().money(a.need) : ''}</b>${keepable(lg, p) ? '' : FK().tag(s.k === 'no' ? s.word : 'No cash', 'red')}</span></div>`; });
+    // one row: Back · Let them go · KEEP THEM (primary right). Keep them = modal-ok.
+    const btns = [{ label: 'Back', value: null, kind: 'cancel', testid: 'keep-back' }, { label: 'Let them go', value: 'go', kind: 'sec', testid: 'btn-let-go-all' }];
+    if (can.length) btns.push({ label: can.length === open.length ? 'Keep them' : 'Keep ' + can.length, value: 'keep', kind: 'go' });
+    UI.Modal.open({ title: D().plural(open.length, 'player') + ' will leave', icon: 'hand', cls: 'm-list m-leave', dismiss: false,
+      body: html`${K().pg('leave', rows, { cls: 'fl-lv-pg' })}`, buttons: btns })
+      .then((v) => {
+        if (v === 'go') { if (F) F.next(); return; }
+        if (v !== 'keep') return;
+        let n = 0;
+        can.forEach((p) => {
+          try {
+            const a = askOf(lg, p.id);
+            if (!a || space(lg) < a.need) return;
+            const r = PT.League.Contracts.offer(lg, p.id, { sal: a.need, yrs: Math.max(a.lo, Math.min(a.hi, a.yrs)) });
+            if (r && r.ok) memo(lg).tried[p.id] = (memo(lg).tried[p.id] || 0) + 1;
+            if (r && r.accepted) n++;
+          } catch (e) { /* skip him */ }
+        });
+        if (PT.Events) PT.Events.emit('league:changed', { what: 'contract' });
+        UI.Toast.show(n ? 'Kept ' + D().plural(n, 'player') : 'Nobody could be kept.', n ? 'good' : 'bad');
+        UI.refresh();
+      });
   }
 
   /** Auto keep (design 10.5, same rule as Contracts.autoKeep): starters-level players whose Ask fits, best first.
@@ -174,6 +214,7 @@
     actions: FK().withActions({
       row: (el) => { ui.sel = +el.getAttribute('data-pid'); UI.refresh(); },
       'fl-send': () => send(),
+      done: () => done(),
       letgo: (el) => {
         const lg = L(), pid = +el.getAttribute('data-pid'), p = PT.League.Q.player(lg, pid);
         UI.Modal.confirm('Let ' + (p ? p.fn : 'him') + ' go?', { body: 'He goes to the Market.', icon: 'hand', yes: 'Let Go', no: 'Cancel' })

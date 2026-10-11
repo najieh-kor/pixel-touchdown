@@ -18,7 +18,8 @@
 
   function teams() { return (PT.Data && PT.Data.Teams && PT.Data.Teams.list) || []; }
   function tierOf(t) { return t.tier || 3; }
-  function tag(tier) { return tier >= 4 ? ['Easy start', 'green'] : tier === 3 ? ['Normal', 'blue'] : ['Big challenge', 'red']; }
+  // HUNT2 #12: team tags say how strong the roster is (Difficulty is only the AI level, next step)
+  function tag(tier) { return tier >= 4 ? ['Strong team', 'green'] : tier === 3 ? ['Average team', 'blue'] : ['Rebuild', 'red']; }
 
   function teamTile(t) {
     const tier = tierOf(t), tg = tag(tier);
@@ -36,7 +37,7 @@
   function stepTeam() {
     const keep = (t) => st.filter === 'all' || (st.filter === 'easy' && tierOf(t) >= 4) || (st.filter === 'mid' && tierOf(t) === 3) || (st.filter === 'hard' && tierOf(t) <= 2);
     const list = teams().filter(keep).slice().sort((a, b) => (a.conf - b.conf) || (a.div - b.div) || (a.id - b.id));
-    const chips = [['all', 'All'], ['easy', 'Easy'], ['mid', 'Normal'], ['hard', 'Hard']];
+    const chips = [['all', 'All'], ['easy', 'Strong'], ['mid', 'Average'], ['hard', 'Rebuild']];
     return K().layout(html`
       <div class="ng-head">
         <div class="ng-steps"><span class="on">1 Team</span><span>2 Coach</span></div>
@@ -52,7 +53,7 @@
       <section class="card">
         <div class="ng-picked ngx-picked" style="${K().teamVars(t)}">
           ${K().badge(t, 'm')}
-          <div class="grow"><div class="tiny">Your team</div><div class="big ellip"><b>${t.city} ${t.name}</b></div></div>
+          <div class="grow"><div class="tiny">Your team · ${t.city}</div><div class="big"><b>${t.name}</b></div></div>
           ${K().btn({ label: 'Change', action: 'change-team', kind: 'sec', size: 's', testid: 'btn-change-team' })}
         </div>
         <div class="field ngx-name">

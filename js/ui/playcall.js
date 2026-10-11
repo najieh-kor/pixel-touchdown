@@ -42,10 +42,15 @@
     const L = PT.App && PT.App.L;   // ROUND6 E: "Auto-start defense" is a main-Settings option only (no in-game chip)
     PC.state.autoDef = !!(L && L.settings && L.settings.autoDef);
   }
+  /** '& 7' | '& Goal' | '& inches' (engine round 2: togo < 0.5) */
+  function togoText(togo, goal) { return goal ? 'Goal' : togo < 0.5 ? 'inches' : String(Math.max(1, Math.round(togo))); }
+  PC.togoText = togoText;
   function sitText(sit) {
     if (!sit || !sit.down) return '';
     const goal = sit.dir > 0 ? sit.y + sit.togo >= 110 : sit.y - sit.togo <= 10;
-    return PT.Util.ordinal(sit.down) + ' & ' + (goal ? 'Goal' : Math.max(1, Math.round(sit.togo))) + (sit.ballOn ? ' · ' + sit.ballOn : '');
+    // HUNT2 #6: ball spot from the user's side with team abbreviations (Hud.yardFor), not OWN/OPP of the offense
+    const bo = sit.y != null && UI.Hud && UI.Hud.yardFor ? UI.Hud.yardFor(sit.y) : sit.ballOn;
+    return PT.Util.ordinal(sit.down) + ' & ' + togoText(sit.togo, goal) + (bo ? ' · ' + bo : '');
   }
 
   // ---------------- mini diagrams ----------------
@@ -256,9 +261,15 @@
   }
   /** big suggestion card (play-card-{i}); n = 1..3 keyboard number */
   function cardHtml(c, i, best, side, n) {
-    const g = groupOf(c, side);
-    const word = side === 'D' && g === 'run' ? 'Run Stop' : GROUP_WORD[g] || '';
-    return html`<button type="button" class="pk-card pk-g-${g} ${best ? 'pk-best' : ''}" data-pact="card" data-i="${i}" data-testid="play-card-${i}" aria-label="${c.name}">
+    // engine round 2: the 0:00 rescue tray leads with a TIMEOUT card (k special, id 'timeout')
+    if (c.id === 'timeout') {
+      const tl = UI.Hud && UI.Hud.timeoutsLeft ? UI.Hud.timeoutsLeft() : null;
+      c = Object.assign({}, c, { icon: 'clock', name: c.name || 'Timeout', desc: c.desc || ('Stop the clock' + (tl != null ? ' · ' + tl + ' left' : '')) });
+    }
+    const g = c.id === 'timeout' ? 'special' : groupOf(c, side);
+    const word = c.id === 'timeout' ? 'Clock' : side === 'D' && g === 'run' ? 'Run Stop' : GROUP_WORD[g] || '';
+    const off = c.ok === false;      // e.g. an out-of-range FG ("Too far!") is shown but can't be called
+    return html`<button type="button" class="pk-card pk-g-${g} ${best && !off ? 'pk-best' : ''} ${off ? 'pk-off' : ''} ${c.id === 'timeout' ? 'pk-card-to' : ''}" data-pact="card" data-i="${i}" data-testid="play-card-${i}" aria-label="${c.name}"${off ? D().raw(' disabled aria-disabled="true"') : ''}>
       ${best ? html`<span class="pk-coach">${ic('flame')} Coach pick</span>` : ''}
       ${diaHtml(c, side, true)}
       <span class="pk-info">
@@ -272,8 +283,10 @@
   /** small playbook card in the More view (same testid scheme) */
   function miniHtml(c, i, best, side) {
     const g = groupOf(c, side);
-    return html`<button type="button" class="pk-mini pk-g-${g} ${best ? 'pk-best' : ''}" data-pact="card" data-i="${i}" data-testid="play-card-${i}" aria-label="${c.name}">
-      ${diaHtml(c, side, false)}<span class="pk-mini-n">${c.name}</span></button>`;
+    const off = c.ok === false;
+    if (c.id === 'timeout') c = Object.assign({}, c, { icon: 'clock', name: c.name || 'Timeout' });
+    return html`<button type="button" class="pk-mini pk-g-${g} ${best && !off ? 'pk-best' : ''} ${off ? 'pk-off' : ''}" data-pact="card" data-i="${i}" data-testid="play-card-${i}" aria-label="${c.name}"${off ? D().raw(' disabled aria-disabled="true"') : ''}>
+      ${diaHtml(c, side, false)}<span class="pk-mini-n">${c.name}</span>${off && c.desc ? html`<span class="pk-lock">${c.desc}</span>` : ''}</button>`;
   }
   /** plays/calls not offered yet because the coach level is too low (cards carry lv; data lists carry lv) */
   function coachLvl() {
@@ -311,6 +324,11 @@
     return '';
   }
 
+  /** engine round 2: 0:00 rescue tray (sit.rescue) shows the REAL clock, not the HUD's 0:00 */
+  function rescueClock(sit) {
+    if (!sit || !sit.rescue || sit.clk == null) return '';
+    return html`<span class="pk-clk" data-testid="pc-rescue-clock">${ic('clock')}<b class="num">${PT.Util.fmtClock(sit.clk)}</b> left</span>`;
+  }
   function chip(label, icon, pact, testid, onState, extra, cls) {
     return html`<button type="button" class="pk-chip ${onState ? 'pk-on' : ''} ${cls || ''}" data-pact="${pact}" data-testid="${testid}" ${D().raw(extra || '')}>${icon ? html`<span class="pk-chip-ic" aria-hidden="true">${ic(icon)}</span>` : ''}<span class="pk-chip-t">${label}</span></button>`;
   }
@@ -333,19 +351,19 @@
     const tos = UI.Hud && UI.Hud.timeoutsLeft ? UI.Hud.timeoutsLeft() : 3;
     const chips = side === 'O'
       ? html`${chip('Flip', 'flip', 'flip', 'btn-flip', PC.state.flip)}${chip('Hurry', 'bolt', 'hurry', 'btn-hurry', PC.state.hurry)}${o.canTimeout !== false ? chip('Timeout', 'clock', 'timeout', 'btn-timeout', false, (tos > 0 ? '' : 'disabled') + ' data-n="' + tos + '"') : ''}`
-      : html`${chip('Skip Drive', 'ff', 'simdrive', 'btn-sim-drive', false, '', 'pk-chip-skip')}${o.canTimeout ? chip('Timeout', 'clock', 'timeout', 'btn-timeout', false, (tos > 0 ? '' : 'disabled') + ' data-n="' + tos + '"') : ''}`;
+      : html`${chip('Sim drive', 'robot', 'simdrive', 'btn-sim-drive', false, '', 'pk-chip-skip')}${o.canTimeout ? chip('Timeout', 'clock', 'timeout', 'btn-timeout', false, (tos > 0 ? '' : 'disabled') + ' data-n="' + tos + '"') : ''}`;
     // special chips: 4th-down Punt/FG (resolve PUNT/FG → Session → game.fourth), else any offered Field Goal (in range,
     // any down), Spike and Kneel cards → tapping resolves that card's id (game.callPlay('fg') starts the kick flow)
     const spc = (id) => { const i = cards.findIndex((c) => c.id === id); return i >= 0 ? { c: cards[i], i: i } : null; };
     const fgC = spc('fg'), spikeC = spc('spike'), kneelC = spc('kneel');
     const fgPct = (x) => (x.c.pct != null ? x.c.pct : +((String(x.c.desc || '').match(/(\d+)\s*%/) || [])[1] || 0));
-    const cardChip = (x, label, icon, testid, cls) => html`<button type="button" class="pk-chip ${cls || ''}" data-pact="card" data-i="${x.i}" data-testid="${testid}"><span class="pk-chip-ic" aria-hidden="true">${ic(icon)}</span><span class="pk-chip-t">${label}</span></button>`;
+    const cardChip = (x, label, icon, testid, cls) => html`<button type="button" class="pk-chip ${cls || ''} ${x.c.ok === false ? 'pk-chip-off' : ''}" data-pact="card" data-i="${x.i}" data-testid="${testid}"${x.c.ok === false ? D().raw(' disabled aria-disabled="true" title="Too far"') : ''}><span class="pk-chip-ic" aria-hidden="true">${ic(icon)}</span><span class="pk-chip-t">${label}</span></button>`;
     const fourth = side !== 'O' ? '' : html`${o.fourth ? html`${chip('Punt', 'boot', 'punt', 'btn-4th-punt', false, '', 'pk-chip-4th')}${o.fourth.fgPct ? chip('FG ' + o.fourth.fgPct + '%', 'posts', 'fg', 'btn-4th-fg', false, '', 'pk-chip-4th pk-chip-gold') : ''}` : ''}
-      ${!(o.fourth && o.fourth.fgPct) && fgC && fgC.c.ok !== false ? cardChip(fgC, 'FG ' + fgPct(fgC) + '%', 'posts', 'btn-fg', 'pk-chip-4th pk-chip-gold') : ''}
+      ${!(o.fourth && o.fourth.fgPct) && fgC ? (fgC.c.ok !== false ? cardChip(fgC, 'FG ' + fgPct(fgC) + '%', 'posts', 'btn-fg', 'pk-chip-4th pk-chip-gold') : cardChip(fgC, 'FG Too far', 'posts', 'btn-fg', 'pk-chip-4th')) : ''}
       ${spikeC ? cardChip(spikeC, 'Spike', 'clock', 'btn-spike', 'pk-chip-4th') : ''}${kneelC ? cardChip(kneelC, 'Kneel', 'clock', 'btn-kneel', 'pk-chip-4th') : ''}`;
     const love = side === 'D' ? loveText(o) : '';
     const head = html`<div class="pk-head">
-        <div class="pk-title"><b>${side === 'O' ? 'Pick a Play' : 'Pick a Defense'}</b><span class="pk-sit">${sitText(o.sit)}</span></div>
+        <div class="pk-title"><b>${side === 'O' ? 'Pick a Play' : 'Pick a Defense'}</b><span class="pk-sit">${sitText(o.sit)}</span>${rescueClock(o.sit)}</div>
         <div class="pk-chips">${fourth}${chips}</div>
       </div>
       ${tipHtml(side)}${love ? html`<div class="pk-love">${ic('eye')} They love: <b>${love}</b></div>` : ''}
@@ -356,8 +374,8 @@
       const list = cards.map((c, i) => ({ c: c, i: i })).filter((x) => cur.filter === 'all' || groupOf(x.c, side) === cur.filter);
       const allLocked = lockedPlays(side, cards);
       const locked = allLocked.filter((c) => cur.filter === 'all' || groupOf(c, side) === cur.filter);
-      const countIn = (gid) => (gid === 'all' ? cards.length + allLocked.length
-        : cards.filter((c) => groupOf(c, side) === gid).length + allLocked.filter((c) => groupOf(c, side) === gid).length);
+      // HUNT2 #12: tab counts = plays you can call (matches "More · N plays"); locked plays get their own chip
+      const countIn = (gid) => (gid === 'all' ? cards.length : cards.filter((c) => groupOf(c, side) === gid).length);
       // ZERO SCROLL: pages sized to what fits (cur.per is measured after render, see fitPage)
       const items = list.map((x) => miniHtml(x.c, x.i, x.i === best, side)).concat(locked.map((c) => lockedHtml(c, side)));
       const per = Math.max(1, cur.per || 8);
@@ -374,7 +392,7 @@
           <div class="pk-chips">${pager}<button type="button" class="pk-tab pk-back" data-pact="less" data-testid="btn-less">${ic('back')} Back</button></div></div>`;
       l.innerHTML = String(sheet('pk-more pk-side-' + side, html`${headMore}
         <div class="pk-tabsrow"><div class="pk-tabs" role="tablist">${groups.map((g) => html`<button type="button" role="tab" aria-selected="${cur.filter === g[0]}" class="pk-tab ${cur.filter === g[0] ? 'pk-on' : ''}" data-pact="filter" data-f="${g[0]}" data-testid="pc-filter-${g[0]}">${g[1]}<span class="pk-tab-n">${countIn(g[0])}</span></button>`)}
-</div></div>
+</div>${allLocked.length ? html`<span class="pk-lockn" data-testid="pc-locked-count">${ic('lock')}+${allLocked.length} locked</span>` : ''}</div>
         <div class="pk-book">${shown}</div>`, side === 'O' ? 'Playbook' : 'Defense calls'));
       show(l);
       fitPage(l);
@@ -413,14 +431,14 @@
   function tipHtml(side) {
     const id = side === 'D' ? 'defense' : 'playcall';
     if (K().tipSeen(id)) return '';
-    const txt = side === 'D' ? 'Pick a Defense Call. Tap STAR when it glows for a big play!' : 'Tap a play, then SNAP. Pull back like a slingshot to throw.';
+    const txt = side === 'D' ? "Pick a defense. Tap TAP! when the ring turns green. Tap SURGE when it's full." : 'Tap a play, then HIKE. Pull back like a slingshot to throw.';
     return html`<div class="pk-tip"><span aria-hidden="true">${ic('cap')}</span><span class="pk-tip-t">${txt}</span><button type="button" class="pk-chip" data-pact="tipok" data-id="${id}" data-testid="tip-ok-${id}">Got it</button></div>`;
   }
 
   function fourthHtml(o) {
     const sit = o.sit || {};
     return sheet('pk-small', html`
-      <div class="pk-big-t">${sit.down ? PT.Util.ordinal(sit.down) + ' & ' + Math.max(1, Math.round(sit.togo || 1)) : '4th Down'}!</div>
+      <div class="pk-big-t">${sit.down ? PT.Util.ordinal(sit.down) + ' & ' + togoText(sit.togo == null ? 1 : sit.togo, false) : '4th Down'}!</div>
       <p class="pk-q">What do you want to do?</p>
       <div class="pk-choice">
         ${K().btn({ label: 'Go for it', icon: ic('ball'), kind: 'go', size: 'l', testid: 'btn-4th-go', data: { pact: 'go' } })}
@@ -549,7 +567,7 @@
 
   function pickIdx(i) {
     const cards = (cur && cur.o.cards) || [];
-    if (cards[i]) done(cards[i].id);
+    if (cards[i] && cards[i].ok !== false) done(cards[i].id);
   }
   PC._act = function (t) {
     if (!cur) return;

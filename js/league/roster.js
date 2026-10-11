@@ -626,8 +626,16 @@
     let cands = act.filter((p) => cnt[p.pos] > C.ROSTER.TEMPLATE[p.pos] && safe(p));
     if (!cands.length) cands = act.filter((p) => cnt[p.pos] > C.ROSTER.NEED[p.pos] && safe(p));
     if (!cands.length) return null;
-    const score = (p) => Roster.value(L, p) / Math.max((p.con ? p.con.sal : 0) / 1000, 0.5) + (isStarter(t, p.id) ? 1e6 : 0);
-    cands.sort((a, b) => (score(a) - score(b)) || (Roster.cutCost(L, a.id).total - Roster.cutCost(L, b.id).total) || (a.id - b.id));
+    // keep score (lowest is cut). AI teams: design 17.5 value per pay. The user's "Fix it": value first (never trade a
+    // good starter for a walk-on). Both: dead cap (Cut Cost) and starting count against cutting (HUNT2-league #1).
+    const cc = {}, sc = {};
+    cands.forEach((p) => {
+      cc[p.id] = Roster.cutCost(L, p.id).total;
+      const v = Roster.value(L, p);
+      sc[p.id] = (t.human ? v + p.ovr : v / Math.max((p.con ? p.con.sal : 0) / 1000, 0.5)) + cc[p.id] / 100 + (isStarter(t, p.id) ? 1e6 : 0);
+    });
+    const draftKey = (p) => (p.dr ? 5 - Math.min(4, p.dr.rd) : 0);     // undrafted / walk-ons first, then late rounds
+    cands.sort((a, b) => (sc[a.id] - sc[b.id]) || (draftKey(a) - draftKey(b)) || (cc[a.id] - cc[b.id]) || (a.id - b.id));
     return cands[0];
   }
 
@@ -647,8 +655,9 @@
 
   /**
    * Plan for "Fix it for me" (design 2.2) without changing anything:
-   * walk-ons for every missing position minimum, then cuts if the roster would go over the limit.
-   * @returns {{sign:string[], cut:{pid:number, cost:number}[]}}
+   * signings for every missing position minimum (o.useFA: the best free agent at the position, else a walk-on), then cuts
+   * if the roster would go over the limit. text = one line for the confirm dialog ('Sign: QB walk-on (50) · Cut: …').
+   * @returns {{sign:string[], signs:{pos, pid, name, ovr, walkOn}[], cut:{pid, cost, perYear, years, name, pos, ovr}[], text:string}}
    */
   Roster.fixPlan = function (L, tid, o) {
     o = o || {};
@@ -666,11 +675,26 @@
       const p = Roster.nextCut(L, tid, ex);
       if (!p) break;
       ex[p.id] = true;
-      cut.push({ pid: p.id, cost: Roster.cutCost(L, p.id).total });
+      const c = Roster.cutCost(L, p.id);
+      cut.push({ pid: p.id, cost: c.total, perYear: c.perYear, years: c.years, name: p.fn.charAt(0) + '. ' + p.ln, pos: p.pos, ovr: p.ovr });
       over--;
     }
-    return { sign: sign, cut: cut };
+    // who would be signed: the best free agent at the position (useFA), else a walk-on (OVR 45–55)
+    const taken = {};
+    const signs = sign.map((pos) => {
+      const fa = o.useFA ? bestFA(L, pos, taken) : null;
+      if (fa) { taken[fa.id] = true; return { pos: pos, pid: fa.id, name: fa.fn.charAt(0) + '. ' + fa.ln, ovr: fa.ovr, walkOn: false }; }
+      return { pos: pos, pid: null, name: 'Walk-on', ovr: 50, walkOn: true };
+    });
+    const txt = [];
+    if (signs.length) txt.push('Sign: ' + signs.map((x) => x.pos + (x.walkOn ? ' walk-on' : ' ' + x.name) + ' (' + x.ovr + ')').join(', '));
+    if (cut.length) txt.push('Cut: ' + cut.map((x) => x.name + ' ' + x.pos + ' ' + x.ovr + (x.cost ? ', dead ' + PT.Util.fmtMoney(x.perYear) + (x.years > 1 ? ' ×' + x.years : '') : '')).join(', '));
+    return { sign: sign, cut: cut, signs: signs, text: txt.join(' · ') };
   };
+  function bestFA(L, pos, taken) {
+    return Q().freeAgents(L).filter((p) => p.pos === pos && healthy(p) && !(taken && taken[p.id]))
+      .sort((a, b) => (b.ovr - a.ovr) || (a.id - b.id))[0] || null;
+  }
   function lowestDepthPos(L, tid) {
     const cnt = posCounts(L, tid);
     return Object.keys(C.ROSTER.TEMPLATE).sort((a, b) => (cnt[a] - C.ROSTER.TEMPLATE[a]) - (cnt[b] - C.ROSTER.TEMPLATE[b]))[0];
@@ -698,11 +722,12 @@
     const plan = Roster.fixPlan(L, tid, o);
     const cut = [], signed = [];
     plan.cut.forEach((c) => { if (Roster.release(L, c.pid).ok) cut.push(c.pid); });
-    plan.sign.forEach((pos) => {
+    plan.signs.forEach((x) => {
+      const pos = x.pos;
       let r = null;
       if (o.useFA) {
-        const fa = Q().freeAgents(L).filter((p) => p.pos === pos && healthy(p)).sort((a, b) => (b.ovr - a.ovr) || (a.id - b.id))[0];
-        if (fa) {
+        const fa = x.pid != null ? Q().player(L, x.pid) : bestFA(L, pos);
+        if (fa && fa.tid === C.TID.FA) {
           const con = { sal: PT.League.PlayerGen.minPay(PT.League.Cap.cap(L)), exp: Roster.capSeason(L), sgn: L.season, rk: false, gtd: C.CAP.CUT_PCT };
           r = Roster.sign(L, fa.id, tid, con);
         }
@@ -710,7 +735,7 @@
       if (!r || !r.ok) r = Roster.walkOn(L, tid, pos);
       if (r.ok) signed.push(r.pid);
     });
-    return { ok: Roster.validate(L, tid, o).ok, signed: signed, cut: cut };
+    return { ok: Roster.validate(L, tid, o).ok, signed: signed, cut: cut, text: plan.text };
   };
 
   /** Cut lowest value-per-pay players until under the Team Cash limit. @returns {number[]} cut pids */
