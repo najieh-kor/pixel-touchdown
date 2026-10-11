@@ -1,0 +1,27 @@
+/* Pixel Touchdown: css/debug.css
+ * Owner: WP6. Responsibility: debug overlay panel.
+ */
+#debug { position: fixed; inset: 0; z-index: 50; pointer-events: none; }
+.pt-dbg {
+  position: absolute; top: max(6px, env(safe-area-inset-top)); right: max(6px, env(safe-area-inset-right));
+  width: min(340px, calc(100vw - 12px));
+  background: rgba(15, 18, 38, 0.86); color: #e8f0ff;
+  border: 2px solid #000; border-radius: 8px;
+  font: 11px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  pointer-events: auto;
+  box-shadow: 0 3px 0 rgba(0,0,0,0.5);
+}
+.pt-dbg.hidden { display: none; }
+.pt-dbg-head { padding: 4px 6px; }
+.pt-dbg-stats { margin: 2px 0 0; white-space: pre-wrap; color: #b6ffb0; font: inherit; }
+.pt-dbg-body { padding: 0 6px 6px; max-height: 40vh; overflow: auto; }
+.pt-dbg.min .pt-dbg-body, .pt-dbg.min .pt-dbg-mini { display: none !important; }
+.pt-dbg-row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.pt-dbg button {
+  font: inherit; color: #fff; background: #2b3160; border: 1px solid #000; border-radius: 4px;
+  padding: 4px 6px; min-height: 26px; cursor: pointer;
+}
+.pt-dbg button:hover { background: #3c4486; }
+.pt-dbg button.on { background: #2f8f46; }
+.pt-dbg button.pt-dbg-title { background: none; border: 0; padding: 0; min-height: 0; font-weight: 700; color: #ffd23f; }
+.pt-dbg-mini { display: block; margin: 0 6px 6px auto; border: 1px solid #000; image-rendering: pixelated; }

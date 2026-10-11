@@ -1,0 +1,275 @@
+/* Pixel Touchdown: css/ns-c.css
+ * ROUND6 "0 scrolling" layouts for: market/swaps, draft, standings, playoffs (free-agency.js, draft.js, standings.js, playoffs.js).
+ * Loaded after screens.css / modes.css. Landscape only: 844x390, 932x430, 1024x768, 1366x768, 1920x1080.
+ * Pattern: .lay.fit.nc → a side panel / tab strip (fixed) + one .fill area holding a paged list (pager.js).
+ * Paged lists here use .nc-side: the pager sits at the RIGHT of the list (column), so the list keeps the full height.
+ */
+
+/* ---------- shared: fit layout, side pager ---------- */
+.lay.nc > .scroll { padding-bottom: 10px; }
+.lay.nc .page { max-width: 1480px; }
+.lay.nc .foot .page { flex: none; flex-direction: row; }     /* .lay.fit .page (column) also matches the bottom bar */
+.pg.nc-side { flex-direction: row; }
+.pg.nc-side > .pg-list { flex: 1 1 auto; min-width: 0; padding: 0 2px; overflow: visible; }   /* other pages' rows are display:none; the last row's frame/shadow may paint a few px into the padding below */
+.pg.nc-side > .pg-list.pg-grid { grid-auto-rows: max-content; }
+.pg.nc-side > .pg-ctl { flex-direction: column; justify-content: center; gap: 6px; padding: 0 0 0 8px; }
+.pg.nc-side > .pg-ctl[hidden] { display: none; }
+.pg.nc-side > .pg-ctl .pg-b { min-width: 48px; min-height: 44px; }
+.pg.nc-side > .pg-ctl .pg-n { min-width: 48px; font-size: 20px; color: #fff; text-shadow: 0 2px 0 var(--ink), 2px 0 0 var(--ink), -2px 0 0 var(--ink), 0 -2px 0 var(--ink); }
+.card .pg.nc-side > .pg-ctl .pg-n, .mcard .pg.nc-side > .pg-ctl .pg-n { color: var(--ink); text-shadow: none; }
+.nc-empty { padding: 12px; }
+
+/* side panel + main column (Market, Draft) */
+.nc-split { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 12px; }
+.nc-split.nc-done { grid-template-columns: minmax(0, 1fr); }
+.nc-split > * { min-height: 0; min-width: 0; }
+.nc-side-card { margin: var(--px); padding: 10px; display: flex; flex-direction: column; gap: 8px; align-self: start; max-height: calc(100% - 2 * var(--px) - 6px); overflow: hidden; }
+.nc-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.nc-head .badge { flex: none; }
+.nc-emo { flex: none; line-height: 0; }
+.nc-emo .px-ic { width: 34px; height: 34px; }
+.nc-head-t { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.nc-t { font-family: var(--font-d); font-weight: 400; font-size: 23px; letter-spacing: 0.03em; text-transform: uppercase; line-height: 1; }
+.nc-stats { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.nc-links { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px 6px; margin: 0 var(--px) var(--lift, 4px); }
+.nc-links .btn { min-width: 0; width: 100%; padding-left: 6px; padding-right: 6px; }
+.nc-links .nc-wide { grid-column: 1 / -1; }
+.nc-links .btn .btn-sub { flex-basis: auto; margin: 0 0 0 6px; }
+.nc-main { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.nc-tools { flex: none; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.nc-chips { flex: 1 1 auto; min-width: 0; flex-wrap: wrap; overflow: hidden; gap: 0 4px; padding: 0 2px 4px; }
+.nc-chips .fchip { position: relative; }
+.nc-count { flex: none; color: #fff; font-weight: 700; text-shadow: 0 2px 0 var(--ink); white-space: nowrap; }
+.nc-st { margin: 2px 0 8px; font-size: 24px; }
+
+/* compact player rows in paged grids */
+.nc-plist > .pg-list.pg-grid { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 2px 8px; }
+.nc-prow { min-height: 56px; padding: 3px 8px 3px 4px; gap: 8px; margin-bottom: calc(var(--px) + 3px); }
+.nc-prow .prow-name { font-size: 16px; }
+.nc-prow .prow-sub { flex-wrap: nowrap; overflow: hidden; gap: 4px; }
+.nc-prow .prow-right { gap: 2px; }
+.nc-prow .stars-num { font-size: 12px; }
+
+/* ---------- Market ---------- */
+.mk-face { padding-left: 3px; padding-right: 5px; }
+.mk-face .px-ic { width: 16px; height: 16px; }
+.nc-fw { display: none; }
+.m-offers .mcard { width: min(520px, calc(100% - 6px)); }
+.m-offers .mk-off { margin: 0 0 2px; }
+
+/* ---------- Swaps ---------- */
+.nc-swcols { flex: 1 1 auto; }
+.nc-swc { margin: var(--px); padding: 8px; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.nc-swh { flex: none; display: flex; align-items: center; gap: 6px; min-width: 0; margin-bottom: 6px; min-height: 36px; }
+.nc-swh-t { flex: 1 1 auto; min-width: 0; font-family: var(--font-d); font-weight: 400; font-size: 21px; letter-spacing: 0.03em; text-transform: uppercase; line-height: 1; }
+.nc-swh-n { flex: none; padding: 2px 6px; background: var(--grey-2); box-shadow: var(--frame-2); font-family: var(--font-d); font-size: 18px; }
+.nc-swh-n.on { background: var(--sun); }
+.nc-swh .nc-pick { flex: none; min-height: 40px; margin-bottom: 4px; padding: 2px 9px 5px; font-size: 17px; }
+.nc-swl > .pg-list.pg-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 2px 6px; }
+.nc-swp { min-height: 46px; padding: 3px 6px; margin-bottom: 6px; gap: 6px; }
+.nc-swp-m { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.nc-swp-m b { font-size: 15px; }
+.nc-swp-s .stars .px-ic, .nc-swp-s .stars svg { width: 11px; height: 11px; }
+.nc-swp .sw-chk { width: 24px; height: 24px; }
+.swaps.nc .foot .page { align-items: center; }
+.nc-fair { flex: 1 1 0; min-width: 0; margin: 0; gap: 2px; color: #fff; }
+.nc-fair .field-l { color: rgba(255, 255, 255, 0.8); font-size: 12px; }
+.nc-fair .meter { height: 16px; }
+.nc-fair .sw-fair-t { color: #fff; font-size: 13px; }
+.nc-fair .sw-fair-t.good { color: #8ff0b0; }
+.nc-fair .sw-fair-t.bad { color: #ffb0ab; }
+.nc-fair .hot-seat { margin: 0; color: #fff; }
+.m-teams .mcard { width: min(720px, calc(100% - 6px)); }
+.m-teams .nc-teams { display: grid; grid-template-columns: repeat(auto-fill, minmax(56px, 1fr)); gap: 4px; overflow: visible; padding: 2px; margin: 0; }
+.m-teams .sw-team { min-width: 0; min-height: 52px; width: 100%; padding: 2px; display: flex; align-items: center; justify-content: center; border-color: transparent; }
+.m-teams .sw-team.on { background: var(--sun); border-color: var(--ink); box-shadow: none; }
+
+/* ---------- Draft ---------- */
+.nc-side-card.dr-clock { animation: none; }
+.nc-side-card .dr-pick { font-size: 26px; font-family: var(--font-d); font-weight: 400; line-height: 1; }
+.nc-side-card .dr-pk { font-size: 18px; padding: 0 6px; }
+.nc-side-card .dr-who { font-weight: 700; font-size: 14px; line-height: 1.15; margin: 0; }
+.nc-side-card .dr-scout { align-self: center; padding: 2px 8px; }
+.nc-side-card .dr-btns { margin-top: 0; }
+.nc-recent { flex-direction: column; gap: 4px; overflow: hidden; margin: 0; padding: 0 2px; }
+.nc-recent .dr-rp { padding: 2px 6px 2px 2px; min-width: 0; box-shadow: var(--frame-2); }
+.nc-recent .dr-rp-t { flex: 1 1 auto; min-width: 0; }
+.draft.nc .foot .page { align-items: stretch; }
+.draft.nc .foot .page > .nc-fb { flex: 1 1 0; min-width: 0; padding-left: 8px; padding-right: 8px; }
+.draft.nc .foot .page > .btn-next { flex: 2 1 0; }
+.nc-chips .dr-need { position: absolute; top: -6px; right: -6px; width: 15px; height: 15px; font-size: 10px; }
+.dr-row.nc-prow .prow-main { gap: 2px; }
+.nc-prow .stars-range { gap: 3px; }
+.nc-spd, .nc-sc { padding: 0 4px; font-size: 12px; }
+.nc-spd .px-ic, .nc-sc .px-ic { width: 12px; height: 12px; }
+.nc-need { padding: 0 4px; font-size: 11px; }
+
+/* ---------- League: Divisions / Playoff Picture / Power Rank / Teams ---------- */
+.standings.nc .std-top { flex: none; flex-wrap: nowrap; align-items: center; }
+.standings.nc .std-top .tabs { margin-bottom: 0; padding-bottom: 6px; overflow: hidden; }
+.standings.nc .std-top > .btn { margin-bottom: 6px; }
+.nc-key { flex: none; margin: 4px 0 6px; font-size: 13px; }
+.nc-cards > .pg-list.pg-grid { gap: 2px 10px; }
+.nc-divs > .pg-list.pg-grid { grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); }
+.nc-div { margin: var(--px) var(--px) 12px; padding: 0; overflow: hidden; }
+.nc-tbl thead th { padding-top: 4px; padding-bottom: 4px; }
+.nc-tbl .nc-th { display: flex; align-items: center; gap: 6px; }
+.nc-tbl .nc-th .px-ic { width: 18px; height: 18px; }
+.nc-tbl td { padding-left: 5px; padding-right: 5px; }
+.nc-tbl .tcell { max-width: 200px; gap: 6px; }
+.nc-tbl .tcell .seed, .nc-tbl .tcell .clinch { flex: none; }
+.nc-tbl .tcell .ellip { flex: 0 1 auto; }
+
+.nc-pics > .pg-list.pg-grid { grid-template-columns: repeat(auto-fill, minmax(470px, 1fr)); }
+.nc-pic { margin: var(--px) var(--px) 12px; padding: 8px 10px 10px; }
+.nc-pic-h { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; font-family: var(--font-d); font-size: 21px; letter-spacing: 0.03em; text-transform: uppercase; line-height: 1; }
+.nc-pic-h .px-ic { width: 20px; height: 20px; }
+.nc-pic-h b { font-weight: 400; }
+.nc-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; padding: 0 2px; }
+.nc-tile { display: flex; align-items: center; gap: 5px; min-width: 0; min-height: 46px; padding: 3px 5px; margin-bottom: 4px; text-align: left; background: var(--paper); border: 0; box-shadow: var(--frame-2), 0 4px 0 0 rgba(27, 31, 58, 0.5); }
+.nc-tile:active { transform: translateY(2px); box-shadow: var(--frame-2); }
+.nc-tile.out { background: var(--grey-2); }
+.nc-tile.me { background: #fff1b0; }
+.nc-tile .seed-big { flex: none; width: 26px; height: 26px; font-size: 15px; }
+.nc-tile .badge { flex: none; }
+.nc-tile-m { display: flex; flex-direction: column; min-width: 0; line-height: 1.1; }
+.nc-tile-m b { font-size: 14px; }
+.nc-tile-r { font-size: 14px; white-space: nowrap; }
+.nc-bye { padding: 0 3px; font-size: 11px; }
+.nc-line { margin: 2px 2px 6px; }
+.nc-line span { display: flex; align-items: center; justify-content: center; gap: 4px; font-size: 12px; font-weight: 700; color: var(--red-d); border-top: 3px dashed var(--red); padding-top: 2px; text-transform: uppercase; letter-spacing: 0.08em; }
+.nc-line .px-ic { width: 14px; height: 14px; }
+
+.nc-pws > .pg-list.pg-grid { grid-template-columns: repeat(auto-fill, minmax(560px, 1fr)); gap: 0 12px; }
+.nc-pw { display: grid; grid-template-columns: 32px 34px minmax(0, 1fr) 64px 46px 92px 82px; align-items: center; gap: 6px; width: calc(100% - 2 * var(--px));
+  min-height: 44px; padding: 2px 8px 2px 4px; margin: var(--px) var(--px) 6px; text-align: left; background: var(--paper); border: 0; box-shadow: var(--frame-2), 0 4px 0 0 rgba(27, 31, 58, 0.5); }
+.nc-pw:active { transform: translateY(2px); box-shadow: var(--frame-2); }
+.nc-pw.me { background: #fff1b0; font-weight: 700; }
+.nc-pw .rank { width: 30px; height: 30px; }
+.nc-pw .tcell { max-width: none; }
+.nc-pw-rec, .nc-pw-d { text-align: right; font-size: 18px; }
+.nc-pw-s .stars { font-size: 13px; }
+.nc-pw-s .stars-num { display: none; }
+
+.nc-tms > .pg-list { gap: 2px; }
+.nc-tmrow { display: grid; grid-template-columns: 116px minmax(0, 1fr); gap: 8px; align-items: center; }
+.nc-tm-div { display: flex; align-items: center; gap: 5px; min-width: 0; color: #fff; text-shadow: 0 2px 0 var(--ink), 2px 0 0 var(--ink), -2px 0 0 var(--ink), 0 -2px 0 var(--ink); }
+.nc-tm-div b { font-family: var(--font-d); font-weight: 400; font-size: 20px; letter-spacing: 0.03em; text-transform: uppercase; line-height: 1; }
+.nc-tm-div .px-ic { flex: none; width: 20px; height: 20px; }
+.nc-tm4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; min-width: 0; }
+.nc-tm { min-height: 56px; padding: 4px 8px 4px 4px; gap: 6px; margin: var(--px) var(--px) 8px; width: calc(100% - 2 * var(--px)); min-width: 0; }
+.nc-tm .tm-main b { font-size: 15px; }
+.nc-tm .stars-num { display: none; }
+.nc-tm .tm-rec { font-size: 17px; }
+
+/* ---------- Playoff bracket ---------- */
+.nc-bks > .pg-list.pg-grid { grid-template-columns: repeat(auto-fill, minmax(440px, 1fr)); gap: 2px 12px; align-content: start; }
+.nc-bk, .nc-bowl { margin: var(--px) var(--px) 12px; padding: 10px; }
+.nc-bk > .card-h:first-child, .nc-bowl > .card-h:first-child { margin: -10px -10px 8px; padding: 4px 10px 6px; min-height: 30px; }
+.nc-bk .card-h h2, .nc-bowl .card-h h2 { font-size: 21px; }
+.nc-bk .card-h h2 .px-ic, .nc-bowl .card-h h2 .px-ic { width: 20px; height: 20px; }
+.nc-proj { font-size: 12px; }
+.nc-bk .bk { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; align-items: stretch; }
+.nc-bk .bk-col { display: flex; flex-direction: column; min-width: 0; }
+.nc-bk .bk-ms { flex: 1; justify-content: space-around; gap: 8px; }
+.nc-bk .bk-rd { margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nc-bk .bk-line, .nc-bowl .bk-line { min-height: 32px; padding: 2px 6px; gap: 4px; }
+.nc-bye .chip { padding: 0 5px; font-size: 12px; }
+.nc-bowl .bowl { max-width: 420px; }
+.nc-bowl .bowl p { margin-top: 6px; }
+.nc-champ { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 6px 10px; background: var(--sun); box-shadow: var(--frame-2); }
+.nc-champ .champ-n { font-size: 22px; }
+.nc-champ .champ-carrot .px-ic { width: 34px; height: 34px; }
+.nc-bowl.champ-card { display: block; background: linear-gradient(180deg, #fff 0%, #ffe6b3 100%); overflow: hidden; }
+
+@media (max-height: 800px) { .nc-tm-city { display: none; } }
+
+/* ---------- short landscape (phones 844x390, 932x430) ---------- */
+@media (orientation: landscape) and (max-height: 480px) {
+  .lay.nc > .scroll { padding-bottom: 8px; }
+  .lay.nc .tip { flex: none; margin-bottom: 6px; padding: 2px 4px 2px 8px; gap: 8px; }
+  .lay.nc .tip-t { font-size: 12px; line-height: 1.2; }
+  .lay.nc .tip-coach .px-ic { width: 22px; height: 22px; }
+  .lay.nc .tip .btn { min-height: 36px; font-size: 16px; }
+  .nc-count { display: none; }
+  .pg.nc-side > .pg-ctl { gap: 4px; padding-left: 6px; }
+  .pg.nc-side > .pg-ctl .pg-b { min-width: 44px; min-height: 40px; }
+  .pg.nc-side > .pg-ctl .pg-n { font-size: 18px; min-width: 44px; }
+  .nc-split { grid-template-columns: 186px minmax(0, 1fr); gap: 8px; }
+  .nc-side-card { padding: 6px 8px; gap: 4px; }
+  .nc-links { gap: 4px; margin-bottom: 2px; }
+  .nc-t { font-size: 20px; }
+  .nc-emo { display: none; }
+  .nc-links .btn-s { min-height: 40px; font-size: 16px; padding-left: 4px; padding-right: 4px; }
+  .nc-links .btn-s:not(.nc-wide) .btn-ic { display: none; }
+  .nc-head-t .small { font-size: 12px; line-height: 1.15; }
+  .nc-head-t { gap: 1px; }
+  .nc-stats { flex-wrap: nowrap; gap: 4px; }
+  .nc-stats .stat { padding: 1px 5px; font-size: 15px; gap: 3px; min-width: 0; }
+  .nc-stats .stat .px-ic { width: 16px; height: 16px; }
+  .nc-stats .stat b { font-size: 16px; }
+  .nc-chips { gap: 0 2px; }
+  .nc-chips .fchip { min-width: 38px; min-height: 40px; padding: 2px 5px 4px; margin: 3px 1px 5px; font-size: 17px; justify-content: center; }
+  .nc-plist > .pg-list.pg-grid { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }
+  .nc-prow { min-height: 50px; }
+  .nc-prow .portrait { width: 36px !important; height: 36px !important; }
+  .nc-prow .portrait img { width: 36px; height: 36px; }
+  .nc-recent, .nc-prow .stars-num { display: none; }
+  .dr-row.nc-prow .stars-range .stars { display: none; }
+  .nc-prow { min-height: 46px; padding-top: 2px; padding-bottom: 2px; }
+  .nc-prow .prow-main { gap: 1px; }
+  .nc-prow .prow-name { font-size: 15px; line-height: 1.2; }
+  .nc-prow .chip, .nc-prow .growth { min-height: 20px; height: 20px; padding-top: 0; padding-bottom: 0; margin: 1px; }
+  .nc-prow .growth { font-size: 16px; min-width: 24px; }
+  .nc-prow .pos { height: 20px; margin: 1px; font-size: 15px; }
+  .nc-need { display: none; }
+  .nc-tools .nc-chips { padding-bottom: 1px; }
+  .nc-tools .nc-chips .fchip { margin-top: 1px; margin-bottom: 5px; }
+  .lay.nc .tip { margin-bottom: 4px; }
+  .dr-row.nc-prow .stars-range .stars-num { display: inline; font-size: 14px; }
+  .draft.nc .foot .page > .nc-fb { min-height: 46px; font-size: 20px; }
+  .nc-swc { padding: 6px; }
+  .nc-swh { margin-bottom: 4px; }
+  .nc-swl > .pg-list.pg-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+  .nc-swp { min-height: 42px; }
+  .m-teams .sw-team { min-height: 48px; }
+  .m-teams .sw-team .badge-m { width: 42px; height: 42px; }
+  .nc-key { display: none; }
+  .standings.nc .std-top .tab { min-height: 38px; font-size: 18px; padding: 2px 10px 4px; }
+  .standings.nc .std-top > .btn { min-height: 40px; }
+  .nc-divs > .pg-list.pg-grid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+  .nc-div { margin-bottom: 8px; }
+  .nc-tbl .col-pa, .nc-tbl .col-strk { display: none; }
+  .nc-tbl td, .lh-tbl.nc-tbl td { height: 40px; padding-top: 2px; padding-bottom: 2px; }
+  .nc-tbl th { font-size: 16px; }
+  .nc-tbl .tcell { max-width: 170px; }
+  .nc-pic { padding: 6px 8px 6px; margin-bottom: 8px; }
+  .nc-tile { min-height: 42px; }
+  .nc-pws > .pg-list.pg-grid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 0 8px; }
+  .nc-pw { grid-template-columns: 30px 32px minmax(0, 1fr) 58px 40px; min-height: 40px; margin-bottom: 5px; }
+  .nc-pw-f, .nc-pw-s { display: none; }
+  .nc-pw .rank { width: 28px; height: 28px; }
+  .nc-tmrow { grid-template-columns: 84px minmax(0, 1fr); gap: 6px; }
+  .nc-tm-div { flex-direction: column; align-items: flex-start; gap: 2px; }
+  .nc-tm-div b { font-size: 17px; }
+  .nc-tm { min-height: 44px; padding: 2px 6px 2px 2px; margin-bottom: 6px; }
+  .nc-tm .badge-m { width: 34px; height: 34px; }
+  .nc-tm-city, .nc-tm-st { display: none; }
+  .nc-tm .tm-main b { font-size: 14px; }
+  .nc-tm .tm-rec { font-size: 15px; }
+  .nc-bks > .pg-list.pg-grid { grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); }
+  .nc-bk, .nc-bowl { padding: 8px; margin-bottom: 8px; }
+  .nc-bk > .card-h:first-child, .nc-bowl > .card-h:first-child { margin: -8px -8px 6px; }
+  .nc-bk .bk-line, .nc-bowl .bk-line { min-height: 26px; padding: 1px 6px; font-size: 14px; }
+  .nc-bk .bk-line .badge-s, .nc-bowl .bk-line .badge-s { width: 22px; height: 22px; margin: 1px; }
+  .nc-bk > .card-h:first-child, .nc-bowl > .card-h:first-child { min-height: 0; padding: 3px 8px 5px; }
+  .nc-bk .card-h h2, .nc-bowl .card-h h2 { font-size: 19px; }
+  .nc-bk .bk-rd { margin-bottom: 2px; }
+  .nc-bk .bk-ms { justify-content: space-between; }
+  .nc-bk .bk-ms { gap: 6px; }
+}
+/* INT2: playoff-picture tiles wrap a long team name onto 2 lines instead of cutting it */
+.nc-tile-m.ellip, .nc-tile .ellip { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.05; overflow-wrap: anywhere; }
+.nc-n { display: block; line-height: 1.05; overflow-wrap: anywhere; }
+.nc-n .nc-ab { display: none; }
+@media (orientation: landscape) and (max-height: 480px) { .nc-n .nc-full { display: none; } .nc-n .nc-ab { display: inline; } }

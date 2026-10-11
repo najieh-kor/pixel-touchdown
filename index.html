@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#1b1f3a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Touchdown">
+<meta name="application-name" content="Pixel Touchdown">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180.png">
+<script>
+/* PWA (docs/handoff/PWA.md): register the offline service worker sw.js. http(s) only, never file://;
+ * skipped on localhost unless the URL has sw=1 (so local edits are never served stale);
+ * any failure is ignored so the game always runs. Updates are re-dispatched as a 'pt-sw-updated' event. */
+(function () {
+  try {
+    if (!/^https?:$/.test(location.protocol) || !('serviceWorker' in navigator)) return;
+    if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) && !/[?&]sw=1\b/.test(location.search)) {
+      navigator.serviceWorker.getRegistrations().then(function (rs) { rs.forEach(function (r) { r.unregister(); }); }).catch(function () {});
+      return;
+    }
+    navigator.serviceWorker.addEventListener('message', function (e) {
+      var d = e.data || {};
+      if (d.type !== 'pt-sw-updated') return;
+      window.PT_SW_UPDATED = d.version;
+      try { window.dispatchEvent(new CustomEvent('pt-sw-updated', { detail: d })); } catch (err) { /* old browser */ }
+    });
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('sw.js').catch(function () { /* offline mode unavailable */ });
+    });
+  } catch (e) { /* ignore */ }
+})();
+</script>
+<title>Pixel Touchdown</title>
+<link rel="stylesheet" href="css/fonts.css">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/components.css">
+<link rel="stylesheet" href="css/screens.css">
+<link rel="stylesheet" href="css/hud.css">
+<link rel="stylesheet" href="css/touch.css">
+<link rel="stylesheet" href="css/debug.css">
+<link rel="stylesheet" href="css/modes.css">
+<link rel="stylesheet" href="css/ns-a.css">
+<link rel="stylesheet" href="css/ns-b.css">
+<link rel="stylesheet" href="css/ns-c.css">
+<link rel="stylesheet" href="css/ns-d.css">
+</head>
+<body>
+  <canvas id="gl"></canvas>
+  <div id="touch"></div>
+  <div id="hud"></div>
+  <div id="screen"></div>
+  <div id="modal"></div>
+  <div id="toast"></div>
+  <div id="debug"></div>
+  <noscript>Pixel Touchdown needs JavaScript to run.</noscript>
+  <script src="lib/three.min.js"></script>
+  <!-- core (fixed order) -->
+  <script src="js/core/namespace.js"></script>
+  <script src="js/core/constants.js"></script>
+  <script src="js/core/util.js"></script>
+  <script src="js/core/rng.js"></script>
+  <script src="js/core/events.js"></script>
+  <script src="js/core/log.js"></script>
+  <script src="js/core/flags.js"></script>
+  <script src="js/core/boxscore.js"></script>
+  <script src="js/core/schema.js"></script>
+  <!-- data -->
+  <script src="js/data/teams.js"></script>
+  <script src="js/data/species.js"></script>
+  <script src="js/data/names.js"></script>
+  <script src="js/data/traits.js"></script>
+  <script src="js/data/playbook.js"></script>
+  <script src="js/data/defense.js"></script>
+  <script src="js/data/events.js"></script>
+  <script src="js/data/text.js"></script>
+  <script src="js/data/achievements.js"></script>
+  <script src="js/data/twists.js"></script>
+  <!-- league -->
+  <script src="js/league/ratings.js"></script>
+  <script src="js/league/player-gen.js"></script>
+  <script src="js/league/team-gen.js"></script>
+  <script src="js/league/league.js"></script>
+  <script src="js/league/roster.js"></script>
+  <script src="js/league/schedule.js"></script>
+  <script src="js/league/standings.js"></script>
+  <script src="js/league/playoffs.js"></script>
+  <script src="js/league/games.js"></script>
+  <script src="js/league/statsim.js"></script>
+  <script src="js/league/calendar.js"></script>
+  <script src="js/league/auto.js"></script>
+  <script src="js/league/cap.js"></script>
+  <script src="js/league/contracts.js"></script>
+  <script src="js/league/draft.js"></script>
+  <script src="js/league/free-agency.js"></script>
+  <script src="js/league/injuries.js"></script>
+  <script src="js/league/progression.js"></script>
+  <script src="js/league/ai-gm.js"></script>
+  <script src="js/league/economy.js"></script>
+  <script src="js/league/staff.js"></script>
+  <script src="js/league/weekly-events.js"></script>
+  <script src="js/league/awards.js"></script>
+  <script src="js/league/history.js"></script>
+  <script src="js/league/news.js"></script>
+  <script src="js/league/twists.js"></script>
+  <script src="js/league/boss.js"></script>
+  <script src="js/league/achievements.js"></script>
+  <script src="js/league/coach.js"></script>
+  <script src="js/league/spirit.js"></script>
+  <script src="js/league/trade.js"></script>
+  <script src="js/league/fantasy.js"></script>
+  <!-- engine -->
+  <script src="js/engine/tuning.js"></script>
+  <script src="js/engine/entity.js"></script>
+  <script src="js/engine/formation.js"></script>
+  <script src="js/engine/routes.js"></script>
+  <script src="js/engine/physics.js"></script>
+  <script src="js/engine/ai.js"></script>
+  <script src="js/engine/ai-qb.js"></script>
+  <script src="js/engine/ball.js"></script>
+  <script src="js/engine/contact.js"></script>
+  <script src="js/engine/kicking.js"></script>
+  <script src="js/engine/rules.js"></script>
+  <script src="js/engine/playcall.js"></script>
+  <script src="js/engine/autopilot.js"></script>
+  <script src="js/engine/snapshot.js"></script>
+  <script src="js/engine/game.js"></script>
+  <!-- save -->
+  <script src="js/save/lz.js"></script>
+  <script src="js/save/migrations.js"></script>
+  <script src="js/save/save.js"></script>
+  <!-- render -->
+  <script src="js/render/renderer.js"></script>
+  <script src="js/render/voxel.js"></script>
+  <script src="js/render/models.js"></script>
+  <script src="js/render/animate.js"></script>
+  <script src="js/render/field.js"></script>
+  <script src="js/render/stadium.js"></script>
+  <script src="js/render/camera.js"></script>
+  <script src="js/render/fx.js"></script>
+  <script src="js/render/weather.js"></script>
+  <script src="js/render/portrait.js"></script>
+  <script src="js/render/debug-draw.js"></script>
+  <!-- input -->
+  <script src="js/input/input.js"></script>
+  <script src="js/input/keyboard.js"></script>
+  <script src="js/input/pointer.js"></script>
+  <script src="js/input/joystick.js"></script>
+  <script src="js/input/gestures.js"></script>
+  <script src="js/input/gamepad.js"></script>
+  <!-- audio -->
+  <script src="js/audio/audio.js"></script>
+  <script src="js/audio/sfx.js"></script>
+  <script src="js/audio/music.js"></script>
+  <!-- ui -->
+  <script src="js/ui/ui.js"></script>
+  <script src="js/ui/dom.js"></script>
+  <script src="js/ui/icons.js"></script>
+  <script src="js/ui/components.js"></script>
+  <script src="js/ui/pager.js"></script>
+  <script src="js/ui/modal.js"></script>
+  <script src="js/ui/hud.js"></script>
+  <script src="js/ui/playcall.js"></script>
+  <script src="js/ui/screens/title.js"></script>
+  <script src="js/ui/screens/slots.js"></script>
+  <script src="js/ui/screens/new-game.js"></script>
+  <script src="js/ui/screens/hub.js"></script>
+  <script src="js/ui/screens/roster.js"></script>
+  <script src="js/ui/screens/player.js"></script>
+  <script src="js/ui/screens/depth.js"></script>
+  <script src="js/ui/screens/schedule.js"></script>
+  <script src="js/ui/screens/standings.js"></script>
+  <script src="js/ui/screens/stats.js"></script>
+  <script src="js/ui/screens/team.js"></script>
+  <script src="js/ui/screens/events.js"></script>
+  <script src="js/ui/screens/pregame.js"></script>
+  <script src="js/ui/screens/game.js"></script>
+  <script src="js/ui/screens/postgame.js"></script>
+  <script src="js/ui/screens/playoffs.js"></script>
+  <script src="js/ui/screens/season-end.js"></script>
+  <script src="js/ui/screens/resign.js"></script>
+  <script src="js/ui/screens/draft.js"></script>
+  <script src="js/ui/screens/free-agency.js"></script>
+  <script src="js/ui/screens/history.js"></script>
+  <script src="js/ui/screens/settings.js"></script>
+  <script src="js/ui/screens/quick.js"></script>
+  <script src="js/ui/screens/practice.js"></script>
+  <script src="js/ui/screens/fantasy.js"></script>
+  <!-- app -->
+  <script src="js/app/app.js"></script>
+  <script src="js/app/loop.js"></script>
+  <script src="js/app/session.js"></script>
+  <script src="js/app/debug.js"></script>
+  <!-- bootstrap (last) -->
+  <script src="js/main.js"></script>
+</body>
+</html>

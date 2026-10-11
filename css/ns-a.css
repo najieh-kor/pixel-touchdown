@@ -1,0 +1,435 @@
+/* Pixel Touchdown: css/ns-a.css
+ * ROUND6 "0 scrolling" layouts for: HQ, setup, settings/how-to (hub, pregame, events, title, slots, new-game, quick, settings).
+ * Loaded after screens.css / modes.css. Landscape only: 844x390, 932x430, 1024x768, 1366x768, 1920x1080.
+ * Every screen here is a `.lay.fit` page: the body is sized to the view; long lists page (K().pg), nothing scrolls.
+ */
+
+/* ---------- shared: fit pages (class `nsa` marks the layouts owned here) ---------- */
+.lay.nsa .scroll { padding-bottom: 10px; }
+.lay.nsa .scroll > .page > .card:last-child { margin-bottom: 4px; }
+.lay.fit.nsa .foot .page { flex-direction: row; }          /* .lay.fit .page (column) also matched the bottom bar */
+@media (orientation: landscape) and (max-height: 480px) {
+  .lay.nsa .scroll { padding-top: 8px; padding-bottom: 6px; }
+}
+
+/* ======================= HQ ======================= */
+.hqx { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 0 14px; position: relative; }
+.hqx-main, .hqx-side { min-height: 0; min-width: 0; display: flex; flex-direction: column; }
+.hqx-mid { display: none; }
+.hqx .hq-stage { position: static; min-height: 0; flex: none; flex-direction: column; align-items: flex-start; gap: 4px; margin: 0 0 8px; }
+.hqx .hq-banner { margin: 3px 3px 4px; animation: none; }
+.hqx .hq-res { position: static; transform: none; width: auto; animation: none; }
+.hqx .tiles { flex: none; margin-bottom: 10px; }
+.hqx .hub-news { flex: 0 1 auto; min-height: 0; }
+.hqx .hub-news .pg-list { gap: 0; }
+.hq-news-i { display: flex; gap: 10px; align-items: flex-start; padding: 7px 0; border-top: 2px dashed var(--line); font-size: var(--fs-1); }
+.hq-news-i:first-child { border-top: 0; padding-top: 2px; }
+.hq-alerts { flex: none; display: flex; flex-direction: column; }
+.hq-alerts > .ev-banner { flex: none; min-width: 0; margin-bottom: 12px; }
+.hub-phase { flex: none; min-height: 0; display: flex; flex-direction: column; order: 0; }
+.hub-phase > .card { margin-bottom: 4px; }
+.hq-gate { flex: none; margin-bottom: 12px; }
+.hq-gate-t { font-family: var(--font-d); font-weight: 400; font-size: 26px; letter-spacing: 0.04em; text-transform: uppercase; line-height: 1; display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.hq-gate-t .px-ic { width: 24px; height: 24px; }
+.welcome { margin-bottom: 8px; }
+.welcome p { margin-top: 4px; }
+.welcome p .px-ic { width: 16px; height: 16px; vertical-align: -2px; }
+.welcome-btns { display: flex; gap: 8px; }
+.welcome-btns > .btn { flex: 1 1 0; min-width: 0; }
+
+/* next game: both badges, records, Stars, weather, big button */
+.nx { display: flex; align-items: center; justify-content: space-around; gap: 6px; margin: 4px 0 12px; }
+.nx-side { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.nx-line { font-family: var(--font-d); font-size: 22px; letter-spacing: 0.04em; white-space: nowrap; }
+.nx-rec { color: var(--ink-soft); }
+.nx-vs { flex: none; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.nx-vs .score-big { font-size: 40px; }
+.nx-card .card-h .chip { margin-left: auto; }
+
+/* phones (landscape, short): two columns, everything compact */
+@media (orientation: landscape) and (max-height: 480px) {
+  .hqx { gap: 0 10px; }
+  .hqx .hq-stage { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 0 6px; margin-bottom: 4px; }
+  .hqx .hq-banner { padding: 3px 10px 5px 4px; gap: 8px; margin-bottom: 6px; }
+  .hqx .hq-banner .badge-l { width: 44px; height: 44px; margin: 2px; }
+  .hqx .hq-banner .badge-l .badge-ab { font-size: 12px; height: 12px; }
+  .hqx .hq-name { font-size: 24px; }
+  .hqx .hq-meta { font-size: 15px; gap: 5px; margin-top: 2px; }
+  .hqx .hq-meta .chip { padding: 1px 6px; font-size: 13px; min-height: 0; }
+  .hqx .hq-rec { font-size: 22px; }
+  .hqx .hq-res { gap: 0; flex-wrap: nowrap; }
+  .hqx .hq-res .stat { min-height: 26px; padding: 1px 6px 1px 3px; gap: 3px; font-size: 16px; margin: 2px 3px 4px 2px; }
+  .hqx .hq-res .stat .num, .hqx .hq-res .stat b { font-size: 16px; }
+  .hqx .hq-res .stat .px-ic, .hqx .hq-res .stat img { width: 16px; height: 16px; }
+  .hqx .tiles { flex: 1 1 auto; min-height: 0; margin: 0; gap: 4px 6px; grid-template-rows: repeat(2, minmax(46px, 1fr)); }
+  .hqx .tile { min-height: 0; padding: 2px 2px 4px; gap: 2px; }
+  .hqx .tile-ic .px-ic { width: 26px; height: 26px; }
+  .hqx .tile-t { font-size: 16px; }
+  .hqx .hub-news { display: none; }
+  .hqx.has-gate .tiles { display: none; }
+  .hqx.has-gate .hq-res { display: none; }
+  .hq-gate { padding: 8px 10px; margin-bottom: 4px; }
+  .hq-gate .ns-x, .hq-gate .boss-face { display: none; }
+  .hq-gate .ns-rows { gap: 3px; margin-bottom: 6px; font-size: var(--fs-1); }
+  .hq-gate-t { font-size: 22px; margin-bottom: 4px; }
+  .welcome { gap: 8px; margin-bottom: 4px; }
+  .welcome h2 { font-size: 24px; }
+  .welcome-btns .btn-l { min-height: 48px; font-size: 21px; }
+  .hq-alerts { flex-direction: row; gap: 8px; }
+  .hq-alerts > .ev-banner { flex: 1 1 0; }
+  .hq-alerts > .ev-banner { min-height: 44px; padding: 4px 10px; margin-bottom: 8px; gap: 6px; }
+  .hq-alerts .ev-banner b { font-size: 19px; }
+  .hq-alerts .ev-banner .small { display: none; }
+  .hq-alerts .ev-emo .px-ic { width: 24px; height: 24px; }
+  /* the next-game card owns the left column */
+  .hub-phase { flex: 1 1 auto; }
+  .hub-phase > .card { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding: 10px 12px; margin-bottom: 4px; }
+  .hub-phase > .card > .card-h:first-child { margin-bottom: 6px; }
+  .hub-phase .nx { flex: 1 1 auto; min-height: 0; margin: 0 0 6px; }
+  .hub-phase .nx .badge-l { width: 60px; height: 60px; }
+  .hqx.has-alerts .hub-phase .nx .badge-l { width: 48px; height: 48px; }
+  .hqx.has-alerts .hub-phase .nx .badge-l .badge-ab { font-size: 12px; height: 12px; }
+  .nx-side { gap: 3px; }
+  .nx-line { font-size: 19px; }
+  .nx .vs { font-size: 40px; }
+  .hub-phase .btn-wide { margin-top: auto; }
+  .hub-phase .slot { margin: 0 0 4px; }
+  .hub-phase .twist-desc { font-size: var(--fs-1); }
+  .hub-phase .hot-seat { margin-top: 6px; padding: 4px 8px; }
+}
+
+/* tablet + desktop: three columns, the voxel stadium shows through the middle */
+@media (orientation: landscape) and (min-width: 1000px) and (min-height: 560px) {
+  .hub .scroll .page { max-width: none; }
+  .hqx { grid-template-columns: minmax(300px, 380px) minmax(0, 1fr) minmax(290px, 360px); gap: 0 18px; }
+  .hqx-mid { display: block; }
+  .hqx .hq-stage { position: static; flex-direction: column; align-items: stretch; }
+  .hqx .hq-res { justify-content: flex-start; }
+  .hub-phase > .card { padding: 14px; }
+  .hqx .tile { min-height: 72px; }
+}
+@media (orientation: landscape) and (min-width: 1000px) and (max-width: 1299px) and (min-height: 560px) {
+  .hqx.has-gate .hub-news { display: none; }
+  .hqx.has-gate .tile { min-height: 56px; padding: 4px 4px 6px; gap: 3px; }
+  .hqx.has-gate .tile-ic .px-ic { width: 28px; height: 28px; }
+  .hqx.has-gate .hq-gate .ns-x { display: none; }
+}
+/* wide desktop: banner + resources float over the stadium (middle column) */
+@media (orientation: landscape) and (min-width: 1300px) and (min-height: 560px) {
+  .hqx .hq-stage { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100% - 820px); align-items: center; }
+  .hqx .hq-banner { max-width: 100%; }
+  .hqx .hq-res { justify-content: center; }
+}
+
+/* ======================= Pregame ======================= */
+.prex { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 0 14px; }
+.prex > .card { min-height: 0; margin-bottom: 4px; }
+.prex .pg-match { align-items: stretch; }
+.prex .pg-side { justify-content: center; }
+.prex .pg-vs { max-width: 40%; padding: 6px 4px; gap: 8px; }
+.prex .pg-tags { flex-direction: column; gap: 4px; margin: 0; }
+.prex .pg-field { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; }
+.prex .pg-field .px-ic { width: 16px; height: 16px; }
+.prex-scout { display: flex; flex-direction: column; gap: 4px; }
+.prex-scout > .card-h { margin-bottom: 4px; }
+.prex-scout p { display: flex; align-items: flex-start; gap: 6px; }
+.prex-scout p .px-ic { flex: none; width: 18px; height: 18px; margin-top: 1px; }
+.prex-styles { display: flex; flex-wrap: wrap; gap: 6px; }
+.prex .pg-love { margin: 4px 0; padding: 6px 8px; }
+.prex-tops { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: auto; padding-top: 6px; border-top: 2px dashed var(--line); }
+.prex-tops .tiny { width: 100%; font-weight: 700; }
+.prex-top { font-size: var(--fs-1); }
+@media (orientation: landscape) and (max-height: 480px) {
+  .prex { gap: 0 10px; }
+  .prex .pg-side { padding: 6px 4px 8px; gap: 3px; }
+  .prex .pg-side .badge-xl { width: 72px; height: 72px; }
+  .prex .pg-side .badge-xl .badge-ab { font-size: 15px; height: 15px; }
+  .prex .pg-name { font-size: 18px; }
+  .prex .pg-vs > span:first-child { font-size: 36px; }
+  .prex-scout { padding: 8px 10px; gap: 2px; }
+  .prex-scout > .card-h { margin: -2px 0 4px; }
+  .prex .pg-love { margin: 2px 0; padding: 3px 6px; font-size: var(--fs-1); }
+  .prex-scout .small { font-size: 13px; line-height: 1.2; }
+  .prex-tops { padding-top: 4px; }
+  .prex-tops .tiny { display: none; }
+  .prex-top, .prex-hurt { font-size: 13px; padding: 1px 6px; }
+  .lay.pregame .foot .btn-xl { min-height: 50px; }
+}
+@media (min-height: 560px) {
+  .prex { grid-template-rows: auto; align-content: center; align-items: stretch; max-width: 1100px; width: 100%; margin: 0 auto; }
+  .prex .pg-side { padding: 22px 8px 24px; gap: 10px; }
+  .prex .pg-side .badge-xl { width: 150px; height: 150px; }
+  .prex .pg-side .badge-xl .badge-ab { font-size: 26px; height: 28px; }
+  .prex .pg-side .stars .px-ic { width: 22px; height: 22px; }
+  .prex .pg-name { font-size: 28px; }
+  .prex .pg-rec { font-size: 22px; }
+  .prex .pg-vs > span:first-child { font-size: 64px; }
+  .prex-scout { gap: 8px; }
+  .prex-scout .small { font-size: var(--fs-2); }
+  .prex .pg-love { font-size: var(--fs-3); }
+}
+
+/* ======================= Team News (events) ======================= */
+.lay.events .page { justify-content: center; }
+.evx { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 0 20px; text-align: center; width: 100%; max-width: 980px; margin-left: auto; margin-right: auto; }
+.evx .ev-count { color: var(--ink); text-shadow: none; margin-bottom: 6px; display: flex; align-items: center; justify-content: center; gap: 6px; }
+.evx .ev-count .px-ic { width: 20px; height: 20px; }
+.evx .ev-text { margin-bottom: 0; }
+.evx .ev-choices { gap: 4px; }
+.ev-res { max-width: 760px; width: 100%; margin-left: auto; margin-right: auto; }
+@media (orientation: landscape) and (max-height: 480px) {
+  .evx, .ev-res { padding: 10px 14px; }
+  .evx .ev-art { margin-bottom: 6px; gap: 4px; }
+  .evx .ev-art .portrait, .evx .ev-art .portrait img, .evx .ev-art .badge-xl { width: 84px !important; height: 84px !important; }
+  .evx .ev-title, .ev-res .ev-title { font-size: 28px; margin-bottom: 4px; }
+  .evx .ev-text, .ev-res .ev-text { font-size: var(--fs-2); }
+  .evx .ev-choices .btn-l { min-height: 52px; font-size: 22px; padding-top: 3px; padding-bottom: 5px; }
+  .ev-res .ev-text { margin-bottom: 8px; }
+}
+
+/* ======================= Save slots ======================= */
+.slotsx .sec-title { margin: 0 0 10px; }
+.slotsx .slots { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 14px; align-items: stretch; }
+.slotsx .slot-card { display: flex; flex-direction: column; margin-bottom: 4px; }
+.slotsx .slot-main { flex: 1 1 auto; min-height: 0; align-items: center; gap: 8px; }
+.slotsx .slot-info { min-width: 0; }
+.slotsx .slot-tools { margin-top: 6px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 6px; }
+.slotsx .slot-tools .btn { min-width: 0; padding-left: 4px; padding-right: 4px; }
+.slotsx .empty-slot .slot-tools { grid-template-columns: minmax(0, 1fr); }
+.slotsx .slot-go { display: none; }
+@media (orientation: landscape) and (max-height: 480px) {
+  .slotsx .sec-title { font-size: 22px; margin-bottom: 6px; }
+  .slotsx .slot-card { padding: 8px; }
+  .slotsx .slot-main { min-height: 0; padding: 2px; }
+  .slotsx .slot-num { width: 30px; height: 30px; font-size: 22px; }
+  .slotsx .slot-main .badge-l { width: 48px; height: 48px; }
+  .slotsx .slot-main .badge-l .badge-ab { font-size: 12px; height: 12px; }
+  .slotsx .slot-info .big { font-size: var(--fs-2); }
+  .slotsx .slot-tools .btn-s { font-size: 16px; }
+  .slotsx .slot-tools .btn-s .btn-ic .px-ic { width: 18px; height: 18px; }
+}
+@media (min-height: 560px) {
+  .slotsx .page { justify-content: center; }
+  .slotsx .slots { flex: none; }
+  .slotsx .slot-main { flex-direction: column; justify-content: center; text-align: center; min-height: 230px; }
+  .slotsx .slot-info { align-items: center; }
+  .slotsx .slot-main .badge-l { width: 96px; height: 96px; }
+}
+
+/* ======================= New Game / Quick Game team pickers ======================= */
+.ngx .ng-head, .quick .qgx-head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.ngx .ng-steps, .quick .ng-steps { margin: 0; flex: none; }
+.ngx .fchips { overflow: visible; padding-bottom: 6px; }
+.ngx-teams .pg-list.pg-grid, .qgx-teams .pg-list.pg-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px 10px; padding: 3px 3px 0; }
+.tteamx { flex-direction: row; align-items: center; gap: 10px; min-height: 0; height: 74px; padding: 6px 8px; margin: 0 0 6px; text-align: left; background: linear-gradient(90deg, var(--t-pri) 0 62px, var(--paper) 62px); }
+.tteamx .badge { flex: none; }
+.tteam-txt { min-width: 0; flex: 1 1 auto; display: flex; flex-direction: column; gap: 2px; }
+.tteamx .tteam-n, .tteamx .tteam-c { text-align: left; margin: 0; }
+.tteamx .tteam-n { font-size: 18px; }
+.tteam-row { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
+.tteam-row .chip { flex: none; padding: 0 5px; min-height: 0; line-height: 16px; }
+.tteam-row .tteam-c { min-width: 0; }
+.ngx .ng-head .fchips { margin-left: auto; }
+.ngx-rand, .qgx-rand { flex: none; margin-top: 0; }
+.tteamx .stars .px-ic { width: 13px; height: 13px; }
+.qg-tile.tteamx .stars-num { font-size: 15px; margin-left: 3px; }
+
+/* coach setup: two columns */
+.ngx-coach > .card { margin-bottom: 4px; padding: 10px 12px; }
+.ngx-picked { display: flex; align-items: center; gap: 10px; padding: 4px 6px 4px 4px; margin-bottom: 8px; box-shadow: var(--frame-2); }
+.ngx-picked .btn { margin-top: 0; margin-bottom: 4px; }
+.ngx-name { flex-direction: row; align-items: center; gap: 10px; margin-bottom: 8px; }
+.ngx-name .inp { flex: 1 1 auto; min-width: 0; }
+.ngx-sp { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: visible; padding: 0; }
+.ngx-sp .pg-list.pg-grid { grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); gap: 8px 6px; padding: 3px; justify-items: center; }
+.ngx-sp .pg-ctl { padding-top: 2px; }
+.ngx-coach .diffs { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 10px; }
+.ngx-coach .diff, .qgx .diff { min-height: 0; padding: 6px 4px; flex-direction: row; flex-wrap: wrap; justify-content: center; column-gap: 8px; row-gap: 0; margin-bottom: 8px; }
+.ngx-coach .diff-l, .qgx .diff-l { flex-basis: 100%; }
+.ngx-coach .diff-emo .px-ic, .qgx .diff-emo .px-ic { width: 26px; height: 26px; }
+.ngx-coach .diff-n, .qgx .diff-n { font-size: 24px; }
+.ngx-coach .ng-fantasy { padding: 4px 0 0; }
+@media (orientation: landscape) and (max-height: 480px) {
+  .ngx .ng-steps span, .quick .ng-steps span { font-size: 15px; padding: 3px 8px; }
+  .ngx .fchip { min-height: 40px; }
+  .tteamx { height: 62px; padding: 4px 6px; }
+  .tteamx .badge-m { width: 44px; height: 44px; }
+  .tteamx { background: linear-gradient(90deg, var(--t-pri) 0 54px, var(--paper) 54px); }
+  .ngx-teams .pg-list.pg-grid, .qgx-teams .pg-list.pg-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px 8px; }
+  .ngx-coach > .card { padding: 8px 10px; }
+  .ngx-coach > .card > .card-h:first-child { margin-bottom: 6px; }
+  .ngx-picked { margin-bottom: 6px; }
+  .ngx-picked .badge-m { width: 40px; height: 40px; }
+  .ngx-picked .big { font-size: var(--fs-2); }
+  .ngx-name { margin-bottom: 4px; }
+  .ngx-name .inp { min-height: 42px; padding-top: 4px; padding-bottom: 4px; }
+  .ngx-sp .sp-b { width: 44px; height: 44px; }
+  .ngx-sp .pg-list.pg-grid { grid-template-columns: repeat(auto-fill, minmax(46px, 1fr)); gap: 6px 4px; }
+  .ngx-coach .diff, .qgx .diff { padding: 3px 4px; margin-bottom: 6px; }
+  .ngx-coach .diff-n, .qgx .diff-n { font-size: 20px; }
+  .ngx-coach .diff-l, .qgx .diff-l { font-size: 13px; }
+  .ngx-coach .diff-emo .px-ic, .qgx .diff-emo .px-ic { width: 20px; height: 20px; }
+  .ngx-coach .ng-fantasy .toggle { margin: 2px 6px; }
+}
+/* paged pickers: let the tile drop-shadows show (rows that do not fit are [hidden], so nothing overflows) */
+.ngx-teams .pg-list, .qgx-teams .pg-list, .ngx-sp .pg-list { overflow: visible; }
+.ngx-teams .pg-ctl, .qgx-teams .pg-ctl, .ngx-sp .pg-ctl { padding-top: 12px; }
+@media (min-height: 560px) {
+  .lay.ngx .page, .lay.quick .page { max-width: 1240px; }
+  .ngx-teams .pg-list.pg-grid, .qgx-teams .pg-list.pg-grid { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+  .ngx-coach { align-items: start; flex: none; }
+  .ngx-coach > .card { padding: 14px 16px; }
+  .ngx-sp .sp-b { width: 60px; height: 60px; }
+  .ngx-sp .pg-list.pg-grid { grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); }
+  .ngx-coach .diff { padding: 12px 6px; }
+  .lay.ngx .scroll .page { justify-content: center; }
+}
+@media (orientation: landscape) and (max-height: 480px) {
+  .tteamx { height: 56px; gap: 8px; }
+  .tteamx .badge-m { width: 40px; height: 40px; }
+  .tteamx { background: linear-gradient(90deg, var(--t-pri) 0 50px, var(--paper) 50px); }
+  .tteamx .tteam-n { font-size: 16px; }
+  .ngx .ng-head, .quick .qgx-head { margin-bottom: 2px; }
+  .ngx .fchips { padding-bottom: 4px; }
+  .ngx .ng-head .btn-s, .quick .qgx-head .btn-s { margin-bottom: 6px; }
+  .ngx-teams .pg-ctl, .qgx-teams .pg-ctl { padding-top: 8px; }
+}
+
+/* ======================= Quick Game ======================= */
+.quick .qgx-head .qg-note { margin: 0 auto 0 0; font-weight: 700; color: #fff; text-shadow: 0 2px 0 var(--ink); }
+.qgx-picked { flex: 1 1 auto; min-width: 0; max-width: 420px; display: flex; align-items: center; gap: 8px; padding: 3px 6px 3px 3px; margin: 0 auto 0 0; box-shadow: var(--frame-2); }
+.qgx-picked .btn { margin-top: 0; margin-bottom: 4px; }
+.qgx > div > .card { margin-bottom: 8px; padding: 10px 12px; }
+.qgx .qg-vs { padding: 8px; }
+.qgx .diffs { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 10px; }
+.qgx .seg .btn { margin-bottom: 6px; }
+.qgx .qg-seg-wx .btn { flex: 1 1 22%; }
+@media (orientation: landscape) and (max-height: 480px) {
+  .qgx { gap: 0 10px; }
+  .qgx > div > .card { padding: 6px 10px; margin-bottom: 6px; }
+  .qgx > div > .card > .card-h:first-child { margin-bottom: 6px; min-height: 28px; }
+  .qgx > div > .card > .card-h:first-child h2 { font-size: 18px; }
+  .qgx .qg-vs { padding: 4px; }
+  .qgx .qg-side { padding: 4px; gap: 2px; font-size: 18px; }
+  .qgx .qg-side .badge-l { width: 44px; height: 44px; }
+  .qgx .qg-side .badge-l .badge-ab { font-size: 12px; height: 12px; }
+  .qgx .qg-vs-t { font-size: 28px; }
+  .qgx .seg .btn-s { min-height: 40px; font-size: 16px; }
+  .qgx-picked .badge-m { width: 38px; height: 38px; }
+  .quick .qgx-head .qg-note { font-size: var(--fs-1); }
+}
+@media (min-height: 560px) {
+  .qgx { flex: none; align-items: start; }
+  .lay.quick .scroll .page { justify-content: center; }
+}
+@media (orientation: landscape) and (max-height: 480px) {
+  .qgx .qg-side .stars-num { display: none; }
+  .qgx .diffs { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+  .qgx .diff { min-height: 42px; margin-bottom: 6px; padding: 2px; }
+  .qgx .diff-emo, .qgx .diff-l { display: none; }
+  .qgx .diff-n { font-size: 16px; }
+}
+
+/* ======================= Settings (tabs, two columns each) ======================= */
+.setx-lay .tabs, .lay.howto .tabs { flex: none; overflow: visible; flex-wrap: nowrap; margin-bottom: 4px; }
+.setx { gap: 0 14px; }
+.setx > .setx-col { margin-bottom: 4px; padding: 6px 14px; display: flex; flex-direction: column; }
+.setx .set-row:first-child { border-top: 0; }
+.setx .set-row { padding: 7px 0; }
+.setx .set-row.col-row { gap: 6px; }
+.setx .seg .btn { margin-bottom: 6px; }
+.setx-btns { display: flex; flex-direction: column; gap: 4px; padding-top: 8px; }
+.setx-btns > .btn { width: calc(100% - 2 * var(--px)); justify-content: flex-start; }
+.setx-ver { margin-top: auto; padding-bottom: 4px; }
+.setx-help { border-top: 0; margin-top: auto; }
+@media (orientation: landscape) and (max-height: 480px) {
+  .setx-lay .tabs, .lay.howto .tabs { padding: 2px 3px 6px; margin-bottom: 2px; }
+  .setx-lay .tab, .lay.howto .tab { min-height: 40px; font-size: 17px; padding: 2px 10px 4px; }
+  .setx > .setx-col { padding: 2px 12px; }
+  .setx .set-row { padding: 4px 0; gap: 8px; }
+  .setx .set-row.col-row { gap: 2px; }
+  .setx .set-row .tiny { font-size: 12px; }
+  .setx .seg .btn-s { min-height: 40px; font-size: 16px; }
+  .setx .toggle { margin: 2px 4px; }
+  .setx-btns .btn-l { min-height: 48px; font-size: 21px; }
+}
+
+/* ======================= How to Play ======================= */
+.lay.howto .tab .px-ic { flex: none; }
+.lay.howto .page > .card.fill, .htx-ctl > .card, .htx-cnt > .card { margin-bottom: 4px; }
+.htx-steps .pg-list.pg-grid { grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 0 18px; }
+.htx-steps .ht-step { border-top: 2px dashed var(--line); padding: 8px 0; }
+.htx-steps .ht-step p { margin-top: 2px; }
+.htx-acts { display: flex; gap: 6px; }
+.htx-acts .btn { margin-top: 0; }
+/* controls: pictures | paged button table */
+.htx-ctl { grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); }
+.htx-ctl .ht-pics { grid-template-columns: minmax(0, 1fr); gap: 10px; margin: 0; align-content: start; }
+.htx-ctl .ht-pic { padding: 8px; margin: 3px 3px 6px; }
+.htc-row { display: grid; grid-template-columns: 1.1fr 1.3fr 1.3fr 1.2fr 1.2fr; gap: 6px; align-items: center; padding: 5px 0; border-top: 2px dashed var(--line); font-size: var(--fs-1); line-height: 1.15; }
+.htc-row > b { font-size: var(--fs-1); }
+.htc-row .kbd { margin: 1px; }
+.htc-head { border-top: 0; font-family: var(--font-d); font-size: 16px; text-transform: uppercase; letter-spacing: 0.04em; padding-top: 0; }
+.htx-tbl .pg-list { gap: 0; }
+.htc-note { padding-top: 6px; }
+/* counters */
+.htx-cnt { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); }
+.htx-cnt > .card:last-child { align-self: start; }
+.htk-row { display: grid; grid-template-columns: 1fr 1.3fr 1.3fr; gap: 8px; align-items: center; padding: 6px 0; border-top: 2px dashed var(--line); font-size: var(--fs-1); }
+.htk-head { border-top: 0; padding-top: 0; font-family: var(--font-d); font-size: 16px; text-transform: uppercase; letter-spacing: 0.04em; }
+.htx-cnt .pg-list { gap: 0; }
+@media (orientation: landscape) and (max-height: 480px) {
+  .lay.howto .page > .card.fill, .htx-ctl > .card, .htx-cnt > .card { padding: 8px 12px; }
+  .lay.howto .card > .card-h:first-child { margin-bottom: 4px; }
+  .htx-steps .pg-list.pg-grid { grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 0 14px; }
+  .htx-steps .ht-step { padding: 5px 0; gap: 8px; }
+  .htx-steps .ht-n { width: 30px; height: 30px; font-size: 22px; }
+  .htx-steps .ht-step p { font-size: 13px; line-height: 1.2; }
+  .htx-steps .ht-mini { width: 110px; }
+  .htx-steps .ht-mini .pc-dia { height: 46px; }
+  .htx-steps .ht-ring { width: 40px; height: 40px; }
+  .htx-ctl { gap: 0 10px; }
+  .htx-ctl .ht-pics { gap: 4px; }
+  .htx-ctl .ht-pic { padding: 4px 6px; gap: 8px; margin-bottom: 4px; }
+  .htx-ctl .ht-pic figcaption { font-size: 12px; line-height: 1.15; }
+  .htx-ctl .ht-pic figcaption b { font-size: var(--fs-1); }
+  .htx-ctl .ht-phone, .htx-ctl .ht-sling { width: 96px; height: 52px; }
+  .htx-ctl .ht-keys { width: 96px; grid-template-columns: repeat(3, 26px); gap: 2px; }
+  .htx-ctl .ht-keys .kbd { min-width: 0; padding: 0 2px; font-size: 12px; }
+  .htc-row { grid-template-columns: 0.9fr 1.2fr 1.1fr 1.1fr; font-size: 13px; padding: 3px 0; gap: 4px; }
+  .htc-row > :nth-child(3) { display: none; }      /* phones: no Mouse column */
+  .htc-row > b { font-size: 13px; }
+  .htk-row { font-size: 13px; padding: 4px 0; }
+  .htx-cnt .bul li { font-size: 13px; }
+}
+.htc-row > span:nth-child(4) { display: flex; flex-wrap: wrap; gap: 2px; }
+.htx-acts .btn-s { min-height: 40px !important; }
+@media (orientation: landscape) and (max-height: 480px) {
+  .htx-ctl { grid-template-columns: minmax(0, 0.75fr) minmax(0, 1.25fr); }
+  .htc-row { grid-template-columns: 0.8fr 1.3fr 1fr; }
+  .htc-row > :nth-child(5) { display: none; }     /* phones: touch + keys only */
+  .htc-row .kbd { font-size: 12px; min-width: 20px; padding: 1px 4px; margin: 0; line-height: 1.2; }
+  .htx-tbl .card-h h2 { font-size: 20px; }
+}
+.htk-row > b { display: flex; align-items: center; gap: 6px; }
+.htk-row > b .px-ic { flex: none; width: 20px; height: 20px; }
+@media (orientation: landscape) and (max-height: 480px) {
+  .htx-cnt { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 0 10px; }
+  .htx-cnt > .card:last-child p.small { font-size: 13px; }
+  .htk-row { grid-template-columns: 0.9fr 1.3fr 1.3fr; gap: 6px; line-height: 1.2; }
+}
+.htc-row > span:nth-child(4) { flex-wrap: nowrap; }
+@media (min-height: 560px) {
+  .setx { align-items: start; }
+  .setx > .setx-col { padding: 10px 16px; }
+  .htc-row { grid-template-columns: 0.9fr 1.2fr 1.2fr 1.6fr 1.3fr; }
+}
+
+/* ======================= Title ======================= */
+.t-ver { font-size: 12px; }
+@media (orientation: landscape) and (max-height: 480px) {
+  .prex-scout .prex-wx { display: none; }
+  .prex-tops { flex-wrap: nowrap; overflow: hidden; }
+  .prex-top { flex: 0 1 auto; min-width: 0; white-space: nowrap; gap: 3px; }
+  .prex-top > :first-child { transform: scale(0.85); margin: -2px; }
+}

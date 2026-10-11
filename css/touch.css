@@ -1,0 +1,146 @@
+/* Pixel Touchdown: css/touch.css
+ * Owner: WP6. Responsibility: virtual joystick, aim line overlay, touch action buttons.
+ * #touch is the gameplay input layer (z 5, under the HUD). It only takes pointers in game input modes.
+ */
+#touch {
+  position: fixed; inset: 0; z-index: 5;
+  pointer-events: none;
+  touch-action: none;
+  -webkit-user-select: none; user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  overflow: hidden;
+}
+#touch[data-mode="presnap"], #touch[data-mode="qb"], #touch[data-mode="carrier"],
+#touch[data-mode="defense"], #touch[data-mode="kick"] { pointer-events: auto; }
+#touch[data-mode="qb"], #touch[data-mode="kick"] { cursor: crosshair; }
+#touch[data-mode="carrier"] { cursor: pointer; }
+
+/* no scroll / zoom / pull-to-refresh while a game is live */
+html.pt-ingame, html.pt-ingame body {
+  overscroll-behavior: none;
+  touch-action: none;
+  overflow: hidden;
+  -webkit-user-select: none; user-select: none;
+}
+
+/* ---- joystick: fixed home stick + floating fallback (INT2: pixel restyle — square pad, notched pixel frame, chunky knob) ---- */
+.pt-joy {
+  position: absolute; left: 0; top: 0;
+  background:
+    linear-gradient(rgba(255,255,255,0.28), rgba(255,255,255,0.28)) center / 22% 100% no-repeat,
+    linear-gradient(rgba(255,255,255,0.28), rgba(255,255,255,0.28)) center / 100% 22% no-repeat,
+    rgba(27,31,58,0.30);
+  box-shadow:
+    0 -3px 0 0 rgba(255,255,255,0.75), 0 3px 0 0 rgba(255,255,255,0.75), -3px 0 0 0 rgba(255,255,255,0.75), 3px 0 0 0 rgba(255,255,255,0.75),
+    0 9px 0 0 rgba(27,31,58,0.35);
+  opacity: 0; transition: opacity 120ms steps(3);
+  pointer-events: none;
+}
+/* fixed stick: always visible (faint) while the user can move on a touch device; bright while held */
+html.pt-touch #touch[data-mode="qb"] .pt-joy,
+html.pt-touch #touch[data-mode="carrier"] .pt-joy,
+html.pt-touch #touch[data-mode="return"] .pt-joy,
+html.pt-coarse #touch[data-mode="qb"] .pt-joy,
+html.pt-coarse #touch[data-mode="carrier"] .pt-joy,
+html.pt-coarse #touch[data-mode="return"] .pt-joy { opacity: 0.32; }
+.pt-joy.on, html.pt-touch #touch .pt-joy.on, html.pt-coarse #touch .pt-joy.on { opacity: 0.92; transition: none; }
+.pt-joy-knob {
+  position: absolute; left: 0; top: 0;
+  background: var(--paper, #fffdf6);
+  box-shadow:
+    inset 0 4px 0 0 #fff, inset 0 -6px 0 0 rgba(27,31,58,0.18),
+    0 -3px 0 0 var(--ink, #1b1f3a), 0 3px 0 0 var(--ink, #1b1f3a), -3px 0 0 0 var(--ink, #1b1f3a), 3px 0 0 0 var(--ink, #1b1f3a),
+    0 7px 0 0 var(--ink, #1b1f3a);
+}
+.pt-joy-knob::after { content: ""; position: absolute; left: 30%; top: 30%; width: 40%; height: 40%; background: rgba(27,31,58,0.14); }
+.pt-joy-knob.sprint { background: var(--sun, #ffd23f); }
+.pt-joy-knob.sprint::after { background: var(--orange, #ff9f1c); }
+.pt-joy-hint {
+  position: absolute; left: 0; top: 0;
+  background:
+    linear-gradient(90deg, rgba(255,255,255,0.45) 50%, transparent 0) top / 12px 3px repeat-x,
+    linear-gradient(90deg, rgba(255,255,255,0.45) 50%, transparent 0) bottom / 12px 3px repeat-x,
+    linear-gradient(rgba(255,255,255,0.45) 50%, transparent 0) left / 3px 12px repeat-y,
+    linear-gradient(rgba(255,255,255,0.45) 50%, transparent 0) right / 3px 12px repeat-y;
+  clip-path: polygon(14% 0, 86% 0, 100% 14%, 100% 86%, 86% 100%, 14% 100%, 0 86%, 0 14%);
+  pointer-events: none;
+  display: none;
+}
+/* .pt-joy-hint is retired: the fixed stick itself is the hint */
+
+/* ---- aim / kick drag feedback (SVG) ---- */
+.pt-aim { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; display: none; overflow: visible; }
+.pt-aim.on { display: block; }
+.pt-aim-ring { fill: rgba(255,255,255,0.12); stroke: rgba(255,255,255,0.7); stroke-width: 2; stroke-dasharray: 5 5; }
+.pt-aim-band { stroke: rgba(255,255,255,0.55); stroke-width: 6; stroke-linecap: square; stroke-dasharray: 6 6; }
+.pt-aim-arrow { stroke-width: 7; stroke-linecap: square; filter: drop-shadow(0 3px 0 rgba(27,31,58,0.6)); }
+.pt-aim-head { stroke: var(--ink, #1b1f3a); stroke-width: 2; }
+.pt-aim-label {
+  fill: #fff; stroke: var(--ink, #1b1f3a); stroke-width: 4px; paint-order: stroke; stroke-linejoin: miter;
+  font: 400 22px var(--font-d, system-ui, sans-serif); letter-spacing: 0.04em; text-anchor: middle;
+}
+.pt-aim.cancel .pt-aim-ring { fill: rgba(255,90,95,0.25); stroke: var(--red, #ff5a5f); }
+.pt-aim.cancel .pt-aim-band { stroke: rgba(255,90,95,0.6); }
+.pt-kick-meter { fill: rgba(27,31,58,0.55); stroke: #fff; stroke-width: 2; }
+.pt-kick-zone { fill: rgba(85,224,122,0.35); stroke: #55e07a; stroke-width: 2; }
+.pt-kick-fill { stroke: none; }
+
+@media (prefers-reduced-motion: reduce) { .pt-joy { transition: none; } }
+
+/* ---- Session overlay: Easy Throw badges (over receivers) + onside kick ---- */
+.pt-ov { position: absolute; inset: 0; pointer-events: none; }
+.pt-badge {
+  position: absolute; left: 0; top: 0; display: none;
+  width: 46px; height: 46px; margin: -23px 0 0 -23px; border: 0;
+  box-shadow: inset 0 3px 0 0 rgba(255,255,255,0.55), inset 0 -5px 0 0 rgba(0,0,0,0.18), var(--frame, 0 0 0 3px #1b1f3a), 0 7px 0 0 var(--ink, #1b1f3a);
+  font: 400 30px/1 var(--font-d, system-ui, sans-serif); color: var(--ink, #1b1f3a); padding: 0 0 4px;
+  pointer-events: auto; touch-action: none; cursor: pointer;
+}
+.pt-badge-1 { background: #ffd23f; } .pt-badge-2 { background: #5ec8f2; } .pt-badge-3 { background: #ff7eb6; } .pt-badge-4 { background: #78cf4a; }
+.pt-badge:active { transform: translateY(4px); box-shadow: inset 0 3px 0 0 rgba(255,255,255,0.55), var(--frame, 0 0 0 3px #1b1f3a), 0 3px 0 0 var(--ink, #1b1f3a); }
+.pt-onside {
+  position: absolute; display: none; left: 50%; bottom: calc(110px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+  min-height: 56px; padding: 0 24px 4px; border: 0;
+  box-shadow: inset 0 3px 0 0 rgba(255,255,255,0.45), inset 0 -6px 0 0 rgba(0,0,0,0.18), var(--frame, 0 0 0 3px #1b1f3a), 0 8px 0 0 var(--ink, #1b1f3a);
+  background: var(--orange, #ff9f1c); color: var(--ink, #1b1f3a); letter-spacing: 0.06em; text-transform: uppercase;
+  font: 400 26px var(--font-d, system-ui, sans-serif); pointer-events: auto; touch-action: none; cursor: pointer;
+}
+.pt-onside:active { transform: translate(-50%, 4px); }
+#touch[data-mode="menu"] .pt-ov { display: none; }
+
+/* ---- landscape only: "turn your phone" overlay (touch devices held upright) ---- */
+#pt-rotate {
+  position: fixed; inset: 0; z-index: 100; display: none;
+  align-items: center; justify-content: center;
+  background: var(--ink, #1b1f3a); color: #fff;
+  touch-action: none; -webkit-user-select: none; user-select: none;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+#pt-rotate.on { display: flex; }
+.pt-rot-box { display: flex; flex-direction: column; align-items: center; gap: 28px; padding: 24px; text-align: center; }
+.pt-rot-phone {
+  position: relative; width: 64px; height: 112px;
+  background: var(--paper, #fffdf6);
+  box-shadow:
+    0 -4px 0 0 var(--sun, #ffd23f), 0 4px 0 0 var(--sun, #ffd23f), -4px 0 0 0 var(--sun, #ffd23f), 4px 0 0 0 var(--sun, #ffd23f),
+    0 10px 0 0 rgba(0,0,0,0.35);
+  animation: pt-rot-turn 2.4s steps(1, end) infinite;
+}
+.pt-rot-phone::before { content: ""; position: absolute; left: 8px; right: 8px; top: 12px; bottom: 20px; background: var(--grass, #78cf4a); }
+.pt-rot-phone i { position: absolute; left: 50%; bottom: 6px; width: 10px; height: 6px; margin-left: -5px; background: var(--ink, #1b1f3a); }
+@keyframes pt-rot-turn {
+  0%   { transform: rotate(0deg); }
+  40%  { transform: rotate(-45deg); }
+  55%  { transform: rotate(-90deg); }
+  90%  { transform: rotate(-90deg); }
+  100% { transform: rotate(0deg); }
+}
+.pt-rot-t { margin: 0; max-width: 18em; font: 900 22px/1.25 var(--font, system-ui, sans-serif); text-shadow: 0 3px 0 rgba(0,0,0,0.4); }
+@media (prefers-reduced-motion: reduce) { .pt-rot-phone { animation: none; transform: rotate(-90deg); } }
+/* desktop window narrower than tall: letterbox the 3D view to 16:9 (no overlay) */
+html.pt-letterbox #gl {
+  position: fixed; left: 0; right: 0; top: 50%; width: 100vw !important; height: calc(100vw * 9 / 16) !important;
+  transform: translateY(-50%);
+}
+html.pt-letterbox body { background: #000; }

@@ -1,0 +1,186 @@
+/* Pixel Touchdown: css/base.css
+ * Owner: WP5. Design tokens (CSS vars), reset, fonts, layer z-index, safe-area.
+ * Look (UI restyle): a pixel-art sports game. Hard 3px pixel frames with notched corners (box-shadow steps),
+ * chunky pressed buttons, flat colours taken from the voxel field (grass checker, sky, cream, ink, team colours),
+ * pixel fonts from css/fonts.css: 'PT Jersey' (display), 'PT Pixel' (body), 'PT Micro' (tiny caps).
+ */
+
+:root {
+  /* palette (matches the voxel field + Crossy-style props) */
+  --ink: #1b1f3a;
+  --ink-2: #3a3f66;
+  --ink-soft: rgba(27, 31, 58, 0.62);
+  --navy: #232846;
+  --navy-2: #2f3560;
+  --navy-3: #414a80;
+  --paper: #fffdf6;
+  --cream: #fff6df;
+  --cream-2: #ffe9b8;
+  --cream-3: #f3dfb0;
+  --sky: #86d4f5;
+  --sky-2: #b9e8fb;
+  --grass: #7dd24e;
+  --grass-2: #6fc443;
+  --grass-d: #4fa62c;
+  --grass-dd: #3b8a22;
+  --road: #4a4e69;
+  --sun: #ffd23f;
+  --sun-d: #e0a800;
+  --red: #ff5a5f;
+  --red-d: #c4343a;
+  --green: #2ecc71;
+  --green-d: #1f9e55;
+  --orange: #ff9f1c;
+  --blue: #3a86ff;
+  --purple: #9b5de5;
+  --pink: #ff7eb6;
+  --grey: #c9cbd9;
+  --grey-2: #ebe6d6;
+  --line: rgba(27, 31, 58, 0.14);
+
+  /* team (set at runtime by PT.UI.theme) */
+  --c-pri: #3a86ff;
+  --c-sec: #ffd23f;
+  --c-pri-ink: #ffffff;
+  --c-sec-ink: #1b1f3a;
+  --c-go: #2ecc71;          /* the most vivid team colour: primary buttons */
+  --c-go-ink: #1b1f3a;
+  --c-bg: var(--grass);
+
+  /* pixel geometry: 1 "pixel" of the UI art = 3 CSS px */
+  --px: 3px;
+  --r: 0px;
+  --r-s: 0px;
+  --bw: 3px;
+  --lift: 6px;
+  --gap: 12px;
+  --gap-s: 8px;
+  --tap: 48px;              /* min touch target */
+
+  /* pixel frames: 4 one-pixel edges leave the corners empty (a notched pixel corner) */
+  --frame: 0 calc(-1 * var(--px)) 0 0 var(--ink), 0 var(--px) 0 0 var(--ink), calc(-1 * var(--px)) 0 0 0 var(--ink), var(--px) 0 0 0 var(--ink);
+  --frame-2: 0 -2px 0 0 var(--ink), 0 2px 0 0 var(--ink), -2px 0 0 0 var(--ink), 2px 0 0 0 var(--ink);
+  --bevel: inset 0 var(--px) 0 0 rgba(255, 255, 255, 0.45), inset 0 calc(-1 * var(--px)) 0 0 rgba(0, 0, 0, 0.12);
+  --drop: 0 calc(3 * var(--px)) 0 0 rgba(27, 31, 58, 0.55);
+
+  /* type */
+  --font: 'PT Pixel', ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --font-d: 'PT Jersey', 'PT Pixel', ui-rounded, system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+  --font-m: 'PT Micro', 'PT Pixel', ui-monospace, monospace;
+  --font-num: var(--font-d);
+  --fs-0: 12px;
+  --fs-1: 14px;
+  --fs-2: 16px;
+  --fs-3: 19px;
+  --fs-4: clamp(24px, 6vmin, 30px);
+  --fs-5: clamp(32px, 9vmin, 48px);
+  --text-scale: 1;
+
+  /* safe areas */
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+
+  /* motion */
+  --t-fast: 120ms;
+  --t-med: 220ms;
+  --bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+:root[data-text="big"] { --text-scale: 1.15; --fs-0: 13px; --fs-1: 16px; --fs-2: 18px; --fs-3: 21px; }
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: var(--sky);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: var(--fs-2);
+  font-weight: 500;
+  font-synthesis: none;
+  line-height: 1.3;
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+}
+
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+b, strong { font-weight: 700; }
+img { display: block; max-width: 100%; }
+h1, h2, h3, h4, p { margin: 0; }
+h1, h2, h3, h4 { font-weight: 700; }
+ul, ol { margin: 0; padding: 0; list-style: none; }
+table { border-collapse: collapse; }
+[hidden] { display: none !important; }
+
+/* pixel icons (js/ui/icons.js): crisp SVG grids that follow the font size */
+.px-ic { display: inline-block; width: 1.25em; height: 1.25em; flex: none; vertical-align: -0.24em; overflow: visible; shape-rendering: crispEdges; }
+.px-ic.ic-s { width: 1em; height: 1em; vertical-align: -0.14em; }
+.px-ic.ic-l { width: 1.6em; height: 1.6em; }
+.pixel, .pixel img { image-rendering: pixelated; image-rendering: crisp-edges; }
+
+/* ---------- layers (ARCHITECTURE 1.1) ---------- */
+#gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; z-index: 0; }
+#touch { position: fixed; inset: 0; z-index: 5; pointer-events: none; }
+#hud { position: fixed; inset: 0; z-index: 10; pointer-events: none; display: none; }
+#hud.on { display: block; }
+#screen { position: fixed; inset: 0; z-index: 20; overflow: hidden; }
+#screen:empty, #screen[data-screen="game"] { pointer-events: none; }
+#modal { position: fixed; inset: 0; z-index: 30; pointer-events: none; }
+#modal.on { pointer-events: auto; }
+#toast { position: fixed; left: 0; right: 0; top: 0; z-index: 40; pointer-events: none; }
+#debug { z-index: 50; }
+
+/* ---------- focus ---------- */
+:focus { outline: none; }
+:focus-visible {
+  outline: 3px solid var(--sun);
+  outline-offset: 5px;
+}
+
+/* ---------- helpers ---------- */
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-weight: 400; letter-spacing: 0.02em; }
+b.num, .num b { font-weight: 400; }
+.disp { font-family: var(--font-d); font-weight: 400; letter-spacing: 0.03em; }
+.muted { color: var(--ink-soft); }
+.small { font-size: var(--fs-1); }
+.tiny { font-size: var(--fs-0); }
+.big { font-size: var(--fs-3); }
+.center { text-align: center; }
+.right { text-align: right; }
+.row { display: flex; align-items: center; gap: var(--gap-s); }
+.row.wrap { flex-wrap: wrap; }
+.row.between { justify-content: space-between; }
+.col { display: flex; flex-direction: column; gap: var(--gap-s); }
+.grow { flex: 1 1 auto; min-width: 0; }
+.nowrap { white-space: nowrap; }
+.ellip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.good { color: var(--green-d); }
+.bad { color: var(--red-d); }
+.warn { color: #b86e00; }
+.outline-text {
+  color: #fff;
+  text-shadow: 0 3px 0 var(--ink), 2px 0 0 var(--ink), -2px 0 0 var(--ink), 0 -2px 0 var(--ink),
+    2px 2px 0 var(--ink), -2px 2px 0 var(--ink), 2px -2px 0 var(--ink), -2px -2px 0 var(--ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
+}
+:root[data-motion="reduce"] *, :root[data-motion="reduce"] *::before, :root[data-motion="reduce"] *::after {
+  animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important;
+}
+
+/* species mascot heads (voxel portraits) used inline in text */
+.sp-img { display: inline-block; width: 1.7em; height: 1.7em; vertical-align: middle; object-fit: contain; image-rendering: pixelated; margin: -0.2em 0.1em; }
