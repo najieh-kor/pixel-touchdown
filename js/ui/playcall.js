@@ -475,9 +475,12 @@
     // the look: opts.look / cards[i].look ('pass'|'run'), or the engine's card hint "They look like …"
     const hintTxt = (cards.find((c) => c.hint && /look/i.test(c.hint)) || {}).hint || '';
     const look = o.look || (cards[0] && cards[0].look) || (hintTxt.match(/look(?:s)? like\s+(.+?)[:!.]*$/i) || [])[1] || '';
+    // HUNT6 #2: offense cards carry the engine's read of the defense ('They show ZONE'); show it in the header
+    const showTxt = side === 'O' ? (cards.find((c) => c.hint && /^They show/i.test(c.hint)) || {}).hint || '' : '';
+    const shown = showTxt.replace(/^They show\s+/i, '').replace(/[:!.]+$/, '');
     const sub = side === 'D'
       ? (look ? html`They look like <span class="pk-look">${String(look).toUpperCase()}</span>:` : html`Pick a counter:`)
-      : html`Change the play:`;
+      : shown ? html`They show <span class="pk-look">${shown.toUpperCase()}</span>:` : html`Change the play:`;
     return sheet('pk-aud pk-side-' + side, html`<div class="pk-head">
         <div class="pk-title"><b>${ic('swap')} Audible!</b><span class="pk-sit">${sub}</span></div>
         <div class="pk-chips"><button type="button" class="pk-chip" data-pact="audcancel" data-testid="btn-audible-cancel">Keep it</button></div></div>

@@ -82,7 +82,7 @@
       hist: [[], []], histP: [[], []], dhist: [[], []], typeCount: [{}, {}], offPlays: [0, 0], teamPlays: [0, 0],
       hurry: [false, false], aiHurry: [false, false], flipNext: false, autoDef: !!(cfg.settings && cfg.settings.autoDef),
       ctl: -1, apTick: -9, kickReq: false, kickAimSaved: 0, kickPowSaved: 0, selO: null, selD: null, fourthDone: false, kickWait: null, tryTwo: false, patChosen: false, waitSnap: false,
-      canOnside: false, onsideReq: false, deepReq: false, deadEl: 0, rescue: false, untimed: false, untimedNext: false, close: false, playNo: 0, driveStart: 0,
+      canOnside: false, onsideReq: false, deepReq: false, deadEl: 0, simming: false, pendForce: false, rescue: false, untimed: false, untimedNext: false, close: false, playNo: 0, driveStart: 0,
       ot: { poss: [0, 0], had: [false, false], done: [false, false] }, star: { idx: -1, ring: 'none', t: 0, win: 0.4, left: 0, superJump: false, whiffD: false },
       dec: { act: 'none', tx: 0, ty: 0, lob: false, mx: 0, my: 0, tgt: -1 }, tmpFl: { t: 0, apex: 0, d: 0 },
       sitCache: { tos: [0, 0] }, res: { k: '', team: 0, y: 0, oob: false, good: false }, apAct: blankAction(), lastAct: blankAction(),
@@ -656,7 +656,7 @@
       e.carT += dt;
       if (a.dive) { E.Contact.dive(G, e); if (G.phase !== 'LIVE') return; }
       if (a.juke) E.Contact.juke(G, e);
-      if (a.spin) E.Contact.spin(G, e);
+      // a.spin is accepted but ignored (the spin move was removed; WP6 removes the input)
       if (moving) {
         e.hx = mv.x; e.hy = mv.y;
         E.AI.runCarrier(G, e, mv.x, mv.y, Math.min(1, ml), a.sprint, dt);
@@ -956,6 +956,15 @@
         if (o && o.audible) return E.PlayCall.audibleOptions(G, side);
         return E.PlayCall.options(G, side);
       },
+      /**
+       * HUNT6 #1: advance the visible dead-ball run-down while the Session holds a decision screen open (tray / 4th down /
+       * PAT / kick aim). The Session doesn't step the game then, so without this the clock froze and dropped on the HIKE.
+       */
+      tickDead: function (dt) {
+        if (G.over || G.phase === 'LIVE' || G.phase === 'KICK' || !(G.pend > 0)) return;
+        const d = Math.min(G.pend, G.clk, (G.deadEl || 0) + dt);           // real time; capped at 0:00 (the period ends on the next step)
+        if (d !== G.deadEl) { G.deadEl = d; E.Snapshot.write(G); }
+      },
       /** Change the user's call once per play in PRESNAP: a play id / 'hot_star' (offense) or a defense call id. */
       audible: function (id) { if (userIdx < 0) return false; return doAudible(G.userSide(), id, false); },
       /** Can the user use the Star ability now (meter full, Star on the field, right phase)? */
@@ -1019,6 +1028,7 @@
         G.pend = Math.min(G.pend, G.deadEl || 0);
         if (G.clk - G.pend > 0) G.rescue = false;          // time is back on the clock: normal play calling
         em.emit('timeout', { tid: tid, auto: false, left: G.tos[ti] });
+        E.Snapshot.write(G);                               // HUNT6 #1: pips + clock refresh while the tray stays open
         return true;
       },
       hurry: function (on) { if (userIdx >= 0 && on != null) G.hurry[userIdx] = !!on; return userIdx >= 0 ? G.hurry[userIdx] : false; },
@@ -1044,6 +1054,11 @@
         G.ball.px = G.ball.x; G.ball.py = G.ball.y; G.ball.pz = G.ball.z; G.ball.tp = false;
         // HUNT4 #4: the pending runoff visibly runs down between plays (display only; it is applied at the snap)
         if (G.phase !== 'LIVE' && G.phase !== 'KICK' && G.pend > 0) G.deadEl = Math.min(G.pend, (G.deadEl || 0) + dt); else if (G.pend <= 0) G.deadEl = 0;
+        // real clock: the clock ran out between plays (nobody snapped in time) → the period ends
+        if (RU.realClock(G) && (G.phase === 'CALL' || G.phase === 'PRESNAP') && !G.untimed && G.pend > 0 && G.clk > 0 && G.deadEl >= G.clk) {
+          G.pend = G.clk; G.deadEl = G.clk;
+          if (RU.applyPending(G) && RU.periodEnd(G)) { E.Snapshot.write(G); return; }
+        }
         G.pt += dt;
         switch (G.phase) {
           case 'CALL': stepCall(a, dt); break;
@@ -1101,7 +1116,7 @@
       simDrive: function () {
         if (userIdx < 0 || G.poss === userIdx || G.drill) return false;
         const wasAuto = G.autoDef;
-        G.autoDef = true;
+        G.autoDef = true; G.simming = true;            // Sim Drive charges the full runoffs (nobody is waiting)
         let guard = 0;
         while (!G.over && guard++ < 60 * 60 * 6) {
           if (G.phase === 'CALL' && G.poss === userIdx && !G.kickWait) break;
@@ -1110,7 +1125,7 @@
           if (G.phase === 'PRESNAP' && G.waitSnap) { const ap = G.apAct; ap.snap = true; game.step(C.DT, ap); ap.snap = false; continue; }
           game.step(C.DT, null);
         }
-        G.autoDef = wasAuto;
+        G.autoDef = wasAuto; G.simming = false;
         return true;
       },
       /**

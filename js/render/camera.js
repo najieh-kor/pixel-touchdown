@@ -197,6 +197,7 @@
             nPts = 0;
             put(xl, yB, 0); put(xr, yB, 0); put(xl, yF, 0); put(xr, yF, 0);
             put(xl, s.los, 2.6); put(xr, s.los, 2.6);
+            put(-(26.667 + 2.2), s.los, 1.6); put(26.667 + 2.2, s.los, 1.6);   // a strip of sideline life on both sides
             tx = MIDX + (xl + xr) / 2;
             const bd = readBand(timeNow, w, h);
             const ya = wantYaw;

@@ -39,7 +39,7 @@
     this.wpx = new Float64Array(12); this.wpy = new Float64Array(12); this.wpw = new Float64Array(12);
     this.wpn = 0; this.wpi = 0; this.wpEnd = 0; this.wpWait = 0; this.turnT = 0; this.hx = 0; this.hy = 1; this.setX = 0; this.setY = 0; this.setOn = false; this.drT = 0; this.drOn = false; this.drRe = 0; this.drX = 0; this.drY = 0; this.drHold = 0; this.jkT = 0; this.reactMul = 1; this.readMul = 1;
     // carrier moves
-    this.energy = 100; this.enMax = 100; this.sprint = false; this.jukeCd = 0; this.spinCd = 0; this.jukeT = 0; this.jukeWin = 0;
+    this.energy = 100; this.enMax = 100; this.sprint = false; this.jukeCd = 0; this.jukeCdMax = 1.5; this.jukeSoft = 0; this.spinCd = 0; this.jukeT = 0; this.jukeWin = 0;
     this.spinT = 0; this.diveT = 0; this.jvx = 0; this.jvy = 0; this.slowT = 0; this.carT = 0;
     // defense / contact
     this.downT = 0; this.tkCd = 0; this.dvT = 0; this.dvx0 = 0; this.dvy0 = 0; this.diving = false; this.superT = 0; this.whiff = false;
@@ -156,7 +156,7 @@
     e.pushX = 0; e.pushY = 0;
     e.eng = -1; e.eng2 = -1; e.dside = false; e.engT = 0; e.engMax = 0; e.engWin = false; e.engRun = false; e.noEng = -1; e.noEngT = 0; e.beatT = -1; e.pushed = 0;
     e.wpn = 0; e.wpi = 0; e.wpEnd = 0; e.wpWait = 0; e.turnT = 0; e.setOn = false; e.drT = 0; e.drOn = false; e.drRe = 0; e.jkT = 0;
-    e.energy = e.enMax; e.sprint = false; e.jukeCd = 0; e.spinCd = 0; e.jukeT = 0; e.jukeWin = 0; e.spinT = 0; e.diveT = 0;
+    e.energy = e.enMax; e.sprint = false; e.jukeCd = 0; e.jukeSoft = 0; e.spinCd = 0; e.jukeT = 0; e.jukeWin = 0; e.spinT = 0; e.diveT = 0;
     e.jvx = 0; e.jvy = 0; e.slowT = 0; e.carT = 0;
     e.downT = 0; e.tkCd = 0; e.dvT = 0; e.diving = false; e.superT = 0; e.whiff = false;
     e.qbRead = 0; e.qbNext = 0; e.qbMoved = false; e.pressT = -1; e.turboBrk = false;

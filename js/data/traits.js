@@ -9,7 +9,7 @@
  * eng keys (all from design 5.2; *Mult multiply, *Add add, others replace):
  *   ballSpeedMult, maxThrowAdd (yd) · deepSigmaMult + deepMin (yd) · windup (s) · runSpeedMult, runThrowSigmaMult, escapeAdd
  *   closeAll (all skills in a close game) · playoffAll (all skills in playoff games) · contestedAdd, dropMult
- *   breakAdd (his break-tackle chance) · jukeAdd · spinCooldown (s), spinAdd · sprintMult (replaces 1.15), energyMax
+ *   breakAdd (his break-tackle chance) · jukeAdd · jukeCooldown (s) · sprintMult (replaces 1.15), energyMax
  *   turnLossMult, manSepAdd (yd) · intMult · trailAdd (yd) · rushWinMult, stripAdd · breakVsAdd (carrier's chance vs him)
  *   passBlockAdd (s) · shedVsAdd (s, defender shed time vs him) · windMult, kickSigmaMult · fgRangeAdd, puntAdd (yd)
  *   fumbleMult · injMult, sevDown · penaltyMult · autoKickAdd (probability points, e.g. −0.08)
@@ -46,8 +46,8 @@
       eng: { breakAdd: 0.15 }, sim: { ypc: 0.3 } },
     { id: 'ankle_breaker', name: 'Ankle Breaker', type: 'perk', pos: P('RB,WR,QB'), desc: 'Juke success +0.20.',
       eng: { jukeAdd: 0.20 }, sim: { ypc: 0.2, big: 1.05 } },
-    { id: 'spin_doctor', name: 'Spin Doctor', type: 'perk', pos: P('RB,WR'), desc: 'Spin cooldown 1.0 s (from 2.0 s); spin success +0.15.',
-      eng: { spinCooldown: 1.0, spinAdd: 0.15 }, sim: { ypc: 0.15 } },
+    { id: 'spin_doctor', name: 'Shifty', type: 'perk', pos: P('RB,WR'), desc: 'Juke cooldown 1.0 s (from 1.5 s); juke dodge +0.10.',
+      eng: { jukeCooldown: 1.0, jukeAdd: 0.10 }, sim: { ypc: 0.15 } },
     { id: 'speed_demon', name: 'Speed Demon', type: 'perk', pos: P('RB,WR,CB,S'), desc: 'Sprint speed bonus 1.20 (from 1.15); Energy max 130.',
       eng: { sprintMult: 1.20, energyMax: 130 }, sim: { big: 1.15 } },
     { id: 'route_artist', name: 'Route Artist', type: 'perk', pos: P('WR,TE'), desc: 'Route turns lose half the time; +0.3 yd separation vs Buddy coverage.',

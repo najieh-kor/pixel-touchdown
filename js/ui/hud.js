@@ -168,6 +168,15 @@
     </div>`;
   }
 
+  /** HUNT6 #3: big banners start 8 px under the scorebug (incl. its drop shadow), whatever the viewport */
+  function layoutBan() {
+    const sb = host && host.querySelector('.hud-sb');
+    if (!sb || !els.root) return;
+    let b = sb.getBoundingClientRect().bottom + 7;
+    const dd = els.ddrow && els.ddrow.getBoundingClientRect();   // wide screens: the down chip sits under the scorebug
+    if (dd && dd.height && dd.top < b + 40) b = Math.max(b, dd.bottom + 4);
+    if (b > 7) els.root.style.setProperty('--ban-top', Math.round(b + 8) + 'px');
+  }
   /** short scorebug name: abbr, else the first 3 letters of the (short) team name */
   function abbrOf(gt) { return (gt && (gt.abbr || String(gt.name || gt.city || '').slice(0, 3).toUpperCase())) || '???'; }
   Hud.abbrOf = abbrOf;
@@ -228,6 +237,9 @@
     on = true;
     subscribe();
     rivalIntro();
+    layoutBan();
+    if (globalThis.requestAnimationFrame) globalThis.requestAnimationFrame(layoutBan);
+    if (!Hud.__banResize && globalThis.addEventListener) { Hud.__banResize = true; globalThis.addEventListener('resize', () => { if (on) layoutBan(); }); }
   };
 
   // ---------------- rivalry + halftime ----------------
@@ -430,6 +442,7 @@
     }
     updateStar(hud, snap);
     updateMoves(snap);
+    updateMe(hud);
     // return hint pill ('fc' fair catch, 'tb' touchback)
     const rh = hud.retHint || '';
     if (setKey('ret', rh) && els.ret) {
@@ -488,7 +501,7 @@
   }
   Hud.yardFor = yardFor;
 
-  /** HUNT2 #1: Juke/Spin/Dive/Sprint are dimmed (and a tap is held, see act) until the user's team has the ball */
+  /** HUNT2 #1: Juke/Dive/Sprint are dimmed (and a tap is held, see act) until the user's team has the ball */
   function userHasBall(snap) {
     const es = snap && snap.ents;
     if (!es) return true;
@@ -502,6 +515,51 @@
       const pm = pendMove; pendMove = null;
       if (D().now() - pm.t <= 500) press(pm.a);
     }
+  }
+
+  /**
+   * CLIENT: stamina bar + Juke cooldown from snap.hud.me = null | { en 0..1, jk 1 (just used) → 0 (ready), jkOk, spr, jc? }.
+   * Pixel segments (STAM_N blocks) green → yellow → red; pulses when too tired to juke. JUKE gets a bottom-up cooldown
+   * fill in 8 steps, is dimmed while cooling / too tired, and flashes once when it is ready again.
+   */
+  const STAM_N = 8;
+  function updateMe(hud) {
+    const me = hud && hud.me;
+    const c = els.ctl;
+    if (!c) return;
+    const bar = c.querySelector('.hud-stam');
+    if (bar) {
+      if (!me) { if (setKey('stam', 'off')) bar.hidden = true; }
+      else {
+        const en = Math.max(0, Math.min(1, +me.en || 0));
+        const n = Math.round(en * STAM_N);
+        const lvl = en > 0.5 ? 'g' : en > 0.25 ? 'y' : 'r';
+        const low = me.jkOk === false && !(me.jk > 0);
+        const k = n + ':' + lvl + ':' + low + ':' + (me.jc || 0);
+        if (setKey('stam', k)) {
+          bar.hidden = false;
+          bar.className = 'hud-stam hud-stam-' + lvl + (low ? ' hud-stam-low' : '');
+          const segs = bar.querySelectorAll('i');
+          for (let i = 0; i < segs.length; i++) segs[i].className = i < n ? 'on' : '';
+          const jcEl = bar.querySelector('.hud-stam-jc');
+          if (jcEl) { jcEl.hidden = !(me.jc > 0); if (me.jc > 0) jcEl.style.left = Math.round(Math.min(1, me.jc) * 100) + '%'; }
+        }
+      }
+    }
+    const jb = c.querySelector('[data-testid="btn-juke"]');
+    if (!jb) return;
+    const jk = me ? Math.max(0, Math.min(1, +me.jk || 0)) : 0;
+    const step = Math.ceil(jk * 8);                 // 8 pixel steps
+    const ok = !me || me.jkOk !== false;
+    const cool = step > 0 || !ok;
+    const k = step + ':' + ok;
+    if (!setKey('cd', k)) return;
+    const was = jb.classList.contains('hud-cool');
+    jb.classList.toggle('hud-cool', cool);
+    jb.setAttribute('aria-disabled', String(cool));
+    const cd = jb.querySelector('.hud-cd');
+    if (cd) cd.style.height = (step * 12.5) + '%';
+    if (was && !cool) { jb.classList.remove('hud-ready'); void jb.offsetWidth; jb.classList.add('hud-ready'); }
   }
 
   /** small pill in the top band under the scorebug (Surge set, first-time Surge tip) */
@@ -616,8 +674,8 @@
     presnap: { big: true, aud: true, btns: [{ id: 'snap', label: 'HIKE!', icon: 'ball', testid: 'btn-hike', key: 'Space' }], hint: '' },
     qb: { btns: [{ id: 'lob', label: 'LOB', icon: 'lob', testid: 'btn-lob', hold: true, key: 'Shift' }], hint: 'Pull back to throw!' },
     carrier: { btns: [
+      // CLIENT: no Spin (Juke also dodges hits). JUKE shows its cooldown; a stamina bar sits above the cluster.
       { id: 'juke', label: 'Juke', icon: 'juke', testid: 'btn-juke', key: 'Q' },
-      { id: 'spin', label: 'Spin', icon: 'spin', testid: 'btn-spin', key: 'R' },
       { id: 'dive', label: 'Dive', icon: 'dive', testid: 'btn-dive', key: 'E' },
       { id: 'sprint', label: 'Sprint', icon: 'bolt', testid: 'btn-sprint', hold: true, key: 'Shift' }], hint: '' },
     defense: { big: true, aud: true, btns: [{ id: 'snap', label: 'GO!', icon: 'shield', testid: 'btn-go', key: 'Enter' }], hint: 'Tap a defender to control him.' },
@@ -636,18 +694,19 @@
     host.setAttribute('data-mode', mode);
     if (!m) { e.innerHTML = ''; e.className = 'hud-ctl'; last.mvWait = undefined; setText('hint', ''); if (els.aud) els.aud.hidden = true; if (els.skipd) els.skipd.hidden = true; return; }
     e.className = 'hud-ctl ' + (m.chip ? 'hud-ctl-chip' : m.big ? 'hud-ctl-big' : m.row ? 'hud-ctl-row' : 'hud-ctl-cluster') + ' hud-n' + m.btns.length;
-    last.mvWait = undefined;
+    last.mvWait = undefined; last.stam = undefined; last.cd = undefined;
     const pct = lastSnap && lastSnap.kick && lastSnap.kick.pct != null ? lastSnap.kick.pct : (UI.PlayCall && UI.PlayCall._kickPct != null ? UI.PlayCall._kickPct : null);
     let hint = m.hint || '';
     if (mode === 'qb') hint = qbHintCount(0) > QB_HINTS ? '' : throwHint();
     if (els.hint) els.hint.classList.toggle('hud-hint-top', mode === 'qb');
-    e.innerHTML = String(html`${m.btns.map((b) => {
+    const stam = mode === 'carrier' || mode === 'qb';
+    e.innerHTML = String(html`${stam ? html`<div class="hud-stam" data-testid="hud-stamina" aria-label="Stamina" hidden>${D().raw('<i></i>'.repeat(STAM_N))}<b class="hud-stam-jc" hidden></b></div>` : ''}${m.btns.map((b) => {
       // HUNT5 #7: the FG % is on the kick card; the corner chip just says AUTO KICK. HUNT5 #4: » turns into END.
       const label = b.id === 'autokick' ? 'Auto kick' : b.id === 'ff' && ffOn ? 'End' : b.label;
       if (b.id === 'ff' && ffOn) b = Object.assign({}, b, { icon: 'skip', title: 'Jump to the end of this play' });
       const holdA = b.hold ? D().raw(' data-hold="' + b.id + '"') : '';
       const onCls = b.toggle && b.id === 'ff' && ffOn ? ' hud-on' : '';
-      return html`<button type="button" class="hud-btn hud-btn-${b.id}${onCls}" data-hact="${b.hold ? 'noop' : b.id}" data-testid="${b.testid}"${holdA} ${b.title ? D().raw('title="' + D().esc(b.title) + '"') : ''}>${b.icon ? html`<span class="hud-btn-ic" aria-hidden="true">${ic(b.icon)}</span>` : ''}<span class="hud-btn-t">${label}</span>${b.key ? html`<span class="hud-kbd">${b.key}</span>` : ''}</button>`;
+      return html`<button type="button" class="hud-btn hud-btn-${b.id}${onCls}" data-hact="${b.hold ? 'noop' : b.id}" data-testid="${b.testid}"${holdA} ${b.title ? D().raw('title="' + D().esc(b.title) + '"') : ''}>${b.icon ? html`<span class="hud-btn-ic" aria-hidden="true">${ic(b.icon)}</span>` : ''}<span class="hud-btn-t">${label}</span>${b.key ? html`<span class="hud-kbd">${b.key}</span>` : ''}${b.id === 'juke' ? html`<span class="hud-cd" aria-hidden="true"></span>` : ''}</button>`;
     })}`);
     if (els.aud) { els.aud.hidden = !m.aud || audUsed; }
     if (els.skipd) els.skipd.hidden = !(mode === 'defense' || mode === 'watch' || mode === 'defensePlay');
@@ -697,7 +756,7 @@
     switch (a) {
       case 'half-ok': closeHalftime(); break;
       case 'snap': press('snap'); break;
-      case 'juke': case 'spin': case 'dive':
+      case 'juke': case 'dive':
         if (mode === 'carrier' && lastSnap && !userHasBall(lastSnap)) { pendMove = { a: a, t: D().now() }; if (t) t.classList.add('hud-held'); setTimeout(() => t && t.classList.remove('hud-held'), 500); break; }
         press(a); break;
       case 'star': press('star'); break;
@@ -832,6 +891,7 @@
     if (lastBan.t === text && now - lastBan.at < 400) return;
     lastBan = { t: text, at: now };
     style = style || 'info';
+    layoutBan();   // HUNT6 #3: measure the scorebug / down chip right now (the chip can appear or move during a game)
     const b = globalThis.document.createElement('div');
     b.className = 'hud-bn hud-bn-' + style + (String(text).length > 11 ? ' hud-bn-long' : '');
     b.setAttribute('data-testid', 'hud-banner');

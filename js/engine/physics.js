@@ -31,7 +31,7 @@
       if (e.noEngT > 0) { e.noEngT -= dt; if (e.noEngT <= 0) e.noEng = -1; }
       if (e.slowT > 0) e.slowT -= dt;
       if (e.jukeCd > 0) e.jukeCd -= dt;
-      if (e.spinCd > 0) e.spinCd -= dt;
+      if (e.jukeSoft > 0) e.jukeSoft -= dt;
       if (e.jukeWin > 0) e.jukeWin -= dt;
       if (e.superT > 0) e.superT -= dt;
       e.at += dt;

@@ -6,7 +6,7 @@
  *                   those keys: PT.UI.Hud.key handles Esc/P and calls PT.Session.pause/resume itself)
  *   presnap         Space / Enter = snap
  *   qb              1–4 Easy Throw to badge n · Q throw away · Space = snap edge (option "give")
- *   carrier         Q / J / Space juke · R / K spin · E / L dive   (Q/E/R match the HUD button hints, ARCHITECTURE 3.7)
+ *   carrier         Q / J / Space juke · E / L dive   (spin removed by client request; R / K are unbound)
  *   defense         Space Star Play (GO before the snap) · Enter GO · Tab move the Star · F » 2× toggle (hold also works; speeds otherwise come only from Settings) · X skip ·
  *                   D SKIP DRIVE (presnap or mid-play) · Auto-start defense is a Settings toggle only
  *   kickoff setup   O = onside kick (only when the engine offers it: snap.hud.onside)
@@ -26,7 +26,7 @@
   const st = { mx: 0, my: 0, shift: false, ffHeld: false, kick: kickOut };
   const PREVENT = { Space: 1, ArrowUp: 1, ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1, Tab: 1, Enter: 1 };
   let attached = false;
-  const MOVE_KEYS = { KeyJ: 'juke', KeyK: 'spin', KeyR: 'spin', KeyL: 'dive', KeyE: 'dive' };
+  const MOVE_KEYS = { KeyJ: 'juke', KeyL: 'dive', KeyE: 'dive' };
   const KICK_SWEEP_MS = 2000;            // one 0→100% power sweep (was 1.2 s; client: kick timing too tight)
 
   function K() { return Input._k; }
@@ -55,7 +55,7 @@
     }
     held[code] = true;
     if (code === 'KeyO' && k.mode === 'off' && PT.Session && PT.Session.active && PT.Session.active()) { k.edge('onside'); return; }
-    // ball in the air (mode off during a live game): juke / spin / dive presses are buffered by the Session for the catch
+    // ball in the air (mode off during a live game): juke / dive presses are buffered by the Session for the catch
     if (k.mode === 'off' && !e.repeat && PT.Session && PT.Session.active && PT.Session.active()) {
       const mv = MOVE_KEYS[code];
       if (mv) { k.edge(mv); return; }
@@ -89,7 +89,6 @@
         break;
       case 'carrier':
         if (code === 'KeyJ' || code === 'Space' || code === 'KeyQ') edge('juke');
-        else if (code === 'KeyK' || code === 'KeyR') edge('spin');
         else if (code === 'KeyL' || code === 'KeyE') edge('dive');
         break;
       case 'defense':

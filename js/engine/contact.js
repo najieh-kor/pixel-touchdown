@@ -145,7 +145,8 @@
     let sx = -hy, sy = hx;      // left of heading
     if (n >= 0) { const o = G.ents[n]; if ((o.x - e.x) * sx + (o.y - e.y) * sy > 0) { sx = -sx; sy = -sy; } }
     const v = T.JUKE.dist / T.JUKE.t;
-    e.jvx = sx * v; e.jvy = sy * v; e.jukeT = T.JUKE.t; e.jukeWin = T.JUKE.win; e.jukeCd = T.JUKE.cd; e.energy -= T.JUKE.en;
+    const cd = e.info.t.spin_doctor ? T.JUKE.cdShifty : T.JUKE.cd;            // 'Shifty' (id spin_doctor): 1.0 s cooldown
+    e.jvx = sx * v; e.jvy = sy * v; e.jukeT = T.JUKE.t; e.jukeWin = T.JUKE.win; e.jukeCd = cd; e.jukeCdMax = cd; e.jukeSoft = T.JUKE.soft; e.energy -= T.JUKE.en;
     e.an = 'juke'; e.at = 0;
     // decision-time pass: defenders near a human's juke take a beat to react (they keep their old line)
     if (e.tm === G.userIdx && G.human()) {
@@ -154,15 +155,6 @@
     }
     G.em.emit('juke', { pid: e.pid, x: e.x, y: e.y });
     PT.Engine.Snapshot.fx(G, 'juke', e.x, e.y, 0, 1, G.tids[e.tm], '');
-    return true;
-  };
-  CT.spin = function (G, e) {
-    const T = G.T;
-    if (e.spinCd > 0 || e.energy < T.SPIN.en || e.diveT > 0) return false;
-    e.spinT = T.SPIN.t; e.spinCd = e.info.t.spin_doctor ? T.SPIN.cdDoc : T.SPIN.cd; e.energy -= T.SPIN.en;
-    e.an = 'spin'; e.at = 0;
-    G.em.emit('spin', { pid: e.pid, x: e.x, y: e.y });
-    PT.Engine.Snapshot.fx(G, 'spin', e.x, e.y, 0, 1, G.tids[e.tm], '');
     return true;
   };
   /** Dive (or QB slide past the LOS). The play ends at the landing spot. */
@@ -324,16 +316,13 @@
       return true;
     }
     G.tk.att++;
-    // juke / spin windows
+    // juke window (the spin move was removed — client: a juke now also softens the hit, less than a spin did)
     let jukeFail = false;
-    const perkJ = (c.info.t.ankle_breaker ? 0.20 : 0) + (c.info.q.juke || 0);
+    const perkJ = (c.info.t.ankle_breaker ? 0.20 : 0) + (c.info.t.spin_doctor ? T.SHIFTY_DODGE : 0) + (c.info.q.juke || 0);
     if (c.jukeWin > 0) {
       const pm = PT.Util.clamp(0.45 + (c.r.mov - d.r.tkl) * 0.01 + perkJ, 0.15, 0.85);
       if (rng.chance(pm)) { whiffed(G, d, c); return false; }
       jukeFail = true;
-    } else if (c.spinT > 0) {
-      const pm = PT.Util.clamp(0.40 + (c.r.mov - d.r.tkl) * 0.008 + (c.r.pow - d.r.tkl) * 0.004 + (c.info.t.spin_doctor ? 0.15 : 0), 0.15, 0.80);
-      if (rng.chance(pm)) { whiffed(G, d, c); return false; }
     }
     let tkl = d.r.tkl;
     if (d.info.q.pack && anotherNear(G, c, di, 3)) tkl += 3;
@@ -356,7 +345,7 @@
     if (d.diving) pb += T.DIVE_TKL_BRK;
     // a pass rusher fooled by the draw is out of position: only an arm tackle
     if (P.play && P.play.draw && !d.readDone && d.role === PT.Engine.Entity.R.RUSH) pb += T.DRAW_ARM;
-    if (jukeFail) pb -= 0.10;
+    if (jukeFail) pb += T.JUKE_BRK;                                   // the dodge missed but he's moving: a slightly better chance to break
     if (isStar && d.superT > 0) pb -= T.STAR_SUPER_BRK;
     if (isStar && d.whiff) { pb += T.STAR_WHIFF_BRK; d.whiff = false; }
     if (P.kind === 'kickoff' || P.kind === 'punt') pb -= T.RET_TKL_BONUS;
@@ -369,7 +358,8 @@
     pb = PT.Util.clamp(pb, T.BRK_MIN, T.BRK_MAX);
     const closing = Math.hypot(c.vx - d.vx, c.vy - d.vy);
     // L tacklers hit harder (big hit sooner); only a clean, unblocked hit on a carrier who isn't spinning (HUNT3 #6)
-    const big = closing >= T.BIG_HIT_V - T.BIG_HIT_MASS * (d.mass - 2) && d.eng < 0 && !(c.spinT > 0);
+    let big = closing >= T.BIG_HIT_V - T.BIG_HIT_MASS * (d.mass - 2) && d.eng < 0;
+    if (big && c.jukeSoft > 0 && rng.chance(T.JUKE_SOFT)) big = false;     // a juke (up to JUKE.soft s after the press) halves big hits
     if (rng.chance(pb)) {
       G.tk.brk++;
       c.slowT = T.BRK_SLOW_T;
@@ -383,7 +373,6 @@
     }
     // tackled
     P.tkBy = di;
-    const spin = c.spinT > 0;
     c.an = 'tackled'; c.at = 0; d.an = 'tackle'; d.at = 0;
     G.snap.cam.shake = Math.max(G.snap.cam.shake, big ? 0.2 : 0.08);
     PT.Engine.Snapshot.fx(G, 'hit', c.x, c.y, 0.8, big ? 2 : 1, G.tids[d.tm], '');
@@ -395,7 +384,7 @@
     if (P.kind === 'scrim' && rng.chance(T.PEN_FACE * RU.penMul(G, d)) && !P.pen) {
       P.pen = { kind: 'face', team: d.tm, yds: 15, txt: 'Facemask! +15 yards', fd: true, after: true };
     }
-    if (CT.fumbleRoll(G, c, d, spin ? T.FUM_SPIN : big ? T.FUM_BIG : 1, false)) return true;
+    if (CT.fumbleRoll(G, c, d, big ? T.FUM_BIG : 1, false)) return true;
     // fall forward
     const fwd = c.vy * dirC > 0.5;
     // a bigger carrier drags a smaller tackler forward; a heavy tackler stops him cold
@@ -411,7 +400,7 @@
 
   function whiffed(G, d, c) {
     G.tk.whf++;
-    if (c.tm === G.userIdx && c.ctl) { if (c.jukeWin > 0) G.ustats.jukes++; else G.ustats.spins++; }
+    if (c.tm === G.userIdx && c.ctl) G.ustats.jukes++;
     d.downT = G.T.STUMBLE_T * 0.7; d.an = 'down'; d.at = 0;
     G.em.emit('brokenTackle', { pid: c.pid, x: c.x, y: c.y, by: d.pid, move: true });
     PT.Engine.Snapshot.fx(G, 'text', c.x, c.y, 2, 1, G.tids[c.tm], 'WHIFF!');

@@ -113,11 +113,21 @@
     const pl = Q().roster(L, tid).filter(healthy);
     const used = {};
     const keep = {};
+    // HUNT6 #1 (WP2 narrow edit): an off-position fallback is not "kept" once a natural player is available — any
+    // healthy K for the K slot; elsewhere a natural player not starting another slot whose slot OVR is ≥ fallback + 5.
+    // Natural starters placed by hand are never touched.
+    const startsOther = (pid, s) => C.SLOTS.some((x) => x !== s && x !== 'KR' && (t.dc[x] || [])[0] === pid);
+    const betterNatural = (s, p) => {
+      const pos = C.SLOT_POS[s];
+      if (!pos || natural(p, pos)) return false;
+      return pl.some((q) => q.id !== p.id && q.pos === pos && !startsOther(q.id, s) &&
+        (pos === 'K' || R().ovr(q, pos) >= R().ovr(p, pos) + 5));
+    };
     if (o.onlyEmpty) {
       C.SLOTS.forEach((s) => {
         const st = (t.dc[s] || [])[0];
         const p = st != null && t.roster.indexOf(st) >= 0 ? Q().player(L, st) : null;
-        if (p && healthy(p) && (s === 'KR' || !used[st])) { keep[s] = true; if (s !== 'KR') used[st] = true; }
+        if (p && healthy(p) && (s === 'KR' || !used[st]) && !(s !== 'KR' && betterNatural(s, p))) { keep[s] = true; if (s !== 'KR') used[st] = true; }
       });
     }
     // slot OVR depends only on the slot's position: precompute once per (position, player)

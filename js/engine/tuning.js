@@ -35,8 +35,8 @@
     SPRINT_MUL: 1.15, SPRINT_MUL_DEMON: 1.20, BURST_ADD: 0.05,
     AUTO_RUN: 0.7,            // carrier keeps running at 70% with no input (design 9.5)
     DEADZONE: 0.15,
-    JUKE: { cd: 1.5, en: 15, dist: 1.5, t: 0.25, win: 0.35 },
-    SPIN: { cd: 2.0, cdDoc: 1.0, en: 20, t: 0.5, spd: 0.8 },
+    JUKE: { cd: 1.5, cdShifty: 1.0, en: 15, dist: 1.5, t: 0.25, win: 0.35, soft: 0.5 },   // spin removed (client)
+    JUKE_SOFT: 0.5, JUKE_BRK: 0.04, SHIFTY_DODGE: 0.10,
     DIVE_T: 0.3, DIVE_EXTRA: 0.3,
     FALL_FWD: { S: 1.2, M: 1.6, L: 2.0 },   // scoring pass: a little more after contact
     RZ_PUSH: 1.0, RZ_CON: 0.08,             // red zone: runs push the pile (yd), end-zone throws win more 50/50s
@@ -77,7 +77,7 @@
     BRK_SLOW: 0.85, BRK_SLOW_T: 0.3, STUMBLE_T: 1.0,
     DIVE_TKL_MIN: 0.5, DIVE_TKL_MAX: 2.3, DIVE_TKL_REACH: 1.5, DIVE_TKL_BRK: 0.08, DIVE_MISS_DOWN: 1.2,
     RET_TKL_BONUS: 0.0,       // tuned: kick coverage tackling help
-    FUM_BASE: 0.008, FUM_BIG: 1.8, FUM_SACK_BEHIND: 1.8, FUM_SACK_FRONT: 1.2, FUM_SPIN: 1.5,
+    FUM_BASE: 0.008, FUM_BIG: 1.8, FUM_SACK_BEHIND: 1.8, FUM_SACK_FRONT: 1.2,
     BIG_HIT_V: 11.5, BIG_SACK_V: 8,   // HUNT3 #6: ~20% of tackles are "big" (sfx, hitstop)
     LOOSE_T: 0.5, FUM_RET: 0.45,
     SACK_ESC_BASE: 0.10, SACK_ESC_MIN: 0.02, SACK_ESC_MAX: 0.35, SACK_FALL: 1.0,
@@ -101,7 +101,7 @@
     QB_READ_BASE: 0.5, QB_SET: 0.4, QB_READ_K: 0.003, QB_OWL: 0.1,
     OPEN_PROJ: 0.6, OPEN_MIN: 2.6, OPEN_PRESS: 2.0, OPEN_DEEP: 5.5, PRESS_R: 3.0, QB_MAX_T: 4.0,
     CAR_THINK: 0.3, CAR_FWD: 1.2, CAR_HEADINGS: 7, CAR_SPREAD: Math.PI / 3,
-    CAR_JUKE: 0.12, CAR_SPIN: 0.06, CAR_SPRINT_FREE: 8,
+    CAR_JUKE: 0.15, CAR_SPRINT_FREE: 8,
 
     // ---------- kicking (design 8.4–8.6) ----------
     KO_LINE: 35, KO_DIST: 60, KO_KCK: 0.1, KO_SD: 4, KO_TB: 0.75, KO_HANG: 3.0,
@@ -109,7 +109,7 @@
     ONSIDE_BASE: 0.12, ONSIDE_K: 0.003, ONSIDE_ROOKIE: 0.10,
     PUNT_NET: 30, PUNT_KCK: 0.15, PUNT_SD: 5, PUNT_BOOM: 5, PUNT_RET_ADD: 4, PUNT_HANG: 4.2, PUNT_BLOCK: 0.005, PUNT_MUFF: 0.01, PUNT_DEPTH: 11,
     FG_ADD: 17, FG_RANGE: 38, FG_RANGE_K: 0.3, FG_BOOM: 5,
-    FG_P0: 0.99, FG_PD: 0.0062, FG_PK: 0.0003, FG_WIND: 0.003, FG_WILD: 0.08, FG_WET: 0.97,
+    FG_P0: 0.99, FG_PD: 0.0062, FG_KNEE: 45, FG_PD_LONG: 0.02, FG_PK: 0.0003, FG_WIND: 0.003, FG_WILD: 0.08, FG_WET: 0.97,
     KICK_SIG0: 0.8, KICK_SIGK: 0.04, KICK_AIM_MAX: 15, KICK_WIND: 0.15, DOINK: 0.3,
     XP_FROM: 15, XP_FROM_PARTY: 20, TWO_FROM: 2, TWO_FROM_PARTY: 1,
     SAFETY_SPOT: 35,
@@ -149,7 +149,7 @@
     AB_MAGNET_REACH: 1.2, AB_MAGNET_WIN: 1.6, AB_TURBO_SPD: 0.15, AB_TURBO_ACC: 0.5, AB_LASER_SIG: 0.4, AB_LASER_SPD: 0.2, AB_LASER_REACT: 0.15,
     AI_AUDIBLE: [0, 0.2, 0.312, 0.35], AI_AUDIBLE_BAD: -0.5, DEF_AUTO_GO: [0, 0, 0, 0],   // client pass 5: never auto-GO for the user's defense (only Auto Defense)
     AB_DOZER_SPD: 0.2, AB_DOZER_TKL: 1.5, AB_LOCK_INT: 1.8, AB_WARN_T: 0.8, AB_AI_USE: 0.8,
-    AI_SKILL: [0, 3, 4, 4.6], PCOUNTER: [0.20, 0.40, 0.55, 0.60], STAR_WIN: [0.90, 0.60, 0.487, 0.45],   // decision-time pass: +50%
+    AI_SKILL: [1, 3, 3.7, 4.35], PCOUNTER: [0.20, 0.40, 0.55, 0.60], STAR_WIN: [0.90, 0.60, 0.487, 0.45],   // decision-time pass: +50%
     USER_FUM: [0.7, 1, 1, 1], USER_INJ: [0.6, 1, 1.15, 1.2],
     STAR_NEAR: 3.0, STAR_AIR: 4.0, STAR_CHASE: 5.0, STAR_CLOSE_V: 2.0, STAR_SUPER_BRK: 0.25, STAR_SUPER_REACH: 1.5, STAR_WHIFF_BRK: 0.20, STAR_JUMP_D: 20, STAR_JUMP_PICK: 0.10,
     STAR_WHIFF_D: 10, STAR_SLOWMO: 0.5,

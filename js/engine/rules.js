@@ -20,7 +20,16 @@
   /** yards from the offense's LOS to the goal it attacks */
   RU.toGoal = function (G) { return (RU.goalY(G, G.poss) - G.los) * G.dir; };
   RU.fgDist = function (G) { return Math.round(RU.toGoal(G) + G.T.FG_ADD); };
-  RU.clockLeft = function (G) { return Math.max(0, G.clk - G.pend); };
+  /**
+   * Real dead-ball clock (lead): in a human game (not the idle demo, not Sim Drive) the clock runs between plays in real
+   * game time and the snap charges what has visibly run — min(pending runoff, dead time) — so a quick hike saves time and
+   * nothing jumps on the HIKE frame. AI-vs-AI / sims (no human waiting) charge the full pending runoff. Kneels always
+   * charge in full (the play clock would make them).
+   */
+  RU.realClock = function (G) { return G.userIdx >= 0 && !G.idle && !G.simming && !G.drill; };
+  /** The part of the pending runoff that the snap will charge now (real clock: what has visibly run; a kneel: all of it). */
+  RU.chargeNow = function (G) { return (RU.realClock(G) && !G.pendForce) ? Math.min(G.pend, G.deadEl || 0) : G.pend; };
+  RU.clockLeft = function (G) { return Math.max(0, G.clk - RU.chargeNow(G)); };
   RU.halfEndQ = function (G) { return G.q === 2 || G.q >= 4; };
   /** Box-score column for the current period: halves 1..2 (columns 3..4 stay 0), OT periods 5+. */
   RU.boxQ = function (G) { return G.q; };   // quarters 1..4, OT 5+
@@ -80,6 +89,8 @@
 
   /** Apply the pending runoff. Returns true if the period clock expired. */
   RU.applyPending = function (G) {
+    if (RU.realClock(G) && !G.pendForce) G.pend = Math.min(G.pend, G.deadEl || 0);   // charge what has visibly run
+    G.pendForce = false; G.deadEl = 0;
     if (G.pend <= 0) return G.clk <= 0;
     const before = G.clk;
     G.clk -= G.pend;
@@ -128,6 +139,7 @@
   /** AI timeout logic (design 8.3) after a play whose runoff is R. Returns the (possibly reduced) runoff. */
   RU.aiTimeout = function (G, R, nextPoss) {
     if (R <= G.T.RUN_STOP) return R;
+    if (G.P && G.P.kind === 'kneel') return R;                               // HUNT6 #2: never stop the clock on your own kneel
     const left = G.clk - R;
     const W = RU.warnT(G), P = G.P;
     // HUNT5 #5: the one-minute warning will stop this clock anyway — don't waste a timeout on it
@@ -137,7 +149,7 @@
       const diff = G.score[ti] - G.score[1 - ti];
       const tg = nextPoss === ti && G.poss === ti ? RU.toGoal(G) : 99;
       const want = (G.q >= 4 && diff < 0 && (left <= W || (diff <= -9 && left <= W * 1.5))) ||
-        (G.q === 2 && left <= W && nextPoss === ti && G.clk > 5 && (tg <= 60 || left <= 40));
+        (G.q === 2 && left <= W && nextPoss === ti && G.clk > 5 && (tg <= 60 || (left <= 40 && diff <= 0)));
       if (want) {
         G.tos[ti]--;
         G.em.emit('timeout', { tid: G.tids[ti], auto: true, left: G.tos[ti] });
@@ -335,7 +347,7 @@
       }
       // ----- runoff -----
       if (P.kind === 'two') R = 0;
-      else if (P.kind === 'kneel') R = T.RUN_KNEEL;
+      else if (P.kind === 'kneel') { R = T.RUN_KNEEL; G.pendForce = true; }
       else if (P.kind === 'spike') R = T.RUN_SPIKE;
       else if (scored || turnover === 'int' || turnover === 'fumble' || res.k === 'inc' || res.oob) R = T.RUN_STOP;
       else if (P.sack) R = T.RUN_SACK;
@@ -493,6 +505,8 @@
     }
     // next scrimmage call
     G.rescue = false;
+    // real clock: the period ends when the clock visibly reaches 0:00 between plays (step) — not on a projection
+    if (RU.realClock(G) && G.clk > 0 && !G.pendForce) { game._toCall(); return; }
     if (G.clk - G.pend <= 0 && !G.untimed) {
       // expired during the play (live clock) → the period is over; a pending runoff → only a timeout/spike can help
       if (G.clk <= 0 || !RU.userCanRescue(G)) { if (RU.applyPending(G) && RU.periodEnd(G)) return; }

@@ -879,6 +879,10 @@
       b.HM(hb.w / 2 + 0.25, hb.y + hb.h * 0.1, hb.z, 0.5, 1.6, 1.6, 'k');                       // ear cups
       b.H(hb.x + hb.w / 2 + 0.3, hb.y - hb.h * 0.15, hb.z + hb.d * 0.3, 0.25, 0.25, hb.d * 0.55, 0x444444);   // mic boom
       b.H(hb.x + hb.w / 2 - 0.2, hb.y - hb.h * 0.15, fz + 0.15, 0.5, 0.5, 0.4, 'k');
+    } else if (acc === 'pompom') {
+      // fluffy pom-poms in both hands (team colours)
+      b.A(0, -o.armH - 0.2, 0.3, 1.9, 1.9, 1.9, 's');
+      b.A(0.5, -o.armH - 0.7, 0.6, 1.1, 1.1, 1.1, 'j');
     } else if (acc === 'camera') {
       // big press camera held in front (right hand) + lens
       b.add(B.armR, 0.2, -o.armH + 0.2, 1.8, 2.2, 2.0, 2.6, 'k');

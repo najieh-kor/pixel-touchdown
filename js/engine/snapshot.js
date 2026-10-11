@@ -24,7 +24,7 @@
       meters: { u: { off: 0, def: 0 }, ai: { off: 0, def: 0 } }, ability: null,
       fx: [], fxSeq: 0,
       hud: { q: 1, half: 1, clk: 0, pc: 0, down: 1, togo: 10, ballOn: 'OWN 25', hs: 0, as: 0, poss: 0, tos: [3, 3], wx: 'sunny', mph: 0,
-        hurry: false, flip: false, ot: false, goal: false, two: false, onside: false, onsidePct: 0, edge: 0, fgPct: 0, retHint: '' },
+        hurry: false, flip: false, ot: false, goal: false, two: false, onside: false, onsidePct: 0, edge: 0, fgPct: 0, retHint: '', me: null },
       dbg: G.debug ? { routes: [], zones: [], targets: [] } : null
     };
     for (let i = 0; i < 14; i++) {
@@ -165,13 +165,24 @@
     // the yard-line string / FG % only change with the spot: recompute on change (no per-tick string allocation)
     const key = G.los * 8 + G.dir * 2 + G.poss + (G.tryTwo ? 4 : 0) + G.q * 1e4;
     if (sit._key !== key) { PT.Engine.Rules.situation(G, sit); sit._key = key; }
-    h.q = G.q; h.half = G.q <= 2 ? 1 : G.q <= 4 ? 2 : 3; h.clk = Math.max(0, Math.ceil(G.clk - Math.min(G.pend, G.deadEl || 0)));   // runs down between plays (HUNT4 #4)
+    h.q = G.q; h.half = G.q <= 2 ? 1 : G.q <= 4 ? 2 : 3; h.clk = Math.max(0, Math.ceil(G.clk - (G.pendForce ? G.pend : Math.min(G.pend, G.deadEl || 0))));   // runs down between plays in real time (a kneel shows its full runoff)
     h.down = G.down; h.togo = G.togo; h.ballOn = sit.ballOn;
     h.hs = G.score[0]; h.as = G.score[1]; h.poss = G.poss; h.tos[0] = G.tos[0]; h.tos[1] = G.tos[1];
     h.pc = 0;   // no play clock: the user always snaps (client pass 5)
     h.hurry = G.userIdx >= 0 ? G.hurry[G.userIdx] : false; h.flip = G.flipNext; h.ot = G.q > 4;
     h.goal = sit.goal; h.two = G.tryTwo; h.onside = G.canOnside; h.fgPct = sit.fgPct;
     h.onsidePct = G.canOnside ? PT.Engine.Kicking.onsidePct(G) : 0;   // HUNT3 #5: shown on the Onside button
+    // the user's ball carrier / scrambling QB: stamina + juke cooldown for the HUD (one reused object; null otherwise)
+    if (!snap._me) snap._me = { en: 1, jk: 0, jkOk: true, spr: false };
+    const ce = G.ctl >= 0 && G.phase === 'LIVE' ? G.ents[G.ctl] : null;
+    if (ce && ce.ball && ce.tm === G.userIdx) {
+      const me = snap._me, T = G.T;
+      me.en = Math.max(0, Math.min(1, ce.energy / (ce.enMax || 100)));
+      me.jk = ce.jukeCd > 0 ? Math.min(1, ce.jukeCd / (ce.jukeCdMax || T.JUKE.cd)) : 0;
+      me.jkOk = ce.jukeCd <= 0 && ce.energy >= T.JUKE.en;
+      me.spr = !!ce.sprint;
+      h.me = me;
+    } else h.me = null;
     // returner hint for the UI: 'fc' = tap for a fair catch, 'tb' = tap to take a knee (touchback), '' = none
     const P = G.P;
     h.retHint = '';

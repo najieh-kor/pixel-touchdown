@@ -75,8 +75,8 @@
     const a = ability(p);
     const why = x && !x.ok ? x.why : (p.pos === 'K' ? 'A Kicker cannot be a Star.' : '');
     // HUNT5 #7: a 2nd Star at a one-starter spot sits on the bench
-    const ONE = { QB: 1, RB: 1, TE: 1 };
-    const dup = ONE[p.pos] && myStars(L).some((pid) => { const q = PT.League.Q.player(L, pid); return q && q.pos === p.pos; });
+    const spots = F().starters ? F().starters(p.pos) : ({ QB: 1, RB: 1, TE: 1, S: 1 }[p.pos] || 2);
+    const dup = spots > 0 && myStars(L).filter((pid) => { const q = PT.League.Q.player(L, pid); return q && q.pos === p.pos; }).length >= spots;
     return html`<aside class="fl-card fl-side" data-testid="fd-detail">
       <div class="fl-who">${K().portrait(p, 56, 0x8a8fb3)}<div class="fl-who-t"><b class="fl-pn">${p.fn} ${p.ln}</b>
         <span class="fl-pm">${K().posChip(p.pos)}<span>${K().posLabel(p.pos)}</span><span class="dim">Age ${p.age}</span></span></div></div>
@@ -87,7 +87,7 @@
         ${a ? html`<div><dt>Surge</dt><dd>${K().ic(a.icon)} ${a.name}</dd></div>` : ''}
       </dl>
       ${why ? html`<p class="fl-note bad">${K().ic('no')} ${why}</p>` : a ? html`<p class="fl-note fl-hint dim">${a.txt}</p>` : ''}
-      ${!why && dup ? html`<p class="fl-note bad" data-testid="fd-dup">${K().ic('warn')} Only 1 ${p.pos} starts. He would sit.</p>` : ''}
+      ${!why && dup ? html`<p class="fl-note bad" data-testid="fd-dup">${K().ic('warn')} Only ${spots} ${p.pos} start${spots === 1 ? 's' : ''}. He would sit.</p>` : ''}
       ${!why && st.userOnClock && ui.auto === p.id ? html`<p class="fl-note fl-hint good">${K().ic('check')} Best pick for you.</p>` : ''}
       <div class="fl-more">${K().traits(p)}</div>
     </aside>`;

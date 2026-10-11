@@ -125,7 +125,8 @@
       if (si) right.push(K().btn({ label: 'Remove Star', icon: 'star', action: 'star', kind: 'sec', size: 's', testid: 'btn-toggle-star' }));
       else if (p.pos !== 'K' && !longHurt && sInfo) {
         const full = sInfo.n >= sInfo.max;
-        right.push(K().btn({ label: 'Make Star', sub: full ? sInfo.max + '/' + sInfo.max + ' full' : '', icon: 'star', action: 'star', kind: full ? 'sec' : 'gold', size: 's', testid: 'btn-toggle-star', disabled: full, title: full ? 'Remove a Star first' : '' }));
+        // HUNT6-team #2: at 8/8 the button stays the primary and opens "Swap a Star" (visible, works on touch)
+        right.push(K().btn({ label: 'Make Star', sub: full ? 'Swap one' : '', icon: 'star', action: full ? 'star-swap' : 'star', kind: 'gold', size: 's', testid: 'btn-toggle-star', title: full ? 'Stars ' + sInfo.max + '/' + sInfo.max + ': swap one for him' : '' }));
       }
     } else if (p.tid === PT.C.TID.FA) {
       right.push(K().btn({ label: 'Make Offer', icon: 'pencil', action: 'offer', kind: 'go', size: 's', testid: 'btn-offer' }));
@@ -199,6 +200,23 @@
     mount: mount,
     actions: {
       'pc-tab': (el) => { pst.tab = el.getAttribute('data-id'); UI.refresh(); },
+      'star-swap': (el, ev, params) => {
+        const L = PT.App.L, R = PT.League.Roster, t = L.teams[L.userTid];
+        const me = PT.League.Q.player(L, params.pid);
+        const cur = K().teamStars(t).map((pid) => PT.League.Q.player(L, pid)).filter(Boolean);
+        const rows = cur.map((q) => html`<button type="button" class="prow sw-star" data-action="pick-out" data-pid="${q.id}" data-testid="swap-star-${q.id}">${K().posChip(q.pos)}<b class="grow">${K().pname(q)}</b>${K().stars(q.ovr)}</button>`);
+        UI.Modal.open({ title: 'Swap which Star for ' + (me ? me.fn : 'him') + '?', icon: 'star', cls: 'm-list', body: K().pg('swstar', rows, {}),
+          actions: { 'pick-out': (b, card, entry) => entry.close(+b.getAttribute('data-pid')) }, buttons: [{ label: 'Cancel', value: null, kind: 'cancel' }] })
+          .then((out) => {
+            if (out == null) return;
+            const next = K().teamStars(t).map((pid) => (pid === out ? params.pid : pid));
+            const r = R.setStars ? R.setStars(L, L.userTid, next) : { ok: false, msg: 'Not now.' };
+            if (r && r.ok === false) { UI.Toast.show(r.msg || 'Not now.', 'bad'); return; }
+            UI.Toast.show((me ? me.fn : 'He') + ' is a Star now', 'good');
+            if (PT.Events) PT.Events.emit('league:changed', { what: 'star' });
+            UI.refresh();
+          });
+      },
       star: (el, ev, params) => {
         const L = PT.App.L, r = PT.League.Roster.toggleStar(L, L.userTid, params.pid);
         if (r && r.ok === false) { UI.Toast.show(r.msg || 'Not now.', 'bad'); return; }

@@ -163,19 +163,51 @@
         for (let i = -1; i <= 1; i++) for (let j = 0; j < 2; j++) tb.box(x + i * 1.7, hgt + 0.7 + j * 1.4, z - c[1] * 0.45, 1.3, 1.0, 0.2, 0xfff6c8, c[0] * c[1] * 0.7);
       });
     }
-    // benches (home on −x side, away on +x)
-    [[-1, ctx.cols[0]], [1, ctx.cols[1]]].forEach((b) => {
+    // ----- sideline (both team areas between the 20s): long two-row benches on a riser, ad boards, carts, nets,
+    // camera rails, equipment cases, weather props. All merged into the stands mesh (no extra draw calls).
+    const benchTop0 = 0.42, benchTop1 = 0.78;
+    St.BENCH = { top0: benchTop0, top1: benchTop1, dx0: 4.3, dx1: 5.4, z0: -26, z1: 26 };
+    [[-1, ctx.cols[0], ctx.kits ? ctx.kits[0] : ctx.cols[0]], [1, ctx.cols[1], ctx.kits ? ctx.kits[1] : ctx.cols[1]]].forEach((b) => {
       const s = b[0], c = b[1];
-      [-13, 13].forEach((bz) => {                                                       // two bench sections
-        sb.box(s * (HW + 4.4), 0.45, bz, 0.9, 0.9, 18, c.pri);
-        sb.box(s * (HW + 4.95), 1.1, bz, 0.3, 1.4, 18, V.shade(c.pri, 0.8));
-        sb.box(s * (HW + 4.4), 0.95, bz, 1.0, 0.12, 18.2, c.sec);
-      });
-      for (let k = -1; k <= 1; k += 2) {
-        sb.box(s * (HW + 3.3), 0.55, k * 12.5, 1.0, 1.1, 1.0, 0xFF8C1A);           // coolers
-        sb.box(s * (HW + 3.3), 1.17, k * 12.5, 1.04, 0.15, 1.04, 0xffffff);
+      const x0 = s * (HW + 4.3), x1 = s * (HW + 5.4), L = 52;
+      sb.box(s * (HW + 5.4), 0.18, 0, 1.3, 0.36, L + 1, V.shade(c.pri, 0.55));            // riser
+      for (let z = -24; z <= 24; z += 6) { sb.box(x0, 0.15, z, 0.12, 0.3, 0.12, 0x8a8f99); }   // bench legs
+      sb.box(x0, benchTop0 - 0.06, 0, 0.7, 0.12, L, c.pri);                                // front bench
+      sb.box(x1, benchTop1 - 0.06, 0, 0.7, 0.12, L, c.pri);                                // back bench
+      sb.box(s * (HW + 5.95), benchTop1 + 0.35, 0, 0.12, 0.6, L, V.shade(c.pri, 0.8));      // backrest
+      sb.box(s * (HW + 5.95), benchTop1 + 0.66, 0, 0.16, 0.08, L + 0.1, c.sec);
+      // ad boards along the wall in team colours
+      for (let z = -54; z <= 54; z += 6) {
+        if (Math.abs(z) < 3) continue;
+        const pc = (Math.round(z / 6) & 1) ? c.pri : c.sec;
+        sb.box(s * (HW + 6.55), 0.45, z, 0.18, 0.9, 5.6, pc);
+        sb.box(s * (HW + 6.45), 0.45, z, 0.04, 0.22, 4.8, pc === c.sec ? c.pri : 0xffffff);
+      }
+      // medical cart (white, red cross) near the 20
+      const mz = -29;
+      sb.box(s * (HW + 3.6), 0.55, mz, 1.3, 0.7, 2.0, 0xffffff);
+      sb.box(s * (HW + 3.6), 0.92, mz, 0.24, 0.05, 0.9, 0xE63B2E); sb.box(s * (HW + 3.6), 0.92, mz, 0.9, 0.05, 0.24, 0xE63B2E);
+      [[-0.55, -0.8], [0.55, -0.8], [-0.55, 0.8], [0.55, 0.8]].forEach((w) => sb.box(s * (HW + 3.6) + w[0], 0.18, mz + w[1], 0.15, 0.36, 0.36, 0x222222));
+      sb.box(s * (HW + 3.6), 1.05, mz + 0.6, 0.5, 0.3, 0.5, 0x2D9CDB);                     // ice bag box
+      // kicking net (frame + white net panel) near the other 20 — the team's kicker warms up into it
+      const nz = 24;
+      sb.box(s * (HW + 2.6), 1.1, nz, 0.1, 2.2, 0.1, 0x9aa0a8); sb.box(s * (HW + 4.6), 1.1, nz, 0.1, 2.2, 0.1, 0x9aa0a8);
+      sb.box(s * (HW + 3.6), 2.2, nz, 2.1, 0.1, 0.1, 0x9aa0a8);
+      sb.box(s * (HW + 3.6), 1.1, nz - 0.05, 1.9, 2.1, 0.05, 0xEFEFEA);
+      for (let k = 0; k < 4; k++) sb.box(s * (HW + 3.6), 0.3 + k * 0.5, nz - 0.08, 1.9, 0.04, 0.02, 0xBFC3C8);
+      // equipment cases (black/silver) and a helmet rack
+      [[-17, 0x2b2b30], [-15.8, 0x9aa0a8], [15.5, 0x2b2b30]].forEach((e) => sb.box(s * (HW + 6.1), 0.3, e[0], 0.7, 0.6, 1.0, e[1]));
+      sb.box(s * (HW + 6.1), 0.62, -17, 0.72, 0.06, 1.02, 0xFFC933);
+      // weather: heaters on cold / snowy days, misting fans when it is hot
+      if (clim === 'cold' || wk === 'snow') {
+        [-12, 0, 12].forEach((z) => { sb.box(s * (HW + 6.2), 0.6, z, 0.6, 1.2, 0.6, 0x3a3a40); sb.box(s * (HW + 5.95), 0.8, z, 0.08, 0.6, 0.45, 0xFF7B1C); sb.box(s * (HW + 6.2), 1.25, z, 0.7, 0.1, 0.7, 0x55555c); });
+      } else if (clim === 'warm' && wk === 'sunny') {
+        [-12, 0, 12].forEach((z) => { sb.box(s * (HW + 6.2), 0.7, z, 0.12, 1.4, 0.12, 0x9aa0a8); sb.box(s * (HW + 6.0), 1.5, z, 0.25, 0.9, 0.9, 0xEFEFEA); sb.box(s * (HW + 5.85), 1.5, z, 0.05, 0.7, 0.7, 0x9fd8ff); });
       }
     });
+    // TV camera rails on the home side (the cart + cameraman ride them in the renderer)
+    sb.box(-(HW + 1.05), 0.04, 0, 0.08, 0.08, 96, 0x8a8f99); sb.box(-(HW + 1.65), 0.04, 0, 0.08, 0.08, 96, 0x8a8f99);
+    for (let z = -46; z <= 46; z += 4) sb.box(-(HW + 1.35), 0.02, z, 0.8, 0.04, 0.12, 0x6b4a3a);
     // sideline props: drinks table with cups + Gatorade-style bucket per bench, an equipment cart (away side)
     [[-1, ctx.cols[0]], [1, ctx.cols[1]]].forEach((b) => {
       const s = b[0], c = b[1], x = s * (HW + 3.0);
@@ -187,11 +219,15 @@
         for (let i = 0; i < 6; i++) sb.box(x - 0.25 + (i % 2) * 0.5, 1.03, z - 0.9 + (i >> 1) * 0.55, 0.22, 0.24, 0.22, i % 3 ? 0xffffff : c.pri);   // cups
         sb.box(x, 1.25, z + 0.95, 0.5, 0.55, 0.5, 0x2D9CDB);                              // water jug
       }
+      for (let k = -1; k <= 1; k += 2) {                                                  // coolers
+        sb.box(s * (HW + 3.0), 0.5, k * 11.6, 0.9, 1.0, 0.9, 0xFF8C1A);
+        sb.box(s * (HW + 3.0), 1.06, k * 11.6, 0.94, 0.12, 0.94, 0xffffff);
+      }
       sb.box(s * (HW + 2.4), 0.35, 4.5, 0.75, 0.7, 0.75, 0xFF8C1A);                       // Gatorade bucket
       sb.box(s * (HW + 2.4), 0.73, 4.5, 0.8, 0.08, 0.8, 0xffffff);
     });
     {
-      const x = HW + 4.2, z = -30;                                                        // equipment cart
+      const x = HW + 4.2, z = -37;                                                        // equipment cart
       sb.box(x, 0.75, z, 1.6, 0.7, 2.8, 0xffffff);
       sb.box(x, 1.55, z + 0.5, 1.5, 0.9, 1.2, ctx.cols[0].pri);
       sb.box(x, 2.3, z + 0.3, 1.7, 0.12, 2.0, ctx.cols[0].sec);
@@ -249,7 +285,7 @@
     // (instanced camera-facing pixel-art quads, GPU bob / cheer) on every other seat, every tier -----
     const fanPal = { home: homeCol, sec: homeSec, away: awayCol };
     const fanGroups = [], boards = [];
-    const n3d = Math.min(q.crowd >= 1500 ? 900 : q.crowd >= 600 ? 500 : 0, seats.length / 4 | 0);
+    const n3d = Math.min(q.crowd >= 1500 ? 900 : q.crowd >= 600 ? 300 : 0, seats.length / 4 | 0);
     // side seats sorted front (low) → back
     const order = [];
     for (let i = 0; i < seats.length / 4; i++) order.push(i);

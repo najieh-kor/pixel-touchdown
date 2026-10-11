@@ -658,3 +658,42 @@ body:has(.hud-ons-on) .pt-onside { display: none !important; }
   .hud-note.hud-note-tip { top: auto; left: auto; transform: none; bottom: calc(214px + var(--sab)); right: calc(100px + var(--sar)); max-width: 320px; white-space: normal; }
 }
 .hud-root:has(.hud-note-tip:not([hidden])) .hud-hint { visibility: hidden; }   /* HUNT5 #6: the one-time tip replaces the hint while it shows */
+
+/* ======================= CLIENT: no Spin · Juke cooldown · stamina bar ======================= */
+/* carrier cluster (3 buttons): JUKE + DIVE on top, SPRINT (hold) wide underneath — the thumb rests bottom-right */
+.hud-ctl.hud-ctl-cluster.hud-n3 { grid-template-columns: repeat(2, 76px); }
+.hud-ctl-cluster.hud-n3 .hud-btn-sprint { grid-column: 1 / -1; width: auto; height: 58px; flex-direction: row; gap: 8px; }
+@media (orientation: landscape) and (max-height: 500px) {
+  .hud-ctl.hud-ctl-cluster.hud-n3 { grid-template-columns: repeat(2, 66px); }
+  .hud-ctl-cluster.hud-n3 .hud-btn-sprint { width: auto; height: 50px; }
+}
+@media (min-width: 1100px) and (min-height: 600px) {
+  .hud-ctl.hud-ctl-cluster.hud-n3 { grid-template-columns: repeat(2, 84px); }
+  .hud-ctl-cluster.hud-n3 .hud-btn-sprint { width: auto; height: 64px; }
+}
+/* stamina: 8 pixel blocks above the cluster, green → yellow → red; pulses when too tired to juke */
+.hud-stam { grid-column: 1 / -1; position: relative; display: flex; gap: 2px; height: 14px; padding: 2px; background: rgba(14, 18, 42, 0.82); box-shadow: var(--frame-2); pointer-events: none; }
+.hud-stam i { flex: 1 1 0; background: rgba(255, 255, 255, 0.16); }
+.hud-stam-g i.on { background: var(--green); }
+.hud-stam-y i.on { background: var(--sun); }
+.hud-stam-r i.on { background: var(--red); }
+.hud-stam.hud-stam-low { animation: stamPulse 0.5s steps(2) infinite; }
+@keyframes stamPulse { 50% { box-shadow: var(--frame-2), 0 0 0 2px var(--red); } }
+.hud-stam-jc { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: #fff; box-shadow: 0 0 0 1px var(--ink); }
+/* JUKE cooldown: a stepped bottom-up shade (1 = just used → 0 = ready), dimmed while cooling / too tired, flash on ready */
+.hud-btn .hud-cd { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: rgba(14, 18, 42, 0.6); pointer-events: none; }
+.hud-btn.hud-cool { filter: saturate(0.35) brightness(0.9); }
+.hud-btn.hud-ready { animation: jukeReady 0.45s steps(3) 1; }
+@keyframes jukeReady { 0% { box-shadow: var(--frame), 0 0 0 0 #fff; } 50% { box-shadow: var(--frame), 0 0 0 6px #fff; } 100% { box-shadow: var(--frame), 0 0 0 0 #fff; } }
+@media (prefers-reduced-motion: reduce) { .hud-stam.hud-stam-low, .hud-btn.hud-ready { animation: none; } }
+@media not all and (orientation: landscape) and (max-height: 500px) {
+  [data-mode="carrier"] .hud-ctl2, [data-mode="qb"] .hud-ctl2 { bottom: calc(240px + var(--sab)); }   /* clear of the stamina bar */
+}
+
+/* ======================= HUNT6 (hud) ======================= */
+/* #1 the warn chip is docked left now: pulse in place (no translateX(-50%) slide off the edge) */
+@keyframes warnPulseL { 50% { transform: scale(1.08); } }
+.hud-warn.hud-pulse { animation-name: warnPulseL; transform-origin: left center; }
+/* #3 banners never cover the scorebug: --ban-top = scorebug bottom + shadow + 8 px (set by Hud), with safe fallbacks */
+.hud-ban { top: var(--ban-top, max(104px, 13%)); }
+@media (orientation: landscape) and (max-height: 500px) { .hud-ban { top: var(--ban-top, calc(72px + var(--sat))); } }

@@ -13,7 +13,7 @@
  *   kickAim: { on, dx, dy, pow, src },                       FG/XP aim (screen dir, y down) + power 0..1
  *   seek:    { on, sx, sy },          mouse: hold left button = run toward cursor (carrier)
  *   tap:     { on, sx, sy },          edge: field tap (defense presnap → move the Star)
- *   throw, throwAway, snap, go, juke, dive, spin, kick, star, pause,   edges
+ *   throw, throwAway, snap, go, juke, dive, kick, star, pause,   edges   (spin removed: client request; juke softens hits)
  *   pass,                             edge: Easy Throw badge 1..4 (0 = none)
  *   ff, skip, simDrive, autoDef, autoKick, cycle, onside,            edges (defense / kick trays / onside kick)
  *   ability, audible,                 edges: Star ability (STAR button / G / gamepad Y = press('ability')), open audible tray (V)
@@ -24,7 +24,7 @@
   'use strict';
   const Input = PT.Input = PT.Input || {};
 
-  const EDGES = ['throw', 'throwAway', 'snap', 'go', 'juke', 'dive', 'spin', 'kick', 'star', 'pause',
+  const EDGES = ['throw', 'throwAway', 'snap', 'go', 'juke', 'dive', 'kick', 'star', 'pause',
     'ff', 'skip', 'simDrive', 'autoDef', 'autoKick', 'cycle', 'onside', 'ability', 'audible'];
   const GAME_MODES = { presnap: 1, qb: 1, carrier: 1, defense: 1, kick: 1, return: 1, off: 0 };
 
@@ -141,7 +141,7 @@
   };
 
   /**
-   * Virtual press from HUD buttons. btn: 'snap'|'go'|'juke'|'dive'|'spin'|'kick'|'pause'|'ff'|'skip'|'simDrive'|
+   * Virtual press from HUD buttons. btn: 'snap'|'go'|'juke'|'dive'|'kick'|'pause'|'ff'|'skip'|'simDrive'|   ('spin' is gone: ignored)
    * 'autoDef'|'autoKick'|'star'|'throwAway'|'cycle'|'onside'|'ability'|'audible'|'pass1'..'pass4'.
    */
   Input.press = function (btn) {

@@ -106,6 +106,7 @@ button.fl-seg-btn .fl-sv { color: #fff; }
 .fl-row:nth-child(even) { background: #faf4e4; }
 @media (hover: hover) { .fl-row:hover { background: #fffbe0; } }
 .fl-row.sel, .fl-row.sel:nth-child(even) { background: #ffe58a; box-shadow: inset 6px 0 0 0 var(--ink), inset 0 -2px 0 0 var(--sun-d), inset 0 2px 0 0 var(--sun-d); }
+.fl-row > :first-child, .fl-th > :first-child { padding-left: 4px; }        /* HUNT6-flow #3: room for the 6 px selection bar (no column shift on select) */
 .fl-row.dim { color: var(--ink-soft); }
 .fl-row.dim .pos, .fl-row.dim .stars { opacity: 0.55; }
 .fl-c { display: flex; align-items: center; gap: 4px; min-width: 0; white-space: nowrap; }

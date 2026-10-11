@@ -173,15 +173,25 @@
   };
 
   /** AI Star pick: best OVR that fits the rule (a QB gets a small bump, older players a small cut). @returns {number|null} */
+  /** starting spots per position in the lineup (QB 1, RB 1, WR 2, TE 1, OL 2, DL 2, LB 2, CB 2, S 1). HUNT6-flow #1 */
+  Fantasy.starters = function (pos) {
+    let n = 0;
+    (C.OFF_SLOTS || []).concat(C.DEF_SLOTS || []).forEach((s) => { if (C.SLOT_POS[s] === pos) n++; });
+    return n;
+  };
   Fantasy.choose = function (L, tid) {
     const fd = L.fd;
     if (!Fantasy.active(L) || !fd.pool.length) return null;
     const rng = LG().rng(L);
+    // HUNT6-flow #1: a Star beyond the position's starting spots sits on the bench → strongly prefer an open spot
+    const have = {};
+    teamPicks(L, tid).forEach((pid) => { const q = LG().Q.player(L, pid); if (q) have[q.pos] = (have[q.pos] || 0) + 1; });
     let best = null, bv = -1e9;
     for (const pid of fd.pool) {
       const p = LG().Q.player(L, pid);
       if (!p || !Fantasy.allowed(L, tid, p).ok) continue;
       let v = p.ovr + (p.pos === 'QB' ? 3 : 0) - (p.age >= 31 ? (p.age - 30) * 0.8 : 0) + rng.range(-1.5, 1.5);
+      if ((have[p.pos] || 0) >= Fantasy.starters(p.pos)) v -= 40;
       if (v > bv) { bv = v; best = pid; }
     }
     return best;

@@ -69,14 +69,30 @@
     const sNow = SORTS.find((x) => x[0] === st.sort) || SORTS[0], sNext = SORTS[(SORTS.indexOf(sNow) + 1) % SORTS.length];
     const cycle = html`<button type="button" class="tx-f tx-cyc" data-action="r-sort" data-id="${sNext[0]}" data-testid="roster-sort" title="Sort by ${sNext[1]}">${K().ic('down')}${sNow[1]}</button>`;
     UI.parts._rosterSheet = { nHurt: nHurt };
-    return html`<div class="tx-filters" role="toolbar" aria-label="Show">${menu}${cycle}<span class="grow"></span>${nHurt ? html`<span class="tx-hurtn">${K().ic('cross')}<b class="num">${nHurt}</b> hurt</span>` : ''}<span class="tx-count"><b class="num">${UI.parts.rosterCount(tid)}</b> players</span></div>
+    return html`<div class="tx-filters" role="toolbar" aria-label="Show">${menu}${cycle}<span class="grow"></span>${nHurt ? html`<span class="tx-hurtn">${K().ic('cross')}<b class="num">${nHurt}</b> hurt</span>` : ''}${cutChip(tid)}<span class="tx-count ${weekOneOver(tid) > 0 ? 'bad' : ''}"><b class="num">${UI.parts.rosterCount(tid)}</b> players</span></div>
       ${K().card(html`<div class="tx-thead tx-rrow"><span class="tx-c-por"></span><span class="tx-nm">Player</span>
         ${head('pos', 'Pos', 'tx-c-pos')}${head('stars', 'Rating', 'tx-c-rate')}${head('age', 'Age', 'tx-c-age')}<span class="tx-c-tags"></span></div>
         ${K().pg('roster', rows, { cls: 'tx-pg tx-side-pg', empty: html`<p class="muted tx-empty">No players here.</p>` })}`, 'fill tx-list tx-roster')}`;
   };
+  /** HUNT6-team #1: in Draft / Market the limit that matters is Week 1's (22, everyone counts: FK.rosterCount) */
+  function weekOne(tid) {
+    const L = PT.App.L, FK = UI.FlowKit;
+    return tid === L.userTid && FK && FK.rosterCount && (L.phase === 'DRAFT' || L.phase === 'FREE_AGENCY') ? FK.rosterCount(L) : null;
+  }
+  function weekOneOver(tid) { const rc = weekOne(tid); return rc ? rc.act - rc.max : 0; }
+  function cutChip(tid) {
+    const n = weekOneOver(tid);
+    if (n <= 0) return '';
+    // the chip IS the way back to the Market (FREE_AGENCY): one control, never cut
+    return PT.App.L.phase === 'FREE_AGENCY'
+      ? html`<button type="button" class="tx-cut tx-cut-btn" data-action="r-market" data-testid="roster-cut-n" title="Back to the Market">${K().ic('warn')}Cut ${n} for Week 1</button>`
+      : html`<span class="tx-cut" data-testid="roster-cut-n">${K().ic('warn')}Cut ${n} for Week 1</span>`;
+  }
   /** "22/22" (active players / limit) */
   UI.parts.rosterCount = function (tid) {
     const L = PT.App.L;
+    const rc = weekOne(tid);
+    if (rc) return rc.act + '/' + rc.max;
     const n = PT.League.Q.roster(L, tid).filter((p) => !p.ir).length;
     const max = ['REGULAR', 'PLAYOFFS'].includes(L.phase) || (L.phase === 'PRESEASON' && L.sub >= 2) ? PT.C.ROSTER.MAX_SEASON : PT.C.ROSTER.MAX_OFF;
     return n + '/' + max;
@@ -91,7 +107,8 @@
         buttons: [{ label: 'Close', value: null, kind: 'cancel' }] })
         .then((v) => { if (v == null) return; st.filter = v; UI.pgPage('roster', 0); UI.refresh(); });
     },
-    'r-sort': (el) => { st.sort = el.getAttribute('data-id'); UI.pgPage('roster', 0); UI.refresh(); }
+    'r-sort': (el) => { st.sort = el.getAttribute('data-id'); UI.pgPage('roster', 0); UI.refresh(); },
+    'r-market': () => { const c = UI.current(); if (UI.depth() > 1 && c && c.name === 'roster') UI.back(); if (!UI.current() || UI.current().name !== 'market') UI.reset('market'); }
   };
 
   function mount(el, params) {

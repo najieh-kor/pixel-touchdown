@@ -168,7 +168,7 @@
       const a = K().ABILITY[K().abilityKind(p.pos)];
       return html`<div class="ln-sc" data-testid="star-chip-${p.id}">
         ${K().portrait(p, 28, t.col.pri)}
-        <span class="ln-pr-m"><b class="ln-pr-n">${K().pname(p)}</b>${K().posChip(p.pos)}${a ? html`<span class="ln-ab" title="${a.name}: ${a.txt}">${K().ic(a.icon)}${a.name}</span>` : ''}${K().startSlot(t, p.id) ? '' : html`<span class="ln-bench" title="Not in the starting lineup: his Surge only helps when he plays" data-testid="star-bench-${p.id}">BENCH</span>`}</span>
+        <span class="ln-pr-m ln-sc-m"><span class="ln-sc-1"><b class="ln-pr-n">${K().pname(p)}</b>${K().posChip(p.pos)}</span><span class="ln-sc-2">${a ? html`<span class="ln-ab" title="${a.name}: ${a.txt}">${K().ic(a.icon)}${a.name}</span>` : ''}${K().startSlot(t, p.id) ? '' : html`<span class="ln-bench" title="Not in the starting lineup: his Surge only helps when he plays" data-testid="star-bench-${p.id}">BENCH</span>`}</span></span>
         <button type="button" class="ln-x ln-unstar" data-action="d-unstar" data-pid="${p.id}" data-testid="btn-unstar-${p.id}" title="Remove Star" aria-label="Remove Star">${K().ic('x')}</button>
       </div>`;
     });

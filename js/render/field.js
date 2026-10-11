@@ -497,8 +497,17 @@ function starMark(s, e, hp, star, alpha, time, yaw, pulse, noSprite) {
         ob.begin(); rings.begin(); gb.begin(); bases.begin();
         const userTm = (s.udir || 1) === s.dir ? (s.poss || 0) : 1 - (s.poss || 0);
         const newStars = ents0Star(s);
-        if (s.los != null && s.los > 0) strip(s.los, C.los, 0.03);
-        if (s.fd != null && s.fd > 0 && s.fd < 120 && Math.abs(s.fd - s.los) > 0.01) strip(s.fd, C.fd, 0.03);
+        // kick context (kickoff incl. onside, punt, FG/XP, 2-pt try and their returns): hide the line to gain (and the
+        // LOS while a kick is in the air / returned). Latched until the next scrimmage down is called (CALL/PRESNAP
+        // without kick context) so the old marker never flashes between plays.
+        const ph = s.phase, bk = s.ball ? s.ball.kind : '';
+        const kickPlay = ph === 'KICK' || bk === 'ko' || bk === 'onside' || bk === 'punt';
+        const kickCtx = kickPlay || ph === 'HOLD' || ph === 'PAT' || (s.cam && s.cam.mode === 'celebrate') || (s.kick && s.kick.on) || (s.hud && s.hud.two) || bk === 'fg';
+        if (kickCtx) g.markHide = true;
+        else if (g.markHide && (ph === 'CALL' || ph === 'PRESNAP')) g.markHide = false;
+        g.losHide = kickPlay || (s.cam && s.cam.mode === 'celebrate') || (g.markHide && !(ph === 'PAT' || ph === 'HOLD' || (s.kick && s.kick.on) || (s.hud && s.hud.two)));
+        if (!g.losHide && s.los != null && s.los > 0) strip(s.los, C.los, 0.03);
+        if (!g.markHide && s.fd != null && s.fd > 0 && s.fd < 120 && Math.abs(s.fd - s.los) > 0.01) strip(s.fd, C.fd, 0.03);
         routes(s, dt);
         lastPhase = s.phase;
         const yaw = g.camera ? g.camera.yaw : 0;
@@ -506,8 +515,8 @@ function starMark(s, e, hp, star, alpha, time, yaw, pulse, noSprite) {
         const pulse = 0.5 + 0.5 * Math.sin(time * 6);
         for (let i = 0; i < ents.length && i < 16; i++) {
           const e = ents[i];
-          const ka = Math.abs(e.x - e.px) + Math.abs(e.y - e.py) > 3 ? 1 : alpha;
-          const x = e.px + (e.x - e.px) * ka, y = e.py + (e.y - e.py) * ka;
+          // visual position (incl. render-only celebration offsets) from the renderer
+          const x = g.vx ? g.vx[i] : e.x, y = g.vy ? g.vy[i] : e.y;
           const r = (PT.C.SIZES[e.sz] || PT.C.SIZES.M).r * 2.1;
           const hp = g.head[i];
           // mine vs theirs: team-colored base disc + outline under my players, thin dark ring under theirs

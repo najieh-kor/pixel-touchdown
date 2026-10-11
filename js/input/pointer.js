@@ -8,7 +8,7 @@
  *          defense  touch-down → Star Play edge; tap-up → field tap (move the Star before the snap)
  *          kick     drag back → kick aim + power, release → kick
  *   mouse  qb       left drag = aim · right drag = aim + LOB
- *          carrier  hold left = run toward cursor · right click = juke · middle click = spin · double-click = dive
+ *          carrier  hold left = run toward cursor · right click = juke · double-click = dive   (middle click unbound: spin removed)
  *          presnap  click / swipe = snap · defense: click = Star / tap · kick: drag back like touch
  * Multi-touch: joystick + aim (or joystick + HUD button) at the same time.
  *
@@ -113,7 +113,7 @@
       else if (m === 'carrier') k.edge('juke');
       else if (m === 'defense' && !guarded) k.edge('star');
     } else if (p.btn === 1) {
-      if (m === 'carrier') k.edge('spin');
+      /* middle click: unbound (the spin move was removed) */
     } else {
       if (m === 'qb') { p.role = 'aim'; G.aimStart(x, y, false); }
       else if (m === 'carrier') {
@@ -256,7 +256,7 @@
       // multi-touch test), and every button waited for finger-up. The HUD's own click that follows is swallowed.
       if (doc) {
         // pause too: a pause tap while the other thumbs hold the stick / slingshot gets no click on phones (soak test)
-        const FAST = { juke: 1, spin: 1, dive: 1, snap: 1, star: 1, ability: 1, pause: 1 };   // HUD STAR button = data-hact="ability"
+        const FAST = { juke: 1, dive: 1, snap: 1, star: 1, ability: 1, pause: 1 };   // HUD STAR button = data-hact="ability"
         let swallow = null;
         doc.addEventListener('pointerdown', (e) => {
           const k = K();

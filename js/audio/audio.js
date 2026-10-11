@@ -473,7 +473,6 @@
     });
     on('game:sack', () => { Audio.play('sack'); swell(0.5, 1.4); });
     on('game:juke', () => Audio.play('juke'));
-    on('game:spin', () => Audio.play('spin'));
     on('game:dive', () => Audio.play('dive'));
     on('game:brokenTackle', () => { Audio.play('juke', { pitch: 0.8 }); swell(0.35, 1); });
     on('game:firstDown', (p) => { Audio.play('firstDown'); react(homeGood(p), false); });

@@ -455,19 +455,17 @@
         nd = Math.hypot(o.x - e.x, o.y - e.y);
         ahead = ((o.y - e.y) * dirC) > -0.3;
       }
-      const wantJuke = ahead && nd < 1.6 + e.rad && rng.chance(T.CAR_JUKE * e.r.mov / 70);
-      const wantSpin = !wantJuke && ahead && nd < 1.4 + e.rad && rng.chance(T.CAR_SPIN);
+      const wantJuke = ahead && nd < 1.6 + e.rad && rng.chance(T.CAR_JUKE * e.r.mov / 70);   // (the spin move was removed — client)
       const lineDist = Math.min(Math.abs(G.fdY - e.y), Math.abs(gy - e.y));
       const wantDive = e.tm === P.off && P.kind === 'scrim' && lineDist < 2 && (G.fdY - e.y) * dirC > 0 && nd < 1.5 + e.rad;
       const sprint = bestFree >= T.CAR_SPRINT_FREE || (gy - e.y) * dirC < 12;
       if (out) {
-        out.mx = e.hx; out.my = e.hy; out.sprint = sprint; out.juke = wantJuke; out.spin = wantSpin; out.dive = wantDive;
+        out.mx = e.hx; out.my = e.hy; out.sprint = sprint; out.juke = wantJuke; out.spin = false; out.dive = wantDive;
         return;
       }
       e.sprint = sprint && e.energy > T.SPRINT_MIN;
       if (wantDive) { PT.Engine.Contact.dive(G, e); return; }
       if (wantJuke) PT.Engine.Contact.juke(G, e);
-      else if (wantSpin) PT.Engine.Contact.spin(G, e);
     }
     AI.runCarrier(G, e, e.hx, e.hy, 1, e.sprint, dt);
   };
@@ -476,7 +474,6 @@
   AI.runCarrier = function (G, e, ux, uy, mag, sprint, dt) {
     const T = G.T;
     let sp = e.top * mag;
-    if (e.spinT > 0) sp *= T.SPIN.spd;
     if (sprint && e.energy > (e.sprint ? 0 : T.SPRINT_MIN) && mag > 0.5) {
       let mul = e.info.t.speed_demon ? T.SPRINT_MUL_DEMON : T.SPRINT_MUL;
       if (e.info.q.burst) mul += T.BURST_ADD;

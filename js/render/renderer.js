@@ -332,7 +332,10 @@
       scene: scene, home: home, away: away, wx: wx, stad: stad, last: null, udir: 1,
       cols: [teamColors(home), teamColors(away)], kits: null,
       rigs: new Map(), fallback: [], st: [], pose: [], fa: new Float32Array(16), faInit: new Uint8Array(16),
-      head: [], hand: [], lastFx: 0, flash: 0, slow: 0, side: null, sideCheer: [0, 0], sideSad: [0, 0]
+      head: [], hand: [], lastFx: 0, flash: 0, slow: 0, side: null, sideCheer: [0, 0], sideSad: [0, 0],
+      celePrev: new Uint8Array(16), celeFa: new Float32Array(16), proxy: [], vx: new Float32Array(16), vy: new Float32Array(16),
+      cele: { active: false, idx: -1, style: '', t: 0, k: 0, n: 0, members: [-1, -1, -1, -1], slots: [{}, {}, {}, {}] },
+      mini: { pid: -1, idx: -1, t: -1, style: '' }, celeBallOn: false, cbx: 0, cby: 0, cbz: 0, cbyaw: 0
     };
     // lights
     g.hemi = new T.HemisphereLight(0xffffff, 0x8f9c84, 0.56);
@@ -340,7 +343,7 @@
     scene.add(g.hemi, g.sun, g.sun.target);
     // players: one instanced batch (+ ball), shadows in a second batch (planar, stencil so overlaps don't double-darken)
     g.matPlayers = new T.MeshLambertMaterial({ color: 0xffffff });
-    g.players = R.Voxel.batch(3400, g.matPlayers);
+    g.players = R.Voxel.batch(6000, g.matPlayers);
     g.players.mesh.renderOrder = 2;
     scene.add(g.players.mesh);
     g.matShadow = shadowMaterial();
@@ -356,6 +359,7 @@
       g.fallback[ti] = makeRig({ sp: 'dog', num: 0, cs: 0, look: {} }, g.kits[ti], q);
     });
     for (let i = 0; i < 16; i++) {
+      g.proxy.push({ an: 'idle', at: 0, cele: null, spd: 0, z: 0, ball: false, x: 0, y: 0, px: 0, py: 0, vx: 0, vy: 0, vfa: null, vk: 0 });
       g.st.push(R.Animate.state()); g.pose.push(R.Voxel.newPose());
       g.head.push(new T.Vector3()); g.hand.push(new T.Vector3());
     }
@@ -485,6 +489,128 @@
     S.gl.render(g.scene, g.camera.cam);
   }
 
+  // ---------------------------------------------------------------------------------------------
+  // Celebration director (render-only): picks a celebration per score (seeded + species preference), pulls
+  // nearby teammates into group celebrations with visual offsets (never touches gameplay positions), draws
+  // ball props, and plays short defensive celebrations after sacks / interceptions.
+  // ---------------------------------------------------------------------------------------------
+  const SOLO = ['spike', 'robot', 'moonwalk', 'worm', 'pushups', 'flex', 'salute', 'snowangel', 'sprinkler', 'phone', 'heart', 'dab', 'groundspin', 'leap'];
+  const GROUPS = ['sword', 'bowl', 'grouphop'];
+  const PREF = {
+    L: { flex: 3, stomp: 3, bowl: 2, pushups: 2, robot: 1 }, S: { worm: 2, moonwalk: 2, heart: 2, groundspin: 2, leap: 2 },
+    bird: { flap: 3, salute: 2, heart: 2, sprinkler: 2 }, hop: { hop: 3, leap: 3, grouphop: 2 }
+  };
+  const BIRDS = { chicken: 1, duck: 1, eagle: 1, owl: 1, penguin: 1, ostrich: 1 };
+  function seeded(n) { let x = n >>> 0; return function () { x = (x + 0x6D2B79F5) >>> 0; let t = Math.imul(x ^ (x >>> 15), 1 | x); t ^= t + Math.imul(t ^ (t >>> 7), 61 | t); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  function pickCele(rig, pid, s, mates) {
+    if (R._forceCele) return R._forceCele;
+    const sp = rig.sp || (rig.info && rig.info.sp) || '';
+    const w = {};
+    const base = rig.info.dance || 'hop';
+    w[base] = 4;
+    SOLO.forEach((k) => { w[k] = (w[k] || 0) + 1; });
+    if (mates >= 1) w.sword = 1.2;
+    if (mates >= 3) { w.bowl = 1.4; w.grouphop = 1.4; }
+    const size = rig.info.sz || 'M';
+    const add = (o) => { if (o) Object.keys(o).forEach((k) => { if (w[k] != null || GROUPS.indexOf(k) < 0 || (k === 'bowl' && mates >= 3) || (k === 'grouphop' && mates >= 3)) w[k] = (w[k] || 0) + o[k]; }); };
+    add(PREF[size]); if (BIRDS[sp]) add(PREF.bird); if (base === 'hop') add(PREF.hop);
+    if (s.wxk === 'snow') w.snowangel = (w.snowangel || 0) + 3;
+    const rnd = seeded((pid * 7919) ^ (((s.hud && (s.hud.hs + s.hud.as)) || 0) * 104729) ^ ((s.fxSeq || 0) * 31) ^ (S.seedMix || 0));
+    let tot = 0; Object.keys(w).forEach((k) => { tot += w[k]; });
+    let r = rnd() * tot;
+    for (const k in w) { r -= w[k]; if (r <= 0) return k; }
+    return base;
+  }
+
+  function celeDirector(s, alpha, dt) {
+    const g = G, ents = s.ents, C = g.cele;
+    s.wxk = g.wx.k;
+    // starts
+    for (let i = 0; i < ents.length && i < 16; i++) {
+      const on = ents[i].an === 'celebrate';
+      if (on && !g.celePrev[i]) {
+        const rig = rigFor(ents[i]);
+        // teammates near the scorer (for group celebrations)
+        const mates = [];
+        for (let j = 0; j < ents.length && j < 16; j++) {
+          if (j === i || ents[j].tm !== ents[i].tm || ents[j].an === 'celebrate') continue;
+          const d = Math.hypot(ents[j].x - ents[i].x, ents[j].y - ents[i].y);
+          if (d < 16) mates.push([d, j]);
+        }
+        mates.sort((a, b) => a[0] - b[0]);
+        let style = pickCele(rig, ents[i].pid, s, C.active ? 0 : mates.length);
+        const need = R.Animate.GROUP[style] || 0;
+        if (need && (C.active || mates.length < need)) style = rig.info.dance || 'hop';
+        g.st[i].cele = style;
+        // face the camera (fans + viewer); sword / bowling play out sideways toward the field centre; the leap keeps
+        // heading for the stands. Render-only: gameplay facing is untouched.
+        const ud = s.udir || 1, lat = ents[i].x < MIDX ? 1 : -1;
+        const faceCam = ud > 0 ? Math.PI : 0;
+        let cfa = faceCam;
+        if (style === 'leap') cfa = ents[i].fa || 0;
+        else if (style === 'sword' || style === 'bowl') cfa = -lat * Math.PI / 2;
+        g.celeFa[i] = cfa;
+        if (need) {
+          C.active = true; C.idx = i; C.style = style; C.t = 0; C.k = 0; C.n = need;
+          const fa = cfa, fx = -Math.sin(fa), fy = Math.cos(fa), rx = Math.cos(fa), ry = Math.sin(fa);
+          for (let m = 0; m < need; m++) {
+            const j = mates[m][1], sl = C.slots[m];
+            C.members[m] = j;
+            let ox = 0, oy = 0, sfa = fa + Math.PI;
+            if (style === 'sword') { ox = fx * 1.9; oy = fy * 1.9; }
+            else if (style === 'bowl') { const row = m === 0 ? 5 : 6, lat = m === 0 ? 0 : (m === 1 ? -0.95 : 0.95); ox = fx * row + rx * lat; oy = fy * row + ry * lat; }
+            else { const a = m / need * Math.PI * 2 + 0.6; ox = Math.cos(a) * 1.8; oy = Math.sin(a) * 1.8; sfa = Math.atan2(ox, -oy); }
+            sl.x = ents[i].x + ox; sl.y = ents[i].y + oy; sl.fa = sfa;
+          }
+          for (let m = need; m < C.members.length; m++) C.members[m] = -1;
+        } else if (style === 'leap' || style === 'moonwalk') { /* solo travelling celebrations use pose root offsets */ }
+      }
+      if (!on && g.celePrev[i]) g.st[i].cele = null;
+      g.celePrev[i] = on;
+    }
+    // group progress / end
+    if (C.active) {
+      C.t += dt;
+      const sc = ents[C.idx];
+      if (!sc || sc.an !== 'celebrate') { C.k = Math.max(0, C.k - dt / 0.3); if (C.k <= 0) { C.active = false; for (let m = 0; m < C.members.length; m++) C.members[m] = -1; } }
+      else C.k = Math.min(1, C.t / 0.5);
+    }
+    // defensive mini celebrations (sack / INT): wait for the whistle, play ~1.6 s, stop at the next line-up
+    const M = g.mini;
+    if (M.pid >= 0) {
+      if (M.t < 0) {
+        if (s.phase !== 'LIVE') { M.idx = -1; for (let i = 0; i < ents.length && i < 16; i++) if (ents[i].pid === M.pid) M.idx = i; M.t = M.idx >= 0 ? 0 : -1; if (M.idx < 0) M.pid = -1; }
+      } else {
+        M.t += dt;
+        if (M.t > 1.7 || s.phase === 'PRESNAP' || s.phase === 'LIVE' || !ents[M.idx] || ents[M.idx].pid !== M.pid) { M.pid = -1; M.t = -1; M.idx = -1; }
+      }
+    }
+  }
+
+  /** visual override for entity i: fills proxy and returns it (or null = use the snapshot entity) */
+  function celeProxy(i, e, x, y) {
+    const g = G, C = g.cele, M = g.mini;
+    const pr = g.proxy[i];
+    if (M.idx === i && M.t >= 0 && (e.an === 'idle' || e.an === 'stance' || e.an === 'run' || e.an === 'down' || e.an === 'tackle')) {
+      pr.an = 'celebrate'; pr.at = M.t; pr.cele = M.style; pr.spd = 0; pr.z = 0; pr.ball = false;
+      pr.px = pr.x = x; pr.py = pr.y = y; pr.vx = x; pr.vy = y; pr.vfa = (G.udir || 1) > 0 ? Math.PI : 0; pr.vk = Math.min(1, M.t * 3);
+      return pr;
+    }
+    if (!C.active) return null;
+    for (let m = 0; m < C.members.length; m++) {
+      if (C.members[m] !== i) continue;
+      const sl = C.slots[m], k = C.k * C.k * (3 - 2 * C.k);
+      pr.vx = x + (sl.x - x) * k; pr.vy = y + (sl.y - y) * k; pr.vfa = sl.fa; pr.vk = k;
+      pr.px = pr.x = pr.vx; pr.py = pr.y = pr.vy; pr.z = 0; pr.spd = 0; pr.ball = false;
+      const t = C.t;
+      if (C.style === 'sword') { pr.an = 'celebrate'; pr.cele = 'sword2'; pr.at = t; }
+      else if (C.style === 'grouphop') { pr.an = 'celebrate'; pr.cele = 'grouphop'; pr.at = t; }
+      else { const hit = 1.05 + m * 0.08; if (t < hit) { pr.an = 'stance'; pr.at = t; } else { pr.an = 'tackled'; pr.at = t - hit; } pr.cele = null; }
+      return pr;
+    }
+    return null;
+  }
+
   function drawPlayers(s, alpha, dt) {
     const g = G, P = g.players, SH = g.shadows;
     const ents = s.ents;
@@ -492,15 +618,20 @@
     P.begin(); SH.begin();
     const fk = 1 - Math.exp(-dt * 16);
     const by = s.ball ? s.ball.py + (s.ball.y - s.ball.py) * alpha : 60;
+    celeDirector(s, alpha, dt);
     for (let i = 0; i < ents.length && i < 16; i++) {
       const e = ents[i];
       const rig = rigFor(e);
       const st = g.st[i], pose = g.pose[i];
       const ka = Math.abs(e.x - e.px) + Math.abs(e.y - e.py) > 3 ? 1 : alpha;      // teleport (line-up): no lerp
-      const x = e.px + (e.x - e.px) * ka, y = e.py + (e.y - e.py) * ka, z = (e.pz || 0) + ((e.z || 0) - (e.pz || 0)) * ka;
+      let x = e.px + (e.x - e.px) * ka, y = e.py + (e.y - e.py) * ka;
+      const z = (e.pz || 0) + ((e.z || 0) - (e.pz || 0)) * ka;
       if (!g.faInit[i] || st.pid !== e.pid) { g.fa[i] = e.fa || 0; g.faInit[i] = 1; st.pid = e.pid; }
       else g.fa[i] = lerpAngle(g.fa[i], e.fa || 0, fk);
-      R.Animate.pose(pose, e, st, rig.info, dt);
+      if (e.an === 'celebrate' && st.cele && g.celeFa) g.fa[i] = lerpAngle(g.fa[i], g.celeFa[i], Math.min(1, dt * 8));
+      const pr = celeProxy(i, e, x, y);
+      if (pr && pr.vfa != null) { x = pr.vx; y = pr.vy; g.fa[i] = lerpAngle(g.fa[i], pr.vfa, Math.min(1, fk * 2 * (pr.vk || 1))); }
+      R.Animate.pose(pose, pr || e, st, rig.info, dt);
       const sc = rig.scale;
       _q.setFromAxisAngle(_v.set(0, 1, 0), g.fa[i]);
       _m.compose(_v2.set(x - MIDX, z, 60 - y), _q, _v.set(sc, sc, sc));
@@ -509,7 +640,9 @@
       R.Voxel.poseRig(rig, pose, _m, P, SH, tint);
       R.Voxel.headPos(rig, g.head[i]);
       R.Voxel.handPos(rig, g.hand[i]);
+      g.vx[i] = x; g.vy[i] = y;
     }
+    celeBall(s);
     drawBall(s, alpha);
     drawSideline(s, dt);
     P.end(); SH.end();
@@ -534,12 +667,33 @@
   ];
   const BALL_SCALE = 1.25;
   let ballLast = { x: 0, y: 0, z: 0, ok: false };
+  /** ball prop for spike / ground-spin / bowling celebrations (render-only) */
+  function celeBall(s) {
+    const g = G;
+    g.celeBallOn = false;
+    const ents = s.ents;
+    for (let i = 0; i < ents.length && i < 16; i++) {
+      const style = g.st[i].cele;
+      if (!style || !R.Animate.BALLPROP[style] || ents[i].an !== 'celebrate') continue;
+      const t = ents[i].at != null ? ents[i].at : g.st[i].t;
+      const fa = g.fa[i], fx = -Math.sin(fa), fz = -Math.cos(fa);
+      let d = 0, y = 0.2, yaw = fa;
+      if (style === 'spike') { if (t < 0.45) return; const u = t - 0.45; d = 0.8; y = 0.2 + Math.abs(Math.sin(u * 9)) * 1.4 * Math.exp(-u * 2.5); yaw = fa + u * 8; }
+      else if (style === 'groundspin') { if (t < 0.25) return; d = 1.0; yaw = t * 26; }
+      else if (style === 'bowl') { if (t < 0.7) return; d = 0.8 + Math.min(4.4, (t - 0.7) * 12); yaw = fa; }
+      g.celeBallOn = true;
+      g.cbx = g.vx[i] - MIDX + fx * d; g.cby = y; g.cbz = 60 - g.vy[i] + fz * d; g.cbyaw = yaw;
+      return;
+    }
+  }
+
   function drawBall(s, alpha) {
     const b = s.ball;
     if (!b) return;
     const g = G;
     let x, y, z, yaw = 0, pitch = 0;
-    const held = b.st === 'held' && b.car >= 0 && b.car < 16;
+    let held = b.st === 'held' && b.car >= 0 && b.car < 16;
+    if (g.celeBallOn) held = false;
     const jump = Math.hypot((b.x || 0) - (b.px || 0), (b.y || 0) - (b.py || 0)) > 3;
     const tp = !!b.tp || jump;
     if (held) {
@@ -561,6 +715,7 @@
         if (b.st === 'air' && b.kind !== 'spot' && g.fx && hv > 0.25 && hv < 2.5 && moved < 3) g.fx.trail(x, y, z, hv > 0.6);
       } else if (b.st === 'dead' || b.st === 'spot') { yaw = 0; }
     }
+    if (g.celeBallOn) { x = g.cbx; y = g.cby; z = g.cbz; yaw = g.cbyaw; pitch = 0; }
     ballLast.x = x; ballLast.y = y; ballLast.z = z; ballLast.ok = true;
     _e.set(pitch, yaw, 0, 'YXZ');
     _q.setFromEuler(_e);
@@ -590,91 +745,141 @@
   // (all in the players' instanced batch → no extra draw calls; static tables / coolers / cart live in stadium.js)
   // ---------------------------------------------------------------------------------------------
   const HWF = 26.667;
+  /** sideline life per quality tier (phones first: low = a lighter sideline) */
+  const SIDE = {
+    low: { bench: 5, staff: 1, trainer: 0, kicker: 0, cheer: 0, photo: 2, ballboys: 0 },
+    med: { bench: 8, staff: 2, trainer: 1, kicker: 1, cheer: 3, photo: 6, ballboys: 2 },
+    high: { bench: 10, staff: 2, trainer: 1, kicker: 1, cheer: 4, photo: 8, ballboys: 4 }
+  };
   function buildSideline(g, q) {
     const A = [];
+    const T0 = SIDE[q.name] || SIDE.med;
+    const BN = (R.Stadium && R.Stadium.BENCH) || { top0: 0.42, top1: 0.78, dx0: 4.3, dx1: 5.4 };
     const mk = (pl, team, scale) => { const rig = makeRig(pl, team, q); if (scale) rig.scale *= scale; return rig; };
     const actor = (rig, wx, wz, fa, kind, extra) => {
       const a = Object.assign({ rig: rig, wx: wx, wz: wz, fa: fa, kind: kind, st: R.Animate.state(), P: R.Voxel.newPose(),
-        e: { an: 'idle', at: -1, spd: 0, z: 0, ball: false }, tz: wz, tx: wx, ph: Math.random() * 6.28 }, extra || {});
+        e: { an: 'idle', at: -1, spd: 0, z: 0, ball: false }, tz: wz, tx: wx, ph: Math.random() * 6.28, seat: 0 }, extra || {});
       A.push(a); return a;
     };
+    const staffKit = (col) => ({ pri: col.pri, sec: col.sec, acc: 0xC8B48A });
     [g.home, g.away].forEach((t, ti) => {
       const sgn = ti === 0 ? -1 : 1, kit = g.kits[ti], col = g.cols[ti];
       const face = sgn < 0 ? -Math.PI / 2 : Math.PI / 2;
-      // bench: players not starting
+      // bench: the real non-starters in kit — some sit on the two bench rows, some stand at the sideline
       const starters = new Set();
       if (t.dc) Object.keys(t.dc).forEach((k) => { if (t.dc[k] && t.dc[k].length) starters.add(t.dc[k][0]); });
-      const bench = (t.pl || []).filter((p) => !starters.has(p.pid)).slice(0, 6);
-      while (bench.length < 4) bench.push({ sp: ['dog', 'pig', 'cat', 'goat'][bench.length], num: 40 + bench.length, cs: bench.length % 2, look: {} });
-      // team area ≈ between the 30s: subs spread along it in small groups
-      const zs = [-22, -19.5, -6, 4, 17, 20.5];
-      bench.forEach((p, k) => actor(mk(p, kit), sgn * (HWF + 3.4 + (k % 2) * 0.5), zs[k % zs.length] + (Math.random() - 0.5), face + (Math.random() - 0.5) * 0.4, 'bench', { team: ti }));
-      // coach (polo in the team color, khakis, headset)
+      const kickerPid = t.dc && t.dc.K ? t.dc.K[0] : -1;
+      const bench = (t.pl || []).filter((p) => !starters.has(p.pid) || p.pid === kickerPid).filter((p) => p.pid !== kickerPid).slice(0, T0.bench);
+      while (bench.length < Math.min(4, T0.bench)) bench.push({ sp: ['dog', 'pig', 'cat', 'goat'][bench.length], num: 40 + bench.length, cs: bench.length % 2, look: {} });
+      bench.forEach((p, k) => {
+        const sit = k % 2 === 1;                                    // half sit, half stand at the white border
+        const row = sit ? (k % 2) : -1;
+        const z = -23 + (k / Math.max(1, bench.length - 1)) * 46 + (Math.random() - 0.5) * 1.5;
+        const dx = sit ? (row ? BN.dx1 : BN.dx0) - 0.05 : 1.5 + Math.random() * 0.9;
+        actor(mk(p, kit), sgn * (HWF + dx), z, face + (sit ? 0 : (Math.random() - 0.5) * 0.5), 'bench', { team: ti, seat: sit ? (row ? BN.top1 : BN.top0) : 0 });
+      });
+      // head coach (polo in team colors, khakis, headset) + a headset coordinator, both follow the LOS
       const coachSp = ['bear', 'owl', 'goat', 'walrus', 'dog'][(t.tid || 0) % 5];
-      actor(mk({ sp: coachSp, num: -1, cs: 0, look: { acc: 'headset' }, noHelmet: true }, { pri: col.pri, sec: col.sec, acc: 0xC8B48A }), sgn * (HWF + 2.0), -1, face, 'coach', { team: ti });
+      actor(mk({ sp: coachSp, num: -1, cs: 0, look: { acc: 'headset' }, noHelmet: true }, staffKit(col)), sgn * (HWF + 1.5), -1, face, 'coach', { team: ti, off: 0 });
+      if (T0.staff > 1) actor(mk({ sp: ['monkey', 'penguin', 'fox', 'beaver'][(t.tid || 0) % 4], num: -1, cs: 1, look: { acc: 'headset' }, noHelmet: true }, staffKit(col)), sgn * (HWF + 2.1), -3, face, 'coach', { team: ti, off: -3.5 });
+      // trainer by the medical cart
+      if (T0.trainer) actor(mk({ sp: 'owl', num: -1, cs: 1, look: {}, noHelmet: true }, { pri: 0xffffff, sec: 0xE63B2E, acc: 0x2b2b30 }), sgn * (HWF + 2.0), -29, face, 'staff', { team: ti });
+      // the kicker warming up into the net (real K in kit)
+      if (T0.kicker) {
+        const kp = (t.pl || []).find((p) => p.pid === kickerPid) || { sp: 'kangaroo', num: 3, cs: 0, look: {} };
+        actor(mk(kp, kit), sgn * (HWF + 3.6), 28.5, 0, 'kicker', { team: ti });
+      }
     });
-    // home mascot (big, no helmet, no number) dancing near the home bench
+    // home mascot (big, no helmet, no number) + cheer squad with pom-poms behind the home bench
     const hsp = g.home && R.Models.has(g.home.sp) ? g.home.sp : 'frog';
-    actor(mk({ sp: hsp, num: -1, cs: 0, look: {}, noHelmet: true }, g.kits[0], 1.45), -(HWF + 3.2), 16, -Math.PI / 2, 'mascot', { team: 0 });
+    actor(mk({ sp: hsp, num: -1, cs: 0, look: {}, noHelmet: true }, g.kits[0], 1.45), -(HWF + 2.2), 16, -Math.PI / 2, 'mascot', { team: 0 });
+    const cheerKit = { pri: 0xffffff, sec: g.cols[0].pri, acc: g.cols[0].pri };
+    for (let k = 0; k < T0.cheer; k++) actor(mk({ sp: ['cat', 'rabbit', 'fox', 'squirrel'][k % 4], num: -1, cs: k % 2, look: { acc: 'pompom' }, noHelmet: true }, cheerKit), -(HWF + 1.9), (k % 2 ? 1 : -1) * (31 + (k >> 1) * 3.2), -Math.PI / 2, 'cheer', { team: 0 });
     // chain crew on the away sideline (orange vests): line-to-gain pole, chain start pole, down marker
     const vest = { pri: 0xFF7B1C, sec: 0xffffff, acc: 0x2b2b2b };
     ['pig', 'goat', 'beaver'].forEach((sp, k) => actor(mk({ sp: sp, num: -1, cs: k % 2, look: {}, noHelmet: true }, vest), HWF + 1.6, 0, Math.PI / 2, 'chain', { k: k }));
-    // sideline cameraman on the home side, tracking the line of scrimmage (like the chain crew opposite)
-    actor(mk({ sp: 'raccoon', num: -1, cs: 1, look: { acc: 'camera' }, noHelmet: true }, { pri: 0x3a3f4b, sec: 0xffffff, acc: 0x2b2b2b }), -(HWF + 1.9), 0, -Math.PI / 2, 'cam');
-    // photographers behind the end lines near the corners (low, crouched)
+    // TV cameraman riding a cart on rails (home side), tracking the line of scrimmage
     const press = { pri: 0x3a3f4b, sec: 0xffffff, acc: 0x2b2b2b };
-    [[-1, 0], [1, 0], [-1, 1], [1, 1]].forEach((c, k) => {
-      const end = c[1], wz = end === 0 ? 61.6 : -61.6;
-      actor(mk({ sp: ['raccoon', 'cat', 'owl', 'rabbit'][k], num: -1, cs: k % 2, look: { acc: 'camera' }, noHelmet: true }, press), c[0] * (HWF - 7 - k), wz, end === 0 ? 0 : Math.PI, 'photo');
-    });
+    actor(mk({ sp: 'raccoon', num: -1, cs: 1, look: { acc: 'camera' }, noHelmet: true }, press), -(HWF + 1.35), 0, -Math.PI / 2, 'cam');
+    // photographers kneeling along both end lines
+    for (let k = 0; k < T0.photo; k++) {
+      const end = k % 2, side = (k >> 1) % 2 ? 1 : -1, wz = end === 0 ? 61.7 : -61.7;
+      const xx = side * (HWF - 6 - (k >> 2) * 7);
+      actor(mk({ sp: ['raccoon', 'cat', 'owl', 'rabbit', 'goat', 'penguin', 'fox', 'dog'][k % 8], num: -1, cs: k % 2, look: { acc: 'camera' }, noHelmet: true }, press), xx, wz, end === 0 ? 0 : Math.PI, 'photo');
+    }
+    // ball boys (small, grey staff shirts) jogging between their spots near the 20s
+    const bbKit = { pri: 0x8a8f99, sec: 0xffffff, acc: 0x2b2b30 };
+    for (let k = 0; k < T0.ballboys; k++) {
+      const side = k % 2 ? 1 : -1, z0 = (k >> 1) % 2 ? 34 : -34;
+      actor(mk({ sp: k % 2 ? 'hamster' : 'squirrel', num: -1, cs: 0, look: {}, noHelmet: true }, bbKit), side * (HWF + 1.2), z0, side < 0 ? -Math.PI / 2 : Math.PI / 2, 'ballboy', { z0: z0 });
+    }
     return A;
   }
 
   function drawSideline(s, dt) {
     const g = G, A = g.side;
     if (!A) return;
-    const P = g.players, SH = g.shadows;
+    const P = g.players;
     g.sideCheer[0] = Math.max(0, g.sideCheer[0] - dt); g.sideCheer[1] = Math.max(0, g.sideCheer[1] - dt);
     g.sideSad[0] = Math.max(0, g.sideSad[0] - dt); g.sideSad[1] = Math.max(0, g.sideSad[1] - dt);
     const t = S.time;
     const dir = s.dir || 1, los = s.los || 60, fd = s.fd || los + 10 * dir;
+    const hideChain = !!g.markHide;
     for (let i = 0; i < A.length; i++) {
       const a = A[i], e = a.e;
-      let an = 'idle', spd = 0;
-      if (a.kind === 'bench' || a.kind === 'coach') {
-        if (g.sideCheer[a.team] > 0) an = 'celebrate';
-        else if (g.sideSad[a.team] > 0) an = a.kind === 'coach' ? 'sad' : 'sad';
-        if (a.kind === 'coach' && an === 'idle') {
-          // follow the line of scrimmage inside the coaches' box (≈ between the 30s)
-          a.tz = Math.max(-26, Math.min(26, 60 - los)) + Math.sin(t * 0.3 + a.ph) * 2;
-        }
+      let an = 'idle', spd = 0, lift = 0;
+      const cheer = a.team != null && g.sideCheer[a.team] > 0, sad = a.team != null && g.sideSad[a.team] > 0;
+      if (a.kind === 'bench' || a.kind === 'coach' || a.kind === 'staff') {
+        if (cheer) an = 'celebrate'; else if (sad) an = 'sad';
+        if (a.kind === 'coach' && an === 'idle') a.tz = Math.max(-24, Math.min(24, 60 - los)) + (a.off || 0) + Math.sin(t * 0.3 + a.ph) * 2;
+        if (a.kind === 'bench' && a.seat && an !== 'celebrate') { an = 'sit'; lift = a.seat; }     // big play → they jump up
       } else if (a.kind === 'mascot') {
         an = g.sideCheer[0] > 0 || ((t + a.ph) % 9) > 6.5 ? 'celebrate' : 'idle';
+      } else if (a.kind === 'cheer') {
+        an = g.sideCheer[0] > 0 || ((t * 0.7 + a.ph) % 5) > 3.2 ? 'celebrate' : 'idle';
       } else if (a.kind === 'chain') {
-        const y = a.k === 0 ? fd : a.k === 1 ? fd - 10 * dir : los;
-        a.tz = 60 - Math.max(0, Math.min(120, y));
+        if (!hideChain) { const y = a.k === 0 ? fd : a.k === 1 ? fd - 10 * dir : los; a.tz = 60 - Math.max(0, Math.min(120, y)); }
       } else if (a.kind === 'photo') {
         an = 'stance';
       } else if (a.kind === 'cam') {
-        a.tz = 60 - Math.max(2, Math.min(118, los - 3 * dir));
+        a.tz = 60 - Math.max(12, Math.min(108, los - 3 * dir));
+        lift = 0.55;
         if (Math.abs(a.tz - a.wz) < 0.4) an = 'stance';
+      } else if (a.kind === 'kicker') {
+        const c = (t + a.ph) % 3.2;
+        if (c < 0.45) { an = 'run'; spd = 3; a.wz = 28.5 - c * 2.2; } else if (c < 0.85) { an = 'kick'; e.at = c - 0.45; a.wz = 27.5; } else { an = 'idle'; a.wz = 27.5 + Math.min(1, (c - 0.85)) ; }
+      } else if (a.kind === 'ballboy') {
+        a.tz = a.z0 + (((t * 0.15 + a.ph) % 2) < 1 ? 0 : -6 * Math.sign(a.z0));
       }
-      // walk toward the target spot
-      const dz = a.tz - a.wz, dist = Math.abs(dz);
-      if (dist > 0.05) {
-        const fast = a.kind === 'chain' || a.kind === 'cam';
-        const step = Math.min(dist, (fast ? 7 : a.kind === 'coach' ? 3 : 1.8) * dt);
-        a.wz += Math.sign(dz) * step;
-        if (dist > 0.4) { an = 'run'; spd = fast ? 6 : 2.5; }
+      // walk toward the target spot (not the kicker: scripted above; not riders)
+      let dz = 0;
+      if (a.kind !== 'kicker') {
+        dz = a.tz - a.wz; const dist = Math.abs(dz);
+        if (dist > 0.05) {
+          const fast = a.kind === 'chain' || a.kind === 'cam';
+          const step = Math.min(dist, (fast ? 7 : a.kind === 'coach' ? 3 : 1.8) * dt);
+          a.wz += Math.sign(dz) * step;
+          if (dist > 0.4 && a.kind !== 'cam') { an = 'run'; spd = fast ? 6 : 2.5; lift = 0; }
+        }
       }
-      e.an = an; e.spd = spd; e.at = -1;
+      e.an = an === 'sit' ? 'idle' : an; e.spd = spd; if (a.kind !== 'kicker' || an !== 'kick') e.at = -1;
       R.Animate.pose(a.P, e, a.st, a.rig.info, dt);
-      const fa = an === 'run' ? (dz < 0 ? 0 : Math.PI) : a.fa;
       const sc = a.rig.scale;
+      if (an === 'sit') {
+        // hips on the bench, legs straight forward (toy pose); slight idle sway
+        const hip = a.rig.piv[16];
+        a.P.y = lift / sc - hip; a.P.llx = a.P.lrx = 1.45; a.P.brx = -0.05; a.P.alx = a.P.arx = 0.5;
+        a.P.hry = Math.sin(t * 0.7 + a.ph) * 0.35;
+      } else if (lift) a.P.y += lift / sc;
+      const fa = an === 'run' && a.kind !== 'kicker' ? (dz < 0 ? 0 : Math.PI) : a.fa;
       _q.setFromAxisAngle(_v.set(0, 1, 0), fa);
       _m.compose(_v2.set(a.wx, 0, a.wz), _q, _v.set(sc, sc, sc));
-      R.Voxel.poseRig(a.rig, a.P, _m, P, SH, null);
-      if (a.kind === 'chain') {
+      R.Voxel.poseRig(a.rig, a.P, _m, P, null, null);           // sideline actors: no planar shadows (perf)
+      if (a.kind === 'cam') {
+        // camera cart on the rails
+        P.addBox(a.wx, 0.3, a.wz, 0.95, 0.4, 1.3, 0.25, 0.27, 0.32);
+        P.addBox(a.wx, 0.08, a.wz - 0.5, 1.0, 0.16, 0.2, 0.12, 0.12, 0.14); P.addBox(a.wx, 0.08, a.wz + 0.5, 1.0, 0.16, 0.2, 0.12, 0.12, 0.14);
+      } else if (a.kind === 'chain' && !hideChain) {
         // pole + marker: orange stick, black top (chain poles) / down box with the down number
         const px = a.wx - 0.55;
         P.addBox(px, 1.3, a.wz, 0.12, 2.6, 0.12, 0.15, 0.15, 0.17);
@@ -683,12 +888,16 @@
           P.addBox(px, 2.85, a.wz, 0.16, 0.8, 0.8, 1, 0.48, 0.1);
           downDigit(px - 0.1, 2.85, a.wz, (s.hud && s.hud.down) || 1);
         }
+      } else if (a.kind === 'kicker') {
+        P.addBox(a.wx, 0.2, 27.0 - (an === 'idle' ? 6 : 0), 0.22, 0.22, 0.32, 0.58, 0.3, 0.16);   // practice ball (in the net after the kick)
       }
     }
     // the chain between the two chain poles
-    let za = null, zb = null, cx = 0;
-    for (let i = 0; i < A.length; i++) { const a = A[i]; if (a.kind === 'chain' && a.k === 0) { za = a.wz; cx = a.wx - 0.55; } if (a.kind === 'chain' && a.k === 1) zb = a.wz; }
-    if (za != null && zb != null) P.addBox(cx, 0.35, (za + zb) / 2, 0.06, 0.06, Math.abs(za - zb), 0.75, 0.75, 0.78);
+    if (!hideChain) {
+      let za = null, zb = null, cx = 0;
+      for (let i = 0; i < A.length; i++) { const a = A[i]; if (a.kind === 'chain' && a.k === 0) { za = a.wz; cx = a.wx - 0.55; } if (a.kind === 'chain' && a.k === 1) zb = a.wz; }
+      if (za != null && zb != null) P.addBox(cx, 0.35, (za + zb) / 2, 0.06, 0.06, Math.abs(za - zb), 0.75, 0.75, 0.78);
+    }
   }
   /** white pixel digit on the down marker (faces the field / −x) */
   function downDigit(x, y, z, d) {
@@ -746,6 +955,7 @@
   };
 
   // bus listeners (Session re-emits engine events as game:*)
+  function Cm() { return R.Camera; }
   function busHooks() {
     if (!PT.Events || !PT.Events.on || busHooks.done) return;
     busHooks.done = true;
@@ -756,7 +966,20 @@
     PT.Events.on('game:hitstop', (p) => { if (G && userPlay(p)) { G.camera.cue('slowmo', (p && p.dur) || 0.3); } });
     PT.Events.on('game:tackle', (p) => { if (G && p) G.camera.shake(p.big ? 0.2 : 0.08); });
     PT.Events.on('game:firstDown', () => { if (G) G.stadium.cheer(0.4); });
-    PT.Events.on('game:turnover', () => { if (G) G.stadium.cheer(0.8); });
+    const teamOf = (tid) => (G.home && G.home.tid === tid ? 0 : G.away && G.away.tid === tid ? 1 : -1);
+    const mini = (pid, list) => {
+      if (!G || pid == null || pid < 0 || (Cm() && Cm().reduceMotion)) return;
+      const r = seeded((pid * 131) ^ ((G.lastFx || 0) * 977) ^ (S.seedMix || 0));
+      G.mini.pid = pid; G.mini.t = -1; G.mini.idx = -1; G.mini.style = list[Math.floor(r() * list.length)];
+    };
+    PT.Events.on('game:sack', (p) => { if (G && p) { mini(p.by, ['flex', 'salute', 'dab', 'robot']); } });
+    PT.Events.on('game:turnover', (p) => {
+      if (!G) return;
+      G.stadium.cheer(0.8);
+      if (p && p.kind === 'int') mini(p.by, ['phone', 'salute', 'heart', 'sprinkler']);
+      const ti = p ? teamOf(p.tid) : -1;
+      if (ti >= 0) { G.sideCheer[ti] = 2.5; G.sideSad[1 - ti] = 2.5; }
+    });
     PT.Events.on('game:fieldGoal', (p) => { if (G && p && p.good) G.stadium.cheer(0.8); });
   }
 

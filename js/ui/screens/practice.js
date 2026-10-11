@@ -1,6 +1,6 @@
 /* Pixel Touchdown: js/ui/screens/practice.js
  * Owner: PRACTICE (docs/handoff/PRACTICE.md). Responsibility: Practice Field: a guided tutorial on the real
- * engine/render/HUD. Steps: 1 Throw (a catch) · 2 Run & dodge (catch, then Juke/Spin/Dive) · 3 Handoff run (5+ yards) ·
+ * engine/render/HUD. Steps: 1 Throw (a catch) · 2 Run & dodge (catch, then Juke/Dive) · 3 Handoff run (5+ yards) ·
  * 4 Defense (pick a call, GO, tap when the Star's ring is GREEN) · 5 Field goal (4th down → Field Goal → kick).
  *
  * Every attempt is an engine DRILL (game.setupDrill, see WP3 / PRACTICE.md): the ball on a fixed spot, fixed plays and a
@@ -39,10 +39,10 @@
       ['Click HIKE (or press Space).', 'Drag BACK away from a catcher and let go. Longer drag = longer throw.'],
       ['Press Space to hike.', 'Press 1, 2, 3 or 4 to throw to that catcher.'],
       ['Press A to hike.', 'Point the right stick at a catcher, pull RT to throw.']],
-    run: [['Hike and throw the short pass to the open catcher.', 'After the catch, steer with the joystick ({stick}) and tap JUKE, SPIN or DIVE.'],
-      ['Hike and throw to a catcher.', 'After the catch, hold the mouse to run. Click JUKE, SPIN or DIVE.'],
-      ['Hike (Space) and throw (1–4).', 'After the catch, steer with WASD. Q = Juke, R = Spin, E = Dive.'],
-      ['Hike (A) and throw (RT).', 'After the catch, steer with the left stick. A = Juke, B = Spin, X = Dive.']],
+    run: [['Hike and throw the short pass to the open catcher.', 'After the catch, steer with the joystick ({stick}) and tap JUKE or DIVE.'],
+      ['Hike and throw to a catcher.', 'After the catch, hold the mouse to run. Click JUKE or DIVE.'],
+      ['Hike (Space) and throw (1–4).', 'After the catch, steer with WASD. Q = Juke, E = Dive.'],
+      ['Hike (A) and throw (RT).', 'After the catch, steer with the left stick. A = Juke, X = Dive.']],
     handoff: [['Tap HIKE. The handoff is automatic.', 'Steer with the joystick ({stick}). Gain 5 yards.'],
       ['Click HIKE. The handoff is automatic.', 'Hold the mouse button to run toward the pointer. Gain 5 yards.'],
       ['Press Space. The handoff is automatic.', 'Steer with WASD. Shift = sprint. Gain 5 yards.'],
@@ -67,7 +67,7 @@
   const PILL = {
     hike: ['Tap HIKE', 'Click HIKE', 'Space to hike', 'A to hike'],
     throw: ['Pull back, let go', 'Drag back, let go', 'Press 1–4 to throw', 'Aim, then RT'],
-    steer: ['Steer · JUKE · SPIN · DIVE', 'Steer · JUKE · SPIN · DIVE', 'WASD · Q R E to dodge', 'Stick · A B X to dodge'],
+    steer: ['Steer · JUKE · DIVE', 'Steer · JUKE · DIVE', 'WASD · Q E to dodge', 'Stick · A X to dodge'],
     run: ['Steer with the stick', 'Hold the mouse to run', 'WASD to run', 'Left stick to run'],
     go: ['Tap GO', 'Click GO', 'Enter = GO', 'A = GO'],
     star: ['Tap TAP! on GREEN', 'Click TAP! on GREEN', 'Space on GREEN', 'A on GREEN'],
@@ -77,7 +77,7 @@
   // the coach's verdict after a missed attempt
   const MISS = {
     throw: { inc: 'Incomplete. Throw to the catcher with the most space.', int: 'Picked off. Throw away from defenders.', sack: 'Sacked. Throw a bit sooner.', none: 'Throw it to a catcher.' },
-    run: { nocatch: 'Catch it first, then dodge.', nomove: 'Caught! Now tap JUKE, SPIN or DIVE while you run.', quick: 'Tackled right away. Throw to the open catcher, then dodge.' },
+    run: { nocatch: 'Catch it first, then dodge.', nomove: 'Caught! Now tap JUKE or DIVE while you run.', quick: 'Tackled right away. Throw to the open catcher, then dodge.' },
     handoff: { short: 'Short of 5 yards. Look for a gap.', none: 'Hike it and run.' },
     defense: { whiff: 'Too early. Wait for the GREEN ring.', none: 'No Star Play. Tap TAP! the moment the ring turns GREEN.' },
     kick: { miss: 'No good. Aim between the posts.', short: 'Too short. Pull back further.', wide: 'Wide. Aim between the posts.', wrong: 'On 4th down, pick Field Goal.' }

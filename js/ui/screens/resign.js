@@ -168,8 +168,16 @@
     // one row: Back · Let them go · KEEP THEM (primary right). Keep them = modal-ok.
     const btns = [{ label: 'Back', value: null, kind: 'cancel', testid: 'keep-back' }, { label: 'Let them go', value: 'go', kind: 'sec', testid: 'btn-let-go-all' }];
     if (can.length) btns.push({ label: can.length === open.length ? 'Keep them' : 'Keep ' + can.length, value: 'keep', kind: 'go' });
-    UI.Modal.open({ title: D().plural(open.length, 'player') + ' will leave', icon: 'hand', cls: 'm-list m-leave', dismiss: false,
-      body: html`${K().pg('leave', rows, { cls: 'fl-lv-pg' })}`, buttons: btns })
+    // HUNT6-flow #5: say what the roster loses (positions that drop below their minimum), and "more" when some already left
+    const gone = lists(lg).gone;
+    const leaving = {};
+    open.concat(gone).forEach((p) => { leaving[p.id] = true; });
+    const left = {};
+    PT.League.Q.roster(lg, lg.userTid).forEach((p) => { if (!leaving[p.id]) left[p.pos] = (left[p.pos] || 0) + 1; });
+    const warn = Object.keys(PT.C.ROSTER.NEED).filter((pos) => open.some((p) => p.pos === pos) && (left[pos] || 0) < PT.C.ROSTER.NEED[pos])
+      .map((pos) => html`<p class="fl-note bad">${K().ic('warn')} ${left[pos] ? 'Only ' + left[pos] + ' ' + pos + ' left' : 'No ' + pos + ' left'} (need ${PT.C.ROSTER.NEED[pos]})</p>`);
+    UI.Modal.open({ title: D().plural(open.length, gone.length ? 'more player' : 'player') + ' will leave', icon: 'hand', cls: 'm-list m-leave', dismiss: false,
+      body: html`${warn}${K().pg('leave', rows, { cls: 'fl-lv-pg' })}`, buttons: btns })
       .then((v) => {
         if (v === 'go') { if (F) F.next(); return; }
         if (v !== 'keep') return;

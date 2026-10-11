@@ -232,8 +232,9 @@
   };
   /** red header segment "Need QB, K" (empty when the roster is fine) */
   FK.needSeg = function (lg) {
-    const sp = FK.shortPos(lg);
-    return sp.length ? FK.seg('Need', sp.join(', '), { icon: 'warn', cls: 'fl-seg-warn', testid: 'need-pos' }) : '';
+    let miss = [];
+    try { miss = (PT.League.Roster.validate(lg, lg.userTid).errors || []).filter((e) => e.pos).map((e) => (e.n > 1 ? e.n + ' ' : '') + e.pos); } catch (e) { miss = []; }
+    return miss.length ? FK.seg('Need', miss.join(', '), { icon: 'warn', cls: 'fl-seg-warn', testid: 'need-pos' }) : '';
   };
 
   // ---------------- small pieces ----------------

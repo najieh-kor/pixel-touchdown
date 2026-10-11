@@ -79,7 +79,7 @@
       case 'dive': dive(P, e, st, t, h); break;
       case 'juke': juke(P, e, st, t, dt); break;
       case 'spin': spin(P, e, st, t, dt); break;
-      case 'celebrate': celebrate(P, e, st, t, info.dance || 'hop'); break;
+      case 'celebrate': celebrate(P, e, st, t, e.cele || st.cele || info.dance || 'hop', info.h || 16); break;
       case 'sad': sad(P, st, t); break;
       case 'kick': kick(P, e, st, t); break;
       case 'held': case 'kneel': case 'spike': case 'dead': stance(P, e, st); break;
@@ -285,6 +285,154 @@
     P.hrx = 0.2;
   }
 
+  /** the 17 new celebrations (and group roles). @returns {boolean} handled */
+  function newCele(P, t, style, h) {
+    switch (style) {
+      case 'spike': {
+        if (t < 0.35) { const k = ease(t / 0.35); P.arx = -0.3 - 2.6 * k; P.brx = -0.15 * k; P.hrx = -0.3 * k; P.alz = 0.3; }
+        else if (t < 0.55) { const k = ease((t - 0.35) / 0.2); P.arx = -2.9 + 3.6 * k; P.brx = -0.15 + 0.6 * k; P.y = -0.8 * k; P.hrx = 0.3 * k; }
+        else { const s2 = abs(sin((t - 0.55) * 7)); P.alx = P.arx = 1.4; P.alz = 1.25; P.arz = -1.25; P.y = s2 * 1.2; P.sy = 1 - (1 - s2) * 0.06; P.hrx = -0.25; }
+        return true;
+      }
+      case 'robot': {
+        const q = Math.floor(t * 4) % 4;
+        P.alx = q % 2 ? 1.57 : 0; P.arx = q % 2 ? 0 : 1.57;
+        P.alz = q === 2 ? 1.2 : 0.1; P.arz = q === 0 ? -1.2 : -0.1;
+        P.hry = (q - 1.5) * 0.3; P.bry = q % 2 ? 0.25 : -0.25;
+        P.llx = q === 1 ? 0.4 : 0; P.lrx = q === 3 ? 0.4 : 0;
+        P.y = q % 2 ? 0.3 : 0;
+        return true;
+      }
+      case 'moonwalk': {
+        const ph = t * 4.5;
+        P.llx = sin(ph) * 0.35 - 0.15; P.lrx = -sin(ph) * 0.35 - 0.15;
+        P.oz = -Math.min(18, t * 7);                       // glide backward
+        P.brx = -0.12; P.hrx = -0.15;
+        P.arx = 2.6; P.arz = -0.55;                        // hand on the hat
+        P.alx = -0.3 + sin(ph) * 0.2; P.alz = 0.25;
+        P.y = abs(sin(ph)) * 0.25;
+        return true;
+      }
+      case 'worm': {
+        const k = ease(t / 0.3);
+        prone(P, h, 1.42 * k);
+        P.y += sin(t * 9) * 1.3 * k;
+        P.rx += sin(t * 9 + 1.2) * 0.14 * k;
+        P.alx = P.arx = 2.9 * k; P.llx = P.lrx = -0.3 * k + sin(t * 9 - 1) * 0.3 * k;
+        P.hrx = -0.9 * k;
+        return true;
+      }
+      case 'pushups': {
+        const k = ease(t / 0.3);
+        prone(P, h, 1.38 * k);
+        const u = (sin(t * 7) + 1) / 2;
+        P.y += (1 + u * 2.4) * k;
+        P.alx = P.arx = 1.57 * k; P.alz = 0.25; P.arz = -0.25;
+        P.hrx = -0.8 * k; P.llx = P.lrx = 0;
+        return true;
+      }
+      case 'flex': {
+        const pu = abs(sin(t * 4));
+        P.alz = 1.35; P.arz = -1.35; P.alx = 0.25; P.arx = 0.25;
+        P.brx = -0.08; P.hrx = -0.2; P.hry = sin(t * 2) * 0.4;
+        P.sx = P.sz = 1 + pu * 0.06; P.sy = 1 - pu * 0.03;
+        P.llz = 0.18; P.lrz = -0.18;
+        return true;
+      }
+      case 'salute': {
+        const k = ease(t / 0.3);
+        P.sy = 1 + 0.04 * k; P.arx = 2.45 * k; P.arz = -0.95 * k; P.ary = 0.4 * k;
+        P.alx = 0; P.alz = 0.05; P.hrx = -0.12 * k; P.brx = -0.06 * k;
+        if (t > 1.3) P.y = abs(sin((t - 1.3) * 8)) * 1.5;
+        return true;
+      }
+      case 'snowangel': {
+        const k = ease(t / 0.35);
+        supine(P, h, 1.45 * k);
+        const sw = (sin(t * 5) + 1) / 2;
+        P.alz = (0.3 + sw * 1.4) * k; P.arz = -P.alz;
+        P.llz = (0.1 + sw * 0.45) * k; P.lrz = -P.llz;
+        P.hrx = 0.3 * k;
+        return true;
+      }
+      case 'sprinkler': {
+        const step = Math.floor(t * 6) % 8;
+        P.ry = (step < 6 ? step * 0.14 : (8 - step) * 0.42) - 0.4;
+        P.alx = 2.6; P.alz = 0.9;                          // hand behind the head
+        P.arx = 1.57; P.arz = -0.1;                        // nozzle arm
+        P.y = (Math.floor(t * 6) % 2) * 0.35;
+        P.llx = 0.2; P.lrx = -0.2;
+        return true;
+      }
+      case 'phone': {
+        P.arx = 2.75; P.arz = -0.45; P.ary = 0.5;          // ball to the ear
+        P.alx = -0.3; P.alz = 0.55;                        // hand on the hip
+        P.hrz = 0.28; P.hrx = -0.1;
+        P.bry = sin(t * 1.5) * 0.3; P.y = abs(sin(t * 3)) * 0.4;
+        P.llx = sin(t * 3) * 0.2; P.lrx = -sin(t * 3) * 0.2;
+        return true;
+      }
+      case 'heart': {
+        P.alx = P.arx = 2.75; P.alz = 0.42; P.arz = -0.42;
+        P.brz = sin(t * 3) * 0.12; P.hrz = -sin(t * 3) * 0.1; P.hrx = -0.15;
+        P.y = abs(sin(t * 3)) * 0.6;
+        return true;
+      }
+      case 'dab': {
+        const on = (t % 1.1) < 0.75 ? 1 : 0;
+        const k = on ? ease(((t % 1.1)) / 0.12) : 0;
+        P.hrx = 0.5 * k; P.hry = -0.45 * k;
+        P.alx = 2.1 * k; P.alz = -0.7 * k;                  // bent arm across the face
+        P.arx = 1.9 * k; P.arz = -1.3 * k;                  // other arm out and up
+        P.brz = 0.12 * k; P.y = on ? 0 : abs(sin(t * 10)) * 0.8;
+        return true;
+      }
+      case 'groundspin': {
+        const k = ease(t / 0.3);
+        P.y = -1.4 * k; P.sy = 1 - 0.05 * k; P.brx = 0.55 * k; P.hrx = 0.3 * k;
+        P.arx = 1.0 * k + sin(t * 14) * 0.08; P.arz = -0.2;
+        P.alz = 0.6; P.alx = 0.4;
+        P.llx = 0.5 * k; P.lrx = -0.4 * k;
+        return true;
+      }
+      case 'leap': {
+        if (t < 0.9) {
+          const k = t / 0.9;
+          P.oz = 22 * ease(k); P.y = sin(k * PI) * 14 + k * 4;
+          P.alx = P.arx = 2.9; P.alz = 0.3; P.arz = -0.3; P.llx = -0.5; P.lrx = 0.4;
+        } else {
+          P.oz = 22; P.y = 4 + abs(sin((t - 0.9) * 7)) * 1.5;
+          P.alx = P.arx = 2.7 + sin(t * 9) * 0.15; P.alz = 0.4; P.arz = -0.4;
+        }
+        return true;
+      }
+      case 'sword': case 'sword2': {
+        const ph = t * 6 + (style === 'sword2' ? PI : 0);
+        const th = max(0, sin(ph));
+        P.llx = 0.55; P.lrx = -0.45; P.y = -0.6;
+        P.arx = 1.2 + th * 0.45; P.arz = -0.05; P.oz = th * 1.6;
+        P.alx = -0.6; P.alz = 0.9;
+        P.brx = 0.12 + th * 0.12; P.hrx = -0.15;
+        return true;
+      }
+      case 'bowl': {
+        if (t < 0.45) { const k = ease(t / 0.45); P.brx = 0.45 * k; P.arx = -1.3 * k; P.y = -0.8 * k; P.llx = 0.4 * k; P.lrx = -0.5 * k; }
+        else if (t < 0.75) { const k = ease((t - 0.45) / 0.3); P.brx = 0.45 + 0.25 * k; P.arx = -1.3 + 2.6 * k; P.y = -0.8 - 0.6 * k; P.llx = 0.6; P.lrx = -0.6; P.oz = 2 * k; }
+        else if (t < 1.5) { P.brx = 0.5; P.arx = 1.3; P.y = -1.2; P.llx = 0.6; P.lrx = -0.6; P.oz = 2; P.hrx = -0.4; }
+        else { const j = ((t - 1.5) % 0.4) / 0.4; P.y = sin(j * PI) * 3; P.alx = P.arx = 2.8; P.alz = 0.5; P.arz = -0.5; P.oz = 2; }
+        return true;
+      }
+      case 'grouphop': {
+        const j = (t % 0.5) / 0.5;
+        P.y = sin(j * PI) * 3.2;
+        P.alx = P.arx = 2.6; P.alz = 0.6; P.arz = -0.6;
+        P.sy = j < 0.1 || j > 0.9 ? 0.88 : 1.06;
+        return true;
+      }
+      default: return false;
+    }
+  }
+
   function sad(P, st, t) {
     const s = st.idle;
     P.brx = 0.25; P.hrx = 0.55; P.hry = sin(s * 0.9) * 0.18;
@@ -295,7 +443,22 @@
     void t;
   }
 
-  function celebrate(P, e, st, t, style) {
+  /** ground-lying helpers (prone = face down, supine = on the back); h = model height in voxels */
+  function prone(P, h, th) { P.rx = th; P.y = -(h * 0.42 - 3.6) * sin(th); }
+  function supine(P, h, th) { P.rx = -th; P.y = -(h * 0.42 - 3.4) * sin(th); }
+
+  /** celebration names (design 19.4 + round-7 client request): 6 species dances + 17 new */
+  A.CELEBRATIONS = ['hop', 'flap', 'spin', 'wag', 'flip', 'stomp',
+    'spike', 'robot', 'moonwalk', 'worm', 'pushups', 'flex', 'salute', 'snowangel', 'sprinkler', 'phone', 'heart', 'dab',
+    'groundspin', 'leap', 'sword', 'bowl', 'grouphop'];
+  /** which celebrations are group ones (teammates join; the renderer moves them, render-only) */
+  A.GROUP = { sword: 1, bowl: 3, grouphop: 4 };
+  /** celebrations that use a ball prop the renderer draws */
+  A.BALLPROP = { spike: 1, groundspin: 1, bowl: 1 };
+
+  function celebrate(P, e, st, t, style, h) {
+    h = h || 16;
+    if (newCele(P, t, style, h)) return;
     const c = t % 1.2, k = c / 1.2;
     switch (style) {
       case 'flap': {

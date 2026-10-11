@@ -150,7 +150,7 @@
   /** Pose record: offsets/rotations per bone. Radians; positive rx = limbs swing forward, body/head/root lean forward. */
   V.newPose = function () {
     return {
-      y: 0, sx: 1, sy: 1, sz: 1, rx: 0, ry: 0, rz: 0, cy: 8, // root lift, squash, whole-body tilt about height cy, extra yaw
+      y: 0, ox: 0, oz: 0, sx: 1, sy: 1, sz: 1, rx: 0, ry: 0, rz: 0, cy: 8, // root lift, squash, whole-body tilt about height cy, extra yaw
       bx: 0, by: 0, bz: 0, brx: 0, bry: 0, brz: 0,          // body
       hrx: 0, hry: 0, hrz: 0,                               // head
       alx: 0, aly: 0, alz: 0, arx: 0, ary: 0, arz: 0,        // arms
@@ -160,7 +160,7 @@
     };
   };
   V.resetPose = function (p) {
-    p.y = 0; p.sx = p.sy = p.sz = 1; p.rx = p.ry = p.rz = 0;
+    p.y = 0; p.ox = 0; p.oz = 0; p.sx = p.sy = p.sz = 1; p.rx = p.ry = p.rz = 0;
     p.bx = p.by = p.bz = p.brx = p.bry = p.brz = 0;
     p.hrx = p.hry = p.hrz = 0;
     p.alx = p.aly = p.alz = p.arx = p.ary = p.arz = 0;
@@ -195,7 +195,7 @@
     const bm = rig.boneM, pv = rig.piv;
     // root with whole-body tilt about height cy and squash
     const cy = P.cy;
-    _m.makeTranslation(0, P.y + cy, 0);
+    _m.makeTranslation(P.ox || 0, P.y + cy, -(P.oz || 0));
     _e.set(-P.rx, P.ry, P.rz, 'YXZ'); _q.setFromEuler(_e); _m2.makeRotationFromQuaternion(_q);
     _m.multiply(_m2);
     _m2.makeTranslation(0, -cy, 0); _m.multiply(_m2);

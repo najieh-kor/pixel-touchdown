@@ -257,7 +257,8 @@
     const mG = mode === 'rebuild' ? 1.5 : 1.0;
     const c = counts(L, tid, false);
     const qb = Q().player(L, t.dc.QB && t.dc.QB[0]);
-    const k = Q().player(L, t.dc.K && t.dc.K[0]);
+    // HUNT6-flow #4: the real kicker (best K on the roster), not dc.K[0] (can be a fallback non-kicker)
+    const k = Q().roster(L, tid).filter((x) => x.pos === 'K').sort((a, b) => b.ovr - a.ovr)[0] || null;
     const qbOk = !qb || qb.age >= 31 || qb.ovr < 72;
     const kOk = !k || k.ovr < 60;
     const r = rng(L, tid, 'draft');
@@ -270,6 +271,7 @@
       const so = Con().starterOvr(L, tid, p.pos);
       const have = c[p.pos] || 0, tpl = C.ROSTER.TEMPLATE[p.pos];
       if (so < 70) s += 6; else if (have < tpl) s += 3;
+      if (have < (C.ROSTER.NEED[p.pos] || 0)) s += 25;              // HUNT6-flow #4: below the position minimum first
       if (have >= tpl + 1) s -= 8;
       if (favored(t, p.pos)) s += 3;
       s += r.range(0, 3);

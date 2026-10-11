@@ -146,7 +146,7 @@
   function howControls() {
     return html`<div class="cols2 htx-ctl">
       <div class="ht-pics">
-        <figure class="ht-pic"><div class="ht-phone"><span class="ht-joy"><i></i></span><span class="ht-btns"><i>JUKE</i><i>SPIN</i><i>DIVE</i><i>SPRINT</i></span></div><figcaption><b>Touch</b> Drag on the left to run. Buttons on the right.</figcaption></figure>
+        <figure class="ht-pic"><div class="ht-phone"><span class="ht-joy"><i></i></span><span class="ht-btns"><i>JUKE</i><i>DIVE</i><i>SPRINT</i></span></div><figcaption><b>Touch</b> Drag on the left to run. Buttons on the right.</figcaption></figure>
         <figure class="ht-pic"><div class="ht-sling"><span class="ht-qb">${K().ic('football')}</span><span class="ht-pull"></span><span class="ht-target">${K().ic('target')}</span></div><figcaption><b>Throw</b> Pull back like a slingshot, let go to throw.</figcaption></figure>
         <figure class="ht-pic ht-pic-kbd"><div class="ht-keys">${['W', 'A', 'S', 'D'].map(kbd)}<span class="ht-space">${kbd('Space')}</span></div><figcaption><b>Keyboard</b> WASD to run, Space to hike and juke.</figcaption></figure>
       </div>
@@ -157,8 +157,7 @@
     ctlRow('Hike', 'HIKE button', 'Click HIKE', ['Space'], 'A'),
     ctlRow('Throw', 'Pull back + let go (or drag to the target with Point aim)', 'Drag + let go', ['1', '2', '3', '4'], 'Right stick, then RT'),
     ctlRow('Lob', 'Hold LOB', 'Right button', ['Shift'], 'Hold LT'),
-    ctlRow('Juke', 'JUKE', 'Click JUKE', ['Q'], 'A'),
-    ctlRow('Spin', 'SPIN', 'Click SPIN', ['R'], 'B'),
+    ctlRow('Juke', 'JUKE (dodges a hit; refills after a moment)', 'Click JUKE', ['Q'], 'A'),
     ctlRow('Dive', 'DIVE', 'Click DIVE', ['E'], 'X'),
     ctlRow('Star Play', 'Tap when green', 'Click', ['Space'], 'A'),
     ctlRow('Control player', 'Tap a defender', 'Click a defender', ['Tab'], 'LB'),
@@ -201,7 +200,7 @@
     step(1, 'Pick a play', 'Pick one of three play cards. The flame marks the coach’s pick. White lines are routes; yellow is the first read.', first ? dia(first.id, 'O') : ''),
     step(2, 'Hike', (touchDev() ? 'Tap HIKE.' : 'Click HIKE or press Space.') + ' On run plays the handoff is automatic.', run ? dia(run.id, 'O') : ''),
     step(3, 'Throw', 'Pull back like a slingshot and let go. Throw where the catcher is GOING. Hold LOB to throw over defenders.', ''),
-    step(4, 'Run and dodge', 'Steer with the joystick. JUKE, SPIN and DIVE to slip past tacklers.', ''),
+    step(4, 'Run and dodge', 'Steer with the joystick. JUKE to slip a tackle, DIVE for extra yards. Watch the stamina bar.', ''),
     step(5, '4th down', 'Go for it, punt or kick a field goal. The make chance shows on the button.', '')])}`, 'fill');
   }
   function howDefense() {

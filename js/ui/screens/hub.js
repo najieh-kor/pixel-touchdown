@@ -285,8 +285,18 @@
   function todoPanel(L, t) {
     const items = todoItems(L, t);
     if (!items.length) return '';
-    const goal = L.boss && L.boss.goal && L.boss.goal.txt;
-    return K().card(html`${K().h2('To do', goal ? html`<span class="chip chip-ink todo-goal" title="Boss goal">${K().ic('briefcase')} ${K().numify(goal)}</span>` : null, 'check')}
+    // HUNT6 ui-core #1: one inline text element (no flex gaps around the number); 'Goal met' with a check once the
+    // wins goal is reached; hidden after the regular season (playoff goals stay through the playoffs)
+    const g = L.boss && L.boss.goal;
+    const ord = PT.C.PHASE_ORDER || [];
+    const pi = ord.indexOf(L.phase), ri = ord.indexOf('REGULAR');
+    const winsGoal = g && (g.n === 1 || g.n === 2) ? (g.n === 1 ? 5 : 8) : 0;
+    const showGoal = g && g.txt && (pi <= ri || (!winsGoal && L.phase === 'PLAYOFFS'));
+    const met = showGoal && winsGoal && rec(L, L.userTid).w >= winsGoal;
+    const goalChip = !showGoal ? null : met
+      ? html`<span class="chip chip-ink todo-goal" title="Boss goal" data-testid="todo-goal">${K().ic('check')}<span>Goal met</span></span>`
+      : html`<span class="chip chip-ink todo-goal" title="Boss goal" data-testid="todo-goal">${K().ic('briefcase')}<span>${K().numify(g.txt)}</span></span>`;
+    return K().card(html`${K().h2('To do', goalChip, 'check')}
       <div class="todo">${items.map((x) => html`<button type="button" class="todo-i" data-action="go" data-to="${x.to}" data-testid="todo-${x.id}"><span class="todo-ic">${K().ic(x.icon)}</span><span class="grow">${x.txt}</span><span class="todo-go">${K().ic('play')}</span></button>`)}</div>`, 'hub-todo');
   }
   /** one-line latest news */

@@ -9,7 +9,7 @@
  *   presnap         A = snap · LB = audible
  *   qb              right stick = aim (points AT the target, push farther = longer) → RT press or let the stick go = throw
  *                   · B = throw away
- *   carrier/return  A = juke · B = spin · X = dive
+ *   carrier/return  A = juke · B / X = dive   (spin removed by client request; B re-mapped to dive)
  *   defense         A = GO (presnap) / Star Play (live) · LB = move the Star · RB = fast » · X = skip
  *   kick            left stick left/right = aim (±15°) · hold A = power (loops like the keyboard bar), let go = kick ·
  *                   Back = auto kick
@@ -144,8 +144,7 @@
       case 'qb': aimQB(gp, edge); if (edge(B.B)) Input.press('throwAway'); if (edge(B.A)) Input.press('snap'); break;
       case 'carrier': case 'return':
         if (edge(B.A)) Input.press('juke');
-        if (edge(B.B)) Input.press('spin');
-        if (edge(B.X)) Input.press('dive');
+        if (edge(B.B) || edge(B.X)) Input.press('dive');
         break;
       case 'defense':
         if (edge(B.A)) { Input.press('go'); Input.press('star'); }

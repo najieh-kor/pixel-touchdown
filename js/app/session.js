@@ -35,7 +35,7 @@
   function blankAction() {
     if (PT.Engine && PT.Engine.blankAction) return PT.Engine.blankAction();
     return { mx: 0, my: 0, sprint: false, aim: { on: false, tx: 0, ty: 0, pow: 0 }, throw: false, lob: false, pass: null,
-      snap: false, juke: false, dive: false, spin: false, star: false, starPick: null,
+      snap: false, juke: false, dive: false, star: false, starPick: null,
       kickAim: { on: false, dx: 0, dy: 0, pow: 0 }, kick: false };
   }
 
@@ -357,7 +357,8 @@
 
   function buildAction(f, snap) {
     const a = S.action;
-    a.throw = a.snap = a.juke = a.dive = a.spin = a.star = a.kick = a.ability = false;
+    a.throw = a.snap = a.juke = a.dive = a.star = a.kick = a.ability = false;
+    if ('spin' in a) a.spin = false;                     // spin move removed (client): never sent
     a.pass = null; a.starPick = null;
     // Star ability (STAR_ABILITIES 3): STAR button / G / gamepad Y. Offense can arm it pre-snap (receivers) too.
     // A deliberate press is QUEUED (≤ 0.9 s real) and re-sent until the engine acknowledges it (ability / abilityArmed):
@@ -377,11 +378,11 @@
     }
     if (S.mode !== 'qb') a.aim.on = false;
     if (S.mode !== 'kick') a.kickAim.on = false;
-    // juke / spin / dive pressed during the dropback or while the ball is in the air: hold them 0.5 s and apply
+    // juke / dive pressed during the dropback or while the ball is in the air: hold them 0.5 s and apply
     // them on the catch (the HUD buffers its taps the same way; this covers keyboard / gamepad)
     const cb = ctlEnt(snap), hasBall = !!(cb && cb.ball);
-    if ((S.mode === 'qb' || S.mode === 'off' || (S.mode === 'carrier' && !hasBall)) && (f.juke || f.spin || f.dive)) {
-      S.moveBuf = { juke: f.juke, spin: f.spin, dive: f.dive, t: now() };
+    if ((S.mode === 'qb' || S.mode === 'off' || (S.mode === 'carrier' && !hasBall)) && (f.juke || f.dive)) {
+      S.moveBuf = { juke: f.juke, dive: f.dive, t: now() };
     }
     switch (S.mode) {
       case 'presnap': a.snap = f.snap || f.go; break;
@@ -401,11 +402,11 @@
         break;
       }
       case 'carrier': {
-        a.juke = f.juke; a.dive = f.dive; a.spin = f.spin;
+        a.juke = f.juke; a.dive = f.dive;
         const mb = S.moveBuf;
         if (mb && now() - mb.t > 500) S.moveBuf = null;                    // too old
         else if (mb && hasBall) {                                           // the catch: apply once
-          a.juke = a.juke || !!mb.juke; a.spin = a.spin || !!mb.spin; a.dive = a.dive || !!mb.dive;
+          a.juke = a.juke || !!mb.juke; a.dive = a.dive || !!mb.dive;
           S.moveBuf = null;
         }
         break;
@@ -667,7 +668,7 @@
       if (!S || S.paused) return;
       const g = S.game;
       if (S.over) { S.endT += dt; if (S.endT >= 2.2 && !S.finishing) finish(); return; }
-      if (S.pending) return;
+      if (S.pending) { if (g.tickDead) g.tickDead(dt); return; }   // WP3 HUNT6 #1: the clock keeps visibly running while a tray is open
       const n = g.needs();
       const nk = n ? n.k + (n.side || '') : '';
       if (nk !== S.needKey) { S.needKey = nk; S.tNeed = 0; S.needSeq++; } else S.tNeed += dt;

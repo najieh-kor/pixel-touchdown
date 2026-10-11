@@ -25,6 +25,7 @@
   K.autoPct = function (G, ki, dist) {
     const T = G.T, kck = K.kck(G, ki), w = (G.cfg.weather || {}).k;
     let p = T.FG_P0 - Math.max(0, dist - 25) * (T.FG_PD + (90 - kck) * T.FG_PK) - K.windMph(G) * T.FG_WIND;
+    p -= Math.max(0, dist - T.FG_KNEE) * T.FG_PD_LONG;                         // HUNT6 #3: long kicks get hard fast
     if (ki.t.wild_leg) p -= T.FG_WILD;
     if (w === 'rain' || w === 'snow') p *= T.FG_WET;
     return PT.Util.clamp(p, 0.05, 0.99);

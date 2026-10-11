@@ -86,8 +86,12 @@
   const COLS = [{ k: 'name', label: 'Name', cls: 'c-name' }, { k: 'pos', label: 'Pos', cls: 'c-pos' }, { k: 'stars', label: 'Stars', cls: 'c-stars' },
     { k: 'age', label: 'Age', cls: 'c-age c-c c-hs' }, { k: 'ask', label: 'Asks', cls: 'c-ask' }, { k: 'int', label: 'Chance', cls: 'c-int' }];
 
-  function rowOf(lg, x, offered) {
+  function rowOf(lg, x, offered, m) {
     const p = x.p, f = faceOf(x.score != null ? x.score : 95);
+    // HUNT6-flow #2: in season he signs at his Ask (no odds): say that instead of an offseason chance meter
+    if (m === 'sign') return { id: p.id, testid: 'fa-row-' + p.id, sel: mk.sel === p.id,
+      cells: { name: FK().name(p), pos: K().posChip(p.pos), stars: FK().stars(p.ovr), age: html`<span class="num">${p.age}</span>`,
+        ask: html`<span class="fl-ask"><b class="num">${D().money(x.ask.sal)}</b><span class="dim">${x.ask.yrs}y</span></span>`, int: FK().tag('At ask', 'green') } };
     return { id: p.id, testid: 'fa-row-' + p.id, sel: mk.sel === p.id, cls: offered ? 'sent' : '',
       cells: { name: FK().name(p), pos: K().posChip(p.pos), stars: FK().stars(p.ovr), age: html`<span class="num">${p.age}</span>`,
         ask: html`<span class="fl-ask"><b class="num">${D().money(x.ask.sal)}</b><span class="dim">${x.ask.yrs}y</span></span>`,
@@ -135,7 +139,7 @@
     const filter = FK().filter({ value: mk.filter, title: 'Position',
       list: [{ id: '', label: 'All' }].concat(PT.C.POS.map((pos) => ({ id: pos, label: pos, dot: short.indexOf(pos) >= 0, title: K().posLabel(pos) + (short.indexOf(pos) >= 0 ? ' (need)' : '') }))),
       testid: (id) => 'fa-filter-' + (id || 'all'), pick: (v) => setFilter(v) });
-    const table = FK().table({ key: 'fa', cols: COLS, rows: rowsX.map((x) => rowOf(lg, x, !!offered[x.p.id])), tools: filter, cls: 'fl-t-fa', empty: html`<p class="fl-empty">No free agents.</p>` });
+    const table = FK().table({ key: 'fa', cols: COLS, rows: rowsX.map((x) => rowOf(lg, x, !!offered[x.p.id], m)), tools: filter, cls: 'fl-t-fa', empty: html`<p class="fl-empty">No free agents.</p>` });
     const tip = m === 'offer' ? FK().tip('fl-market', 'Send offers, then Finish Market.') : '';
     const body = html`${header(lg, m)}${tip}<div class="fl-main">${table}${detail(lg, selX, m)}</div>`;
     let foot;
