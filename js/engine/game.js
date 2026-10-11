@@ -82,7 +82,7 @@
       hist: [[], []], histP: [[], []], dhist: [[], []], typeCount: [{}, {}], offPlays: [0, 0], teamPlays: [0, 0],
       hurry: [false, false], aiHurry: [false, false], flipNext: false, autoDef: !!(cfg.settings && cfg.settings.autoDef),
       ctl: -1, apTick: -9, kickReq: false, kickAimSaved: 0, kickPowSaved: 0, selO: null, selD: null, fourthDone: false, kickWait: null, tryTwo: false, patChosen: false, waitSnap: false,
-      canOnside: false, onsideReq: false, deepReq: false, deadEl: 0, simming: false, pendForce: false, rescue: false, untimed: false, untimedNext: false, close: false, playNo: 0, driveStart: 0,
+      canOnside: false, onsideReq: false, deepReq: false, deadEl: 0, simming: false, pendForce: false, warnPend: false, rescue: false, untimed: false, untimedNext: false, close: false, playNo: 0, driveStart: 0,
       ot: { poss: [0, 0], had: [false, false], done: [false, false] }, star: { idx: -1, ring: 'none', t: 0, win: 0.4, left: 0, superJump: false, whiffD: false },
       dec: { act: 'none', tx: 0, ty: 0, lob: false, mx: 0, my: 0, tgt: -1 }, tmpFl: { t: 0, apex: 0, d: 0 },
       sitCache: { tos: [0, 0] }, res: { k: '', team: 0, y: 0, oob: false, good: false }, apAct: blankAction(), lastAct: blankAction(),
@@ -167,6 +167,33 @@
       if (G.poss !== userIdx) aiOffenseDecide();
     }
 
+    /**
+     * The dead-ball clock between plays (real game time). Returns 0 (nothing changed), 1 (the shown clock moved / the 1:00 warning
+     * stopped it) or 2 (the period ended at 0:00 — the open tray must close and reopen). `tray`: called from tickDead
+     * while a decision screen is open; a 4th-down / PAT / kick-aim screen holds the shown clock at 0:01 (only the play
+     * call tray can run it out).
+     */
+    function deadAdvance(dt, tray) {
+      if (G.over || G.phase === 'LIVE' || G.phase === 'KICK') return 0;
+      if (!(G.pend > 0)) { G.deadEl = 0; return 0; }
+      const real = RU.realClock(G) && !G.pendForce;
+      let cap = G.pend;
+      if (tray && real && !G.untimed) { const n = game.needs(); if (!n || n.k !== 'PLAYCALL') cap = Math.min(cap, Math.max(G.deadEl || 0, G.clk - 0.5)); }
+      const d = Math.min(cap, (G.deadEl || 0) + dt);
+      const moved = d !== G.deadEl ? 1 : 0;
+      G.deadEl = d;
+      if (!real) return moved;
+      // the 1:00 warning: the shown clock reached it during the dead ball → stop there (RU.warnAtWhistle set G.warnPend)
+      if (G.warnPend && G.deadEl >= G.pend - 1e-9) { RU.warnFire(G); return 1; }   // the tray stays open at 1:00
+      // the clock ran out between plays (nobody snapped in time) → the period ends
+      if ((G.phase === 'CALL' || G.phase === 'PRESNAP') && !G.untimed && G.clk > 0 && G.deadEl >= G.clk - 1e-9) {
+        G.pend = G.clk; G.deadEl = G.clk;
+        if (RU.applyPending(G)) RU.periodEnd(G);
+        return 2;
+      }
+      return moved;
+    }
+
     function aiOffenseDecide() {
       const s = RU.situation(G, {}), left = RU.clockLeft(G);
       const lead = G.score[G.poss] - G.score[1 - G.poss];
@@ -174,7 +201,7 @@
         // victory formation
         const oppTo = G.tos[1 - G.poss];
         // never kneel inside the own 3 (a safety) — HUNT3 #4
-        if (lead > 0 && G.q >= 4 && left <= 40 * (5 - G.down) - 34 * oppTo && left > 0 && s.toGoal < 97) { G.selO = PT.Data.Playbook.byId('kneel'); }
+        if (lead > 0 && G.q >= 4 && left > 0 && s.toGoal < 97 && RU.canKneelOut(G, left, oppTo)) { G.selO = PT.Data.Playbook.byId('kneel'); }
         else if (G.q === 2 && left <= RU.warnT(G) / 2 && s.toGoal > 65 && s.toGoal < 97 && lead >= 0) G.selO = PT.Data.Playbook.byId('kneel');
         else if (G.down < 4 && RU.lateFG(G)) return startFG('fg', null);   // end-of-half FG on an early down
         else if (G.down === 4) {
@@ -961,9 +988,9 @@
        * PAT / kick aim). The Session doesn't step the game then, so without this the clock froze and dropped on the HIKE.
        */
       tickDead: function (dt) {
-        if (G.over || G.phase === 'LIVE' || G.phase === 'KICK' || !(G.pend > 0)) return;
-        const d = Math.min(G.pend, G.clk, (G.deadEl || 0) + dt);           // real time; capped at 0:00 (the period ends on the next step)
-        if (d !== G.deadEl) { G.deadEl = d; E.Snapshot.write(G); }
+        const r = deadAdvance(dt, true);
+        if (r) E.Snapshot.write(G);
+        return r === 2;                     // true: the quarter/half/game ended at 0:00 → the Session closes the tray
       },
       /** Change the user's call once per play in PRESNAP: a play id / 'hot_star' (offense) or a defense call id. */
       audible: function (id) { if (userIdx < 0) return false; return doAudible(G.userSide(), id, false); },
@@ -1026,6 +1053,7 @@
         G.tos[ti]--;
         // the clock stops where the scoreboard shows it (never jumps up): pending runoff = what has visibly run
         G.pend = Math.min(G.pend, G.deadEl || 0);
+        G.warnPend = false;                                // stopped before 1:00: the warning waits for the next live clock
         if (G.clk - G.pend > 0) G.rescue = false;          // time is back on the clock: normal play calling
         em.emit('timeout', { tid: tid, auto: false, left: G.tos[ti] });
         E.Snapshot.write(G);                               // HUNT6 #1: pips + clock refresh while the tray stays open
@@ -1052,13 +1080,8 @@
         if (G.drill) G.drill.t += dt;
         for (let i = 0; i < 14; i++) { const e = G.ents[i]; e.px = e.x; e.py = e.y; e.pz = e.z; }
         G.ball.px = G.ball.x; G.ball.py = G.ball.y; G.ball.pz = G.ball.z; G.ball.tp = false;
-        // HUNT4 #4: the pending runoff visibly runs down between plays (display only; it is applied at the snap)
-        if (G.phase !== 'LIVE' && G.phase !== 'KICK' && G.pend > 0) G.deadEl = Math.min(G.pend, (G.deadEl || 0) + dt); else if (G.pend <= 0) G.deadEl = 0;
-        // real clock: the clock ran out between plays (nobody snapped in time) → the period ends
-        if (RU.realClock(G) && (G.phase === 'CALL' || G.phase === 'PRESNAP') && !G.untimed && G.pend > 0 && G.clk > 0 && G.deadEl >= G.clk) {
-          G.pend = G.clk; G.deadEl = G.clk;
-          if (RU.applyPending(G) && RU.periodEnd(G)) { E.Snapshot.write(G); return; }
-        }
+        // HUNT4 #4 / real dead clock: the pending runoff runs down between plays (1:00 warning and 0:00 handled there)
+        if (deadAdvance(dt, false) === 2 && G.phase !== 'CALL' && G.phase !== 'PRESNAP') { E.Snapshot.write(G); return; }
         G.pt += dt;
         switch (G.phase) {
           case 'CALL': stepCall(a, dt); break;

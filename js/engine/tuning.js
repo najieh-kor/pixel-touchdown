@@ -149,7 +149,7 @@
     AB_MAGNET_REACH: 1.2, AB_MAGNET_WIN: 1.6, AB_TURBO_SPD: 0.15, AB_TURBO_ACC: 0.5, AB_LASER_SIG: 0.4, AB_LASER_SPD: 0.2, AB_LASER_REACT: 0.15,
     AI_AUDIBLE: [0, 0.2, 0.312, 0.35], AI_AUDIBLE_BAD: -0.5, DEF_AUTO_GO: [0, 0, 0, 0],   // client pass 5: never auto-GO for the user's defense (only Auto Defense)
     AB_DOZER_SPD: 0.2, AB_DOZER_TKL: 1.5, AB_LOCK_INT: 1.8, AB_WARN_T: 0.8, AB_AI_USE: 0.8,
-    AI_SKILL: [1, 3, 3.7, 4.35], PCOUNTER: [0.20, 0.40, 0.55, 0.60], STAR_WIN: [0.90, 0.60, 0.487, 0.45],   // decision-time pass: +50%
+    AI_SKILL: [1, 3, 3.7, 4.2], PCOUNTER: [0.20, 0.40, 0.55, 0.60], STAR_WIN: [0.90, 0.60, 0.487, 0.45],   // decision-time pass: +50%
     USER_FUM: [0.7, 1, 1, 1], USER_INJ: [0.6, 1, 1.15, 1.2],
     STAR_NEAR: 3.0, STAR_AIR: 4.0, STAR_CHASE: 5.0, STAR_CLOSE_V: 2.0, STAR_SUPER_BRK: 0.25, STAR_SUPER_REACH: 1.5, STAR_WHIFF_BRK: 0.20, STAR_JUMP_D: 20, STAR_JUMP_PICK: 0.10,
     STAR_WHIFF_D: 10, STAR_SLOWMO: 0.5,

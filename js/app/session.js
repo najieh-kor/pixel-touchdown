@@ -668,7 +668,11 @@
       if (!S || S.paused) return;
       const g = S.game;
       if (S.over) { S.endT += dt; if (S.endT >= 2.2 && !S.finishing) finish(); return; }
-      if (S.pending) { if (g.tickDead) g.tickDead(dt); return; }   // WP3 HUNT6 #1: the clock keeps visibly running while a tray is open
+      if (S.pending) {                                 // WP3 HUNT6 #1: the clock keeps visibly running while a tray is open
+        // WP3 final check #2: the period ended at 0:00 with the tray open → close it (it reopens with the new situation)
+        if (g.tickDead && g.tickDead(dt) && S.pending === 'PLAYCALL') { const PC = U().PlayCall; if (PC && PC.close) PC.close(); if (g.isOver && g.isOver() && !S.over) onOver(g.box()); }
+        return;
+      }
       const n = g.needs();
       const nk = n ? n.k + (n.side || '') : '';
       if (nk !== S.needKey) { S.needKey = nk; S.tNeed = 0; S.needSeq++; } else S.tNeed += dt;

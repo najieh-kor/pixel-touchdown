@@ -90,7 +90,7 @@
   /** Apply the pending runoff. Returns true if the period clock expired. */
   RU.applyPending = function (G) {
     if (RU.realClock(G) && !G.pendForce) G.pend = Math.min(G.pend, G.deadEl || 0);   // charge what has visibly run
-    G.pendForce = false; G.deadEl = 0;
+    G.pendForce = false; G.deadEl = 0; G.warnPend = false;
     if (G.pend <= 0) return G.clk <= 0;
     const before = G.clk;
     G.clk -= G.pend;
@@ -115,12 +115,47 @@
       P.clk0 = -1;
       return;
     }
+    if ((G.q === 2 || G.q === 4) && G.clk > W && G.clk - G.pend <= W && RU.realClock(G) && !G.pendForce) {
+      // real clock (final check #1): the runoff is capped at the warning and runs down visibly; RU.warnFire stops it at 1:00
+      G.pend = G.clk - W; G.warnPend = true;
+      return;
+    }
     if ((G.q === 2 || G.q === 4) && G.clk > W && G.clk - G.pend <= W) {
       PT.Box.team(G.box, G.tids[G.pendTeam], 'top', Math.round(G.clk - W));
       G.clk = W; G.pend = 0;
       G.em.emit('minuteWarning', { q: G.q, t: W });
       G.em.emit('twoMinute', { q: G.q, t: W });          // alias (older HUD)
     }
+  };
+
+  /** Real clock: the shown clock reached the warning between plays → the clock stops at 1:00 (the runoff is charged). */
+  RU.warnFire = function (G) {
+    const W = RU.warnT(G);
+    G.deadEl = G.pend;
+    RU.applyPending(G);
+    if (G.clk > 0) G.clk = W;                     // (the charged runoff was exactly clk − W; no float drift)
+    G.em.emit('minuteWarning', { q: G.q, t: W });
+    G.em.emit('twoMinute', { q: G.q, t: W });
+  };
+
+  /**
+   * Victory formation (final check #3): can the leading offense kneel out `left` seconds? Each kneel burns ~0.7 s live, then
+   * the 40 s runoff — unless the 1:00 warning stops the clock first (free for the defense) or the defense calls a timeout.
+   * The kneel on 4th down must end it (else it is a turnover on downs).
+   */
+  RU.canKneelOut = function (G, left, oppTo) {
+    const W = RU.warnT(G), T = G.T;
+    let t = left, to = oppTo, warnUp = (G.q === 2 || G.q === 4) && left > W;
+    for (let d = G.down; d <= 4; d++) {
+      t -= 0.7;
+      if (t <= 0) return true;
+      if (d === 4) return false;
+      if (warnUp && t > W && t - T.RUN_KNEEL <= W) { t = W; warnUp = false; continue; }
+      if (to > 0) { to--; continue; }
+      t -= T.RUN_KNEEL;
+      if (t <= 0) return true;
+    }
+    return false;
   };
 
   /**
@@ -138,7 +173,7 @@
 
   /** AI timeout logic (design 8.3) after a play whose runoff is R. Returns the (possibly reduced) runoff. */
   RU.aiTimeout = function (G, R, nextPoss) {
-    if (R <= G.T.RUN_STOP) return R;
+    if (R <= G.T.RUN_STOP || G.clk <= 0) return R;                          // final check #3: no timeout at 0:00
     if (G.P && G.P.kind === 'kneel') return R;                               // HUNT6 #2: never stop the clock on your own kneel
     const left = G.clk - R;
     const W = RU.warnT(G), P = G.P;

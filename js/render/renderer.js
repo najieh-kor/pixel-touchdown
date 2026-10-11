@@ -334,7 +334,7 @@
       rigs: new Map(), fallback: [], st: [], pose: [], fa: new Float32Array(16), faInit: new Uint8Array(16),
       head: [], hand: [], lastFx: 0, flash: 0, slow: 0, side: null, sideCheer: [0, 0], sideSad: [0, 0],
       celePrev: new Uint8Array(16), celeFa: new Float32Array(16), proxy: [], vx: new Float32Array(16), vy: new Float32Array(16),
-      cele: { active: false, idx: -1, style: '', t: 0, k: 0, n: 0, members: [-1, -1, -1, -1], slots: [{}, {}, {}, {}] },
+      cele: { active: false, idx: -1, style: '', t: 0, k: 0, n: 0, members: [-1, -1, -1, -1], slots: [{}, {}, {}, {}], zones: [] },
       mini: { pid: -1, idx: -1, t: -1, style: '' }, celeBallOn: false, cbx: 0, cby: 0, cbz: 0, cbyaw: 0
     };
     // lights
@@ -359,7 +359,7 @@
       g.fallback[ti] = makeRig({ sp: 'dog', num: 0, cs: 0, look: {} }, g.kits[ti], q);
     });
     for (let i = 0; i < 16; i++) {
-      g.proxy.push({ an: 'idle', at: 0, cele: null, spd: 0, z: 0, ball: false, x: 0, y: 0, px: 0, py: 0, vx: 0, vy: 0, vfa: null, vk: 0 });
+      g.proxy.push({ an: 'idle', at: 0, cele: null, spd: 0, z: 0, ball: false, x: 0, y: 0, px: 0, py: 0, vx: 0, vy: 0, vfa: null, vk: 0, vmove: false });
       g.st.push(R.Animate.state()); g.pose.push(R.Voxel.newPose());
       g.head.push(new T.Vector3()); g.hand.push(new T.Vector3());
     }
@@ -522,6 +522,56 @@
     return base;
   }
 
+  /** body footprint radius in yd (visual, by size class; L animals need more room) */
+  function fpOf(e) { const z = (PT.C.SIZES[e.sz] || PT.C.SIZES.M).scale; return 0.95 * z + (z > 1.1 ? 0.2 : 0); }
+
+  /**
+   * Stage a group celebration: size-aware slots for the joiners, clamped to the field, plus "keep-out" zones that
+   * push every other body (both teams) out of the way, render-only. Returns false (→ solo) when a downed opponent
+   * lies inside the area, since a lying body can't be moved cleanly.
+   */
+  function layoutGroup(s, i, style, need, fa, mates) {
+    const g = G, C = g.cele, ents = s.ents, sc = ents[i];
+    const fx = -Math.sin(fa), fy = Math.cos(fa), rx = Math.cos(fa), ry = Math.sin(fa);
+    const fpS = fpOf(sc);
+    let fpM = 0;
+    for (let m = 0; m < need; m++) fpM = Math.max(fpM, fpOf(ents[mates[m][1]]));
+    const zones = C.zones; zones.length = 0;
+    const clampX = (x) => Math.max(1.2, Math.min(52.1, x)), clampY = (y) => Math.max(0.8, Math.min(119.2, y));
+    if (style === 'sword') {
+      const d = fpS + fpM + 0.9;
+      const sl = C.slots[0]; sl.x = clampX(sc.x + fx * d); sl.y = clampY(sc.y + fy * d); sl.fa = fa + Math.PI;
+      zones.push({ x: (sc.x + sl.x) / 2, y: (sc.y + sl.y) / 2, r: d / 2 + Math.max(fpS, fpM) + 0.6 });
+    } else if (style === 'bowl') {
+      const lane = 5 + fpS, lat = 2 * fpM + 0.35;
+      [[lane, 0], [lane + 2 * fpM + 0.3, -lat / 2], [lane + 2 * fpM + 0.3, lat / 2]].forEach((o, m) => {
+        const sl = C.slots[m]; sl.x = clampX(sc.x + fx * o[0] + rx * o[1]); sl.y = clampY(sc.y + fy * o[0] + ry * o[1]); sl.fa = fa + Math.PI;
+      });
+      zones.push({ x: sc.x, y: sc.y, r: fpS + 1.0 });
+      for (let k = 1; k <= 3; k++) zones.push({ x: sc.x + fx * lane * k / 3.3, y: sc.y + fy * lane * k / 3.3, r: 1.0 });   // the ball's lane
+      zones.push({ x: sc.x + fx * (lane + fpM), y: sc.y + fy * (lane + fpM), r: lat / 2 + fpM + 1.2 });
+    } else {
+      // ring: far enough that neighbours don't overlap (chord ≥ 2·fp) and clear of the scorer
+      const R = Math.max(fpS + fpM + 0.45, (fpM + 0.25) / Math.sin(Math.PI / need), 2.3);
+      for (let m = 0; m < need; m++) {
+        const a = m / need * Math.PI * 2 + 0.6, ox = Math.cos(a) * R, oy = Math.sin(a) * R;
+        const sl = C.slots[m]; sl.x = clampX(sc.x + ox); sl.y = clampY(sc.y + oy); sl.fa = Math.atan2(sl.x - sc.x, -(sl.y - sc.y));
+      }
+      zones.push({ x: sc.x, y: sc.y, r: R + fpM + 0.5 });
+    }
+    // a downed opponent inside the area → no group celebration
+    for (let j = 0; j < ents.length && j < 16; j++) {
+      if (j === i || ents[j].tm === sc.tm) continue;
+      const e = ents[j];
+      if (e.an !== 'down' && e.an !== 'tackled' && e.an !== 'dive') continue;
+      for (let z = 0; z < zones.length; z++) if (Math.hypot(e.x - zones[z].x, e.y - zones[z].y) < zones[z].r + fpOf(e)) return false;
+    }
+    C.active = true; C.idx = i; C.style = style; C.t = 0; C.k = 0; C.n = need;
+    for (let m = 0; m < need; m++) C.members[m] = mates[m][1];
+    for (let m = need; m < C.members.length; m++) C.members[m] = -1;
+    return true;
+  }
+
   function celeDirector(s, alpha, dt) {
     const g = G, ents = s.ents, C = g.cele;
     s.wxk = g.wx.k;
@@ -539,8 +589,8 @@
         }
         mates.sort((a, b) => a[0] - b[0]);
         let style = pickCele(rig, ents[i].pid, s, C.active ? 0 : mates.length);
-        const need = R.Animate.GROUP[style] || 0;
-        if (need && (C.active || mates.length < need)) style = rig.info.dance || 'hop';
+        let need = R.Animate.GROUP[style] || 0;
+        if (need && (C.active || mates.length < need)) { style = rig.info.dance || 'hop'; need = 0; }
         g.st[i].cele = style;
         // face the camera (fans + viewer); sword / bowling play out sideways toward the field centre; the leap keeps
         // heading for the stands. Render-only: gameplay facing is untouched.
@@ -550,20 +600,10 @@
         if (style === 'leap') cfa = ents[i].fa || 0;
         else if (style === 'sword' || style === 'bowl') cfa = -lat * Math.PI / 2;
         g.celeFa[i] = cfa;
-        if (need) {
-          C.active = true; C.idx = i; C.style = style; C.t = 0; C.k = 0; C.n = need;
-          const fa = cfa, fx = -Math.sin(fa), fy = Math.cos(fa), rx = Math.cos(fa), ry = Math.sin(fa);
-          for (let m = 0; m < need; m++) {
-            const j = mates[m][1], sl = C.slots[m];
-            C.members[m] = j;
-            let ox = 0, oy = 0, sfa = fa + Math.PI;
-            if (style === 'sword') { ox = fx * 1.9; oy = fy * 1.9; }
-            else if (style === 'bowl') { const row = m === 0 ? 5 : 6, lat = m === 0 ? 0 : (m === 1 ? -0.95 : 0.95); ox = fx * row + rx * lat; oy = fy * row + ry * lat; }
-            else { const a = m / need * Math.PI * 2 + 0.6; ox = Math.cos(a) * 1.8; oy = Math.sin(a) * 1.8; sfa = Math.atan2(ox, -oy); }
-            sl.x = ents[i].x + ox; sl.y = ents[i].y + oy; sl.fa = sfa;
-          }
-          for (let m = need; m < C.members.length; m++) C.members[m] = -1;
-        } else if (style === 'leap' || style === 'moonwalk') { /* solo travelling celebrations use pose root offsets */ }
+        if (need && mates.length >= need && !layoutGroup(s, i, style, need, cfa, mates)) {
+          style = rig.info.dance || 'hop';                       // can't stage it cleanly → solo
+          g.st[i].cele = style; g.celeFa[i] = faceCam;
+        }
       }
       if (!on && g.celePrev[i]) g.st[i].cele = null;
       g.celePrev[i] = on;
@@ -593,14 +633,34 @@
     const pr = g.proxy[i];
     if (M.idx === i && M.t >= 0 && (e.an === 'idle' || e.an === 'stance' || e.an === 'run' || e.an === 'down' || e.an === 'tackle')) {
       pr.an = 'celebrate'; pr.at = M.t; pr.cele = M.style; pr.spd = 0; pr.z = 0; pr.ball = false;
-      pr.px = pr.x = x; pr.py = pr.y = y; pr.vx = x; pr.vy = y; pr.vfa = (G.udir || 1) > 0 ? Math.PI : 0; pr.vk = Math.min(1, M.t * 3);
+      pr.px = pr.x = x; pr.py = pr.y = y; pr.vx = x; pr.vy = y; pr.vfa = (G.udir || 1) > 0 ? Math.PI : 0; pr.vk = Math.min(1, M.t * 3); pr.vmove = true;
       return pr;
     }
     if (!C.active) return null;
+    let member = false;
+    for (let m = 0; m < C.members.length; m++) if (C.members[m] === i) member = true;
+    if (!member && i !== C.idx) {
+      // keep-out: ease this body (either team) to the edge of any celebration zone it stands in (render-only)
+      let px = x, py = y, moved = false;
+      const fp = fpOf(e);
+      for (let z = 0; z < C.zones.length; z++) {
+        const zn = C.zones[z], dx = px - zn.x, dy = py - zn.y, d = Math.hypot(dx, dy), need = zn.r + fp;
+        if (d < need) {
+          const ux = d > 0.05 ? dx / d : (e.tm === G.last.ents[C.idx].tm ? 1 : -1), uy = d > 0.05 ? dy / d : 0;
+          px = zn.x + ux * need; py = zn.y + uy * need; moved = true;
+        }
+      }
+      if (!moved) return null;
+      const k = C.k * C.k * (3 - 2 * C.k);
+      pr.an = e.an; pr.at = e.at; pr.spd = 0; pr.z = e.z || 0; pr.ball = e.ball; pr.cele = null;
+      pr.vx = x + (px - x) * k; pr.vy = y + (py - y) * k; pr.vfa = null; pr.vmove = true;
+      pr.px = pr.x = pr.vx; pr.py = pr.y = pr.vy;
+      return pr;
+    }
     for (let m = 0; m < C.members.length; m++) {
       if (C.members[m] !== i) continue;
       const sl = C.slots[m], k = C.k * C.k * (3 - 2 * C.k);
-      pr.vx = x + (sl.x - x) * k; pr.vy = y + (sl.y - y) * k; pr.vfa = sl.fa; pr.vk = k;
+      pr.vx = x + (sl.x - x) * k; pr.vy = y + (sl.y - y) * k; pr.vfa = sl.fa; pr.vk = k; pr.vmove = true;
       pr.px = pr.x = pr.vx; pr.py = pr.y = pr.vy; pr.z = 0; pr.spd = 0; pr.ball = false;
       const t = C.t;
       if (C.style === 'sword') { pr.an = 'celebrate'; pr.cele = 'sword2'; pr.at = t; }
@@ -630,7 +690,7 @@
       else g.fa[i] = lerpAngle(g.fa[i], e.fa || 0, fk);
       if (e.an === 'celebrate' && st.cele && g.celeFa) g.fa[i] = lerpAngle(g.fa[i], g.celeFa[i], Math.min(1, dt * 8));
       const pr = celeProxy(i, e, x, y);
-      if (pr && pr.vfa != null) { x = pr.vx; y = pr.vy; g.fa[i] = lerpAngle(g.fa[i], pr.vfa, Math.min(1, fk * 2 * (pr.vk || 1))); }
+      if (pr && pr.vmove) { x = pr.vx; y = pr.vy; if (pr.vfa != null) g.fa[i] = lerpAngle(g.fa[i], pr.vfa, Math.min(1, fk * 2 * (pr.vk || 1))); }
       R.Animate.pose(pose, pr || e, st, rig.info, dt);
       const sc = rig.scale;
       _q.setFromAxisAngle(_v.set(0, 1, 0), g.fa[i]);
